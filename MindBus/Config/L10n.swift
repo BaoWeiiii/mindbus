@@ -155,13 +155,6 @@ struct Strings {
     let completeSanctuary: (Int) -> String
     let completeSanctuaryOutlived: (Int, Int) -> String
     // Minds 单语化内容模板(2026-08-13:GUI 不再直显 md 英文行)
-    let mSanctuaryHead: (Int, Int, String, Int) -> String
-    let mSanctuaryRescued: (Int) -> String
-    let mSanctuaryOutlived: (Int) -> String
-    let mSanctuaryMilestones: (String) -> String
-    let mSanctuaryMileConv: (Int) -> String
-    let mSanctuaryMileChars: (String) -> String
-    let mSanctuaryCollected: (String) -> String
     let mRhythmPeak: (String, Int, Int, Int) -> String
     let mRhythmBusiest: (String, Int, Int) -> String
     let mRhythmJuggle: (String, Int, String) -> String
@@ -210,7 +203,6 @@ struct Strings {
     let heroConversations: String
     let heroVaultCopies: String
     let heroLibraryDays: String
-    let heroRescued: String
     let mindsSecDelegation: String
     let mindsDelegationHint: String
     /// 委托动词计数:%d=次数, %d=对话场数
@@ -534,13 +526,6 @@ struct Strings {
         completeSanctuaryOngoing: { "已收录 \($0) 段对话,还在继续——它们从此有了第二个家" },
         completeSanctuary: { "已收录 \($0) 段对话——从今天起,它们有了第二个家" },
         completeSanctuaryOutlived: { "已收录 \($0) 段对话·其中 \($1) 段已越过源工具的清理线" },
-        mSanctuaryHead: { "\($0) 场对话,\($1) 份本地副本(\($2)),攒到第 \($3) 天" },
-        mSanctuaryRescued: { "\($0) 场对话的源文件已经没了,这里还有" },
-        mSanctuaryOutlived: { "\($0) 场对话活过了 Claude Code 的 30 天,这里还留着" },
-        mSanctuaryMilestones: { "已跨里程碑:\($0)" },
-        mSanctuaryMileConv: { "\($0) 场对话" },
-        mSanctuaryMileChars: { "\($0) 字符" },
-        mSanctuaryCollected: { "最近收录 \($0)" },
         mRhythmPeak: { "开场高峰 \($0)——\($1)%(\($2)/\($3) 场)" },
         mRhythmBusiest: { "最忙一天 \($0)——\($1) 场(占全部 \($2)%)" },
         mRhythmJuggle: { "平均每个活跃日跨 \($0) 个项目——峰值 \($1),\($2)" },
@@ -588,7 +573,6 @@ struct Strings {
         heroConversations: "场对话",
         heroVaultCopies: "本地副本",
         heroLibraryDays: "收纳天数",
-        heroRescued: "场已救回",
         mindsSecDelegation: "你派给 AI 的活",
         mindsDelegationHint: "哪类事你最常交给 AI",
         mDelegCount: "%d 次 %d 场",
@@ -888,13 +872,6 @@ struct Strings {
         completeSanctuaryOngoing: { "\($0) conversations so far, still collecting — they have a second home now" },
         completeSanctuary: { "\($0) conversations collected — as of today, they have a second home" },
         completeSanctuaryOutlived: { "\($0) conversations collected · \($1) already outlived their source tool's cleanup" },
-        mSanctuaryHead: { "\($0) conversations · \($1) archived copies (\($2)) · day \($3) of your library" },
-        mSanctuaryRescued: { "\($0) conversations rescued — deleted by their tool, alive here" },
-        mSanctuaryOutlived: { "\($0) conversations have outlived Claude Code's 30-day window — here, they stay" },
-        mSanctuaryMilestones: { "milestones passed: \($0)" },
-        mSanctuaryMileConv: { "\($0) conversations" },
-        mSanctuaryMileChars: { "\($0) characters" },
-        mSanctuaryCollected: { "last collected \($0)" },
         mRhythmPeak: { "most conversations start \($0) — \($1)% (\($2) of \($3))" },
         mRhythmBusiest: { "busiest day \($0) — \($1) conversations (\($2)% of everything)" },
         mRhythmJuggle: { "you juggle \($0) projects per active day — peak \($1) on \($2)" },
@@ -942,7 +919,6 @@ struct Strings {
         heroConversations: "conversations",
         heroVaultCopies: "local copies",
         heroLibraryDays: "days of library",
-        heroRescued: "rescued",
         mindsSecDelegation: "Delegation",
         mindsDelegationHint: "what you most often ask AI to do",
         mDelegCount: "%d× %dc",

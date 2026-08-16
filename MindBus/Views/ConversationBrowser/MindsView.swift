@@ -584,26 +584,20 @@ struct MindsView: View {
         }
     }
 
-    /// Hero 数字带:开屏价值感——四个大数字横排(对话/副本/库龄/救回),
-    /// 里程碑与最近收录作副行。金色只给「已救回」(价值最强的数字)。
+    /// Hero 数字带:开屏价值感——三个大数字横排(对话/副本/库龄)。
+    /// (2026-08-16 用户定案:去掉「已救回」数字和里程碑副行)
     private var heroSection: some View {
         Group {
             if let st = viz.sanctuary, st.conversationCount > 0 {
                 VStack(alignment: .leading, spacing: 0) {
                     sectionTitle("SANCTUARY", l10n.s.mindsSecSanctuary, hint: l10n.s.mindsSanctuaryHint)
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack(spacing: 0) {
-                            heroNumber("\(st.conversationCount)", l10n.s.heroConversations)
-                            heroNumber(String(format: "%.0f MB", Double(viz.vault.bytes) / 1_048_576),
-                                       l10n.s.heroVaultCopies)
-                            heroNumber("\(st.earliest.map { max(1, Int(Date().timeIntervalSince($0) / 86_400) + 1) } ?? 1)",
-                                       l10n.s.heroLibraryDays)
-                            if viz.rescuedCount > 0 {
-                                heroNumber("\(viz.rescuedCount)", l10n.s.heroRescued, gold: true)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        heroFootnote(st)
+                    HStack(spacing: 0) {
+                        heroNumber("\(st.conversationCount)", l10n.s.heroConversations)
+                        heroNumber(String(format: "%.0f MB", Double(viz.vault.bytes) / 1_048_576),
+                                   l10n.s.heroVaultCopies)
+                        heroNumber("\(st.earliest.map { max(1, Int(Date().timeIntervalSince($0) / 86_400) + 1) } ?? 1)",
+                                   l10n.s.heroLibraryDays)
+                        Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 16).padding(.vertical, 14)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -613,59 +607,15 @@ struct MindsView: View {
         }
     }
 
-    private func heroNumber(_ value: String, _ label: String, gold: Bool = false) -> some View {
+    private func heroNumber(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(gold ? DSLight.gold : DSLight.t1)
+                .foregroundStyle(DSLight.t1)
             Text(label)
                 .font(.system(size: 11)).foregroundStyle(DSLight.t3)
         }
         .frame(minWidth: 150, alignment: .leading)
-    }
-
-    private func heroFootnote(_ st: ConversationIndex.SanctuaryStats) -> some View {
-        var parts: [String] = []
-        if st.outlivedClaudeCode > 0 { parts.append(l10n.s.mSanctuaryOutlived(st.outlivedClaudeCode)) }
-        var passed: [String] = []
-        if let m = MindsBuilder.highestMilestone(st.conversationCount, in: MindsBuilder.conversationMilestones) {
-            passed.append(l10n.s.mSanctuaryMileConv(m))
-        }
-        if let m = MindsBuilder.highestMilestone(viz.volume.totalChars, in: MindsBuilder.characterMilestones) {
-            passed.append(l10n.s.mSanctuaryMileChars(MindsBuilder.compactChars(m)))
-        }
-        if !passed.isEmpty { parts.append(l10n.s.mSanctuaryMilestones(passed.joined(separator: "、"))) }
-        return Group {
-            if !parts.isEmpty {
-                Text(parts.joined(separator: "    "))
-                    .font(BrandFont.mono(11)).foregroundStyle(DSLight.t2)
-            }
-        }
-    }
-
-    private var sanctuarySection: some View {
-        var rows: [String] = []
-        if let st = viz.sanctuary, st.conversationCount > 0 {
-            let mb = String(format: "%.0f MB", Double(viz.vault.bytes) / 1_048_576)
-            let days = st.earliest.map { max(1, Int(Date().timeIntervalSince($0) / 86_400) + 1) } ?? 1
-            rows.append(l10n.s.mSanctuaryHead(st.conversationCount, viz.vault.files, mb, days))
-            if viz.rescuedCount > 0 { rows.append(l10n.s.mSanctuaryRescued(viz.rescuedCount)) }
-            if st.outlivedClaudeCode > 0 { rows.append(l10n.s.mSanctuaryOutlived(st.outlivedClaudeCode)) }
-            var passed: [String] = []
-            if let m = MindsBuilder.highestMilestone(st.conversationCount, in: MindsBuilder.conversationMilestones) {
-                passed.append(l10n.s.mSanctuaryMileConv(m))
-            }
-            if let m = MindsBuilder.highestMilestone(viz.volume.totalChars, in: MindsBuilder.characterMilestones) {
-                passed.append(l10n.s.mSanctuaryMileChars(MindsBuilder.compactChars(m)))
-            }
-            if !passed.isEmpty { rows.append(l10n.s.mSanctuaryMilestones(passed.joined(separator: "、"))) }
-            if let latest = st.latestActivity {
-                rows.append(l10n.s.mSanctuaryCollected(Self.dayString(latest)))
-            }
-        }
-        return dataCard("SANCTUARY", title: l10n.s.mindsSecSanctuary, hint: l10n.s.mindsSanctuaryHint,
-                        icons: ["shield.checkered", "shield.lefthalf.filled", "clock.badge.checkmark", "flag", "tray.and.arrow.down"],
-                        rows: rows)
     }
 
     /// 数据版陈述卡:与 statementCard 同形,但行来自 L10n 模板而非 md 解析。
