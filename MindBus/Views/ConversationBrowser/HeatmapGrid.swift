@@ -10,6 +10,7 @@ struct HeatmapGrid: View {
     var onOpen: (String) -> Void
 
     @State private var selectedDay: String?
+    @State private var hoveredDay: String?
 
     /// 格子边长上限(列宽由等分算出,不超过它)
     private static let cell: CGFloat = 14
@@ -90,7 +91,15 @@ struct HeatmapGrid: View {
             RoundedRectangle(cornerRadius: 2)
                 .fill(color(for: entry.count))
                 .aspectRatio(1, contentMode: .fit)
+                // 有对话的格子才可点,悬停描边把「这格能点」说清楚
+                .overlay {
+                    if hoveredDay == entry.day, entry.count > 0 {
+                        RoundedRectangle(cornerRadius: 2)
+                            .stroke(DSLight.t2, lineWidth: 1.5)
+                    }
+                }
                 .help("\(entry.day) · \(entry.count)")
+                .onHover { hoveredDay = $0 ? entry.day : (hoveredDay == entry.day ? nil : hoveredDay) }
                 .onTapGesture { if entry.count > 0 { selectedDay = entry.day } }
                 .popover(isPresented: Binding(
                     get: { selectedDay == entry.day },

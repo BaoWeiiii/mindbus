@@ -150,6 +150,9 @@ struct MindsView: View {
                 }
             }
         }
+        // 卡片底带 maxHeight .infinity(为了双列等高),整页必须锁死在内容高度上——
+        // 否则外层一给确定高度,所有卡片会一起拉长把页面填满
+        .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: 1000, alignment: .leading)
         .padding(.horizontal, 40)
         .padding(.top, 48)
@@ -250,7 +253,7 @@ struct MindsView: View {
         HStack(spacing: 8) {
             Circle().fill(text == l10n.s.mindsGroupForYou ? DSLight.gold : DSLight.t3)
                 .frame(width: 5, height: 5)
-            Text(text).font(BrandFont.mono(10)).kerning(1.2).foregroundStyle(DSLight.t3)
+            Text(text).font(BrandFont.text(text, 10)).kerning(1.2).foregroundStyle(DSLight.t3)
             Rectangle().fill(DSLight.sf3).frame(height: 1)
         }
         .padding(.top, 28)
@@ -309,11 +312,16 @@ struct MindsView: View {
                                 Text(kindNames[kv.0] ?? kv.0)
                                     .font(.system(size: 12)).foregroundStyle(DSLight.t1)
                                     .frame(width: 64, alignment: .leading)
+                                // 轨道 + 值:没有轨道时最短的那条(11 次)缩成一个小圆点,
+                                // 读不出「相对多少」,也不像同一套图形语言
                                 GeometryReader { geo in
-                                    Capsule()
-                                        .fill(kv.1 == maxN ? DSLight.gold : DSLight.gold.opacity(0.35))
-                                        .frame(width: max(4, geo.size.width * CGFloat(kv.1) / CGFloat(maxN)), height: 8)
-                                        .frame(maxHeight: .infinity, alignment: .center)
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(DSLight.sf2).frame(height: 8)
+                                        Capsule()
+                                            .fill(kv.1 == maxN ? DSLight.gold : DSLight.gold.opacity(0.45))
+                                            .frame(width: max(8, geo.size.width * CGFloat(kv.1) / CGFloat(maxN)), height: 8)
+                                    }
+                                    .frame(maxHeight: .infinity, alignment: .center)
                                 }
                                 Text("\(kv.1)").font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
                                     .frame(width: 40, alignment: .trailing)
@@ -321,12 +329,12 @@ struct MindsView: View {
                             .frame(height: 18)
                         }
                         if let top = counts.max(by: { $0.1 < $1.1 }), let v = verdicts[top.0] {
+                            Spacer(minLength: 6)
                             Text(v).font(.system(size: 11)).foregroundStyle(DSLight.t3)
-                                .padding(.top, 2)
                         }
                     }
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
@@ -362,27 +370,33 @@ struct MindsView: View {
                                 Text(kv.0)
                                     .font(.system(size: 12)).foregroundStyle(DSLight.t1)
                                     .frame(width: 52, alignment: .leading)
+                                // 轨道 + 值:没有轨道时最短的那条(11 次)缩成一个小圆点,
+                                // 读不出「相对多少」,也不像同一套图形语言
                                 GeometryReader { geo in
-                                    Capsule()
-                                        .fill(kv.1 == maxN ? DSLight.gold : DSLight.gold.opacity(0.35))
-                                        .frame(width: max(4, geo.size.width * CGFloat(kv.1) / CGFloat(maxN)), height: 8)
-                                        .frame(maxHeight: .infinity, alignment: .center)
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(DSLight.sf2).frame(height: 8)
+                                        Capsule()
+                                            .fill(kv.1 == maxN ? DSLight.gold : DSLight.gold.opacity(0.45))
+                                            .frame(width: max(8, geo.size.width * CGFloat(kv.1) / CGFloat(maxN)), height: 8)
+                                    }
+                                    .frame(maxHeight: .infinity, alignment: .center)
                                 }
                                 // 半宽双列下这列最容易被裁:"215 次 36 场" 在 mono10 要 ~72pt,给 80
-                                Text(String(format: l10n.s.mDelegCount, kv.1, kv.2))
-                                    .font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
+                                let count = String(format: l10n.s.mDelegCount, kv.1, kv.2)
+                                Text(count)
+                                    .font(BrandFont.text(count, 10)).foregroundStyle(DSLight.t3)
                                     .frame(width: 80, alignment: .trailing)
                             }
                             .frame(height: 18)
                         }
                         if let (dest, n, _) = research {
+                            Spacer(minLength: 6)
                             Text(String(format: l10n.s.mDelegResearch, dest, n))
                                 .font(.system(size: 11)).foregroundStyle(DSLight.t3)
-                                .padding(.top, 2)
                         }
                     }
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
@@ -407,14 +421,15 @@ struct MindsView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(row.word).font(.system(size: 12)).foregroundStyle(DSLight.t1)
                                         .lineLimit(2)
-                                    Text(briefMeta(row.detail))
-                                        .font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
+                                    let meta = briefMeta(row.detail)
+                                    Text(meta)
+                                        .font(BrandFont.text(meta, 10)).foregroundStyle(DSLight.t3)
                                 }
                             }
                         }
                     }
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
@@ -504,14 +519,15 @@ struct MindsView: View {
                                     .font(.system(size: 11)).foregroundStyle(DSLight.t3)
                                     .frame(width: 16)
                                 Text(row.word).font(.system(size: 12)).foregroundStyle(DSLight.t1)
-                                Text(dormantMeta(row.detail))
-                                    .font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
+                                let meta = dormantMeta(row.detail)
+                                Text(meta)
+                                    .font(BrandFont.text(meta, 11)).foregroundStyle(DSLight.t3)
                                 Spacer(minLength: 0)
                             }
                         }
                     }
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
@@ -525,32 +541,47 @@ struct MindsView: View {
         return Group {
             if cur > 0 {
                 VStack(alignment: .leading, spacing: 0) {
-                    sectionTitle("This Month", l10n.s.mindsSecThisMonth)
+                    sectionTitle("This Month", l10n.s.mindsSecThisMonth, hint: l10n.s.mindsThisMonthHint)
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(l10n.s.mMonthHead(cur, prev > 0 ? l10n.s.mMonthDelta(cur - prev) : ""))
-                            .font(.system(size: 14, weight: .medium)).foregroundStyle(DSLight.t1)
+                        // 原来这里是一行 14pt 粗体「本月 27 场对话(比上月 -3)」,在一堆
+                        // 「标题在卡外」的卡片里像第二个标题。改成 Hero 同款数字块:
+                        // 大数字是数据不是标题,层级就回到该在的地方。
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text("\(cur)").font(.system(size: 24, weight: .semibold))
+                                .foregroundStyle(DSLight.t1)
+                            Text(l10n.s.heroConversations).font(.system(size: 11))
+                                .foregroundStyle(DSLight.t3)
+                            if prev > 0 {
+                                Text(l10n.s.mMonthDelta(cur - prev))
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(cur >= prev ? DSLight.gold : DSLight.t3)
+                            }
+                        }
                         let flow = viz.monthlyFlow
                         if flow.count >= 2 {
                             MindsCharts.MonthlyFlow(months: flow)
                                 .padding(.top, 4)
                         }
                         if !mo.cur.isEmpty {
-                            Text(l10n.s.mMonthTools(mo.cur.map { "\(sourceName($0.key)) \($0.count)" }
-                                .joined(separator: " · ")))
-                                .font(BrandFont.mono(11)).foregroundStyle(DSLight.t2)
+                            let tools = l10n.s.mMonthTools(mo.cur.map { "\(sourceName($0.key)) \($0.count)" }
+                                .joined(separator: " · "))
+                            Text(tools)
+                                .font(BrandFont.text(tools, 11)).foregroundStyle(DSLight.t2)
                         }
                         if !mo.newEntities.isEmpty {
-                            Text(l10n.s.mMonthFirstSeen(mo.newEntities.prefix(5).joined(separator: " · ")))
-                                .font(BrandFont.mono(11)).foregroundStyle(DSLight.t2)
+                            let seen = l10n.s.mMonthFirstSeen(mo.newEntities.prefix(5).joined(separator: " · "))
+                            Text(seen)
+                                .font(BrandFont.text(seen, 11)).foregroundStyle(DSLight.t2)
                                 .lineLimit(2)
                         }
                         if mo.lastYear > 0 {
-                            Text(l10n.s.mMonthLastYear(mo.lastYear))
-                                .font(BrandFont.mono(11)).foregroundStyle(DSLight.t2)
+                            let ly = l10n.s.mMonthLastYear(mo.lastYear)
+                            Text(ly)
+                                .font(BrandFont.text(ly, 11)).foregroundStyle(DSLight.t2)
                         }
                     }
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
@@ -572,16 +603,19 @@ struct MindsView: View {
     /// 双列并排。SwiftUI 看不出一个 View 会不会渲成空,所以两侧的「有没有内容」由调用方
     /// 显式传进来——否则空的那半会留一个和邻居等高的洞(真机 dormant 空时就是这样)。
     private func pair(_ a: some View, _ aOn: Bool, _ b: some View, _ bOn: Bool) -> some View {
+        // 两侧都拉到行高:卡片底带 maxHeight .infinity,短的那张跟着长的那张齐底,
+        // 不再一高一矮吊在半空(真机上「你派给 AI 的活」10 行 vs「提问的形状」4 行最明显)
         HStack(alignment: .top, spacing: 24) {
             if aOn {
                 VStack(alignment: .leading, spacing: 0) { a }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             if bOn {
                 VStack(alignment: .leading, spacing: 0) { b }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     /// Hero 数字带:开屏价值感——三个大数字横排(对话/副本/库龄)。
@@ -591,13 +625,17 @@ struct MindsView: View {
             if let st = viz.sanctuary, st.conversationCount > 0 {
                 VStack(alignment: .leading, spacing: 0) {
                     sectionTitle("SANCTUARY", l10n.s.mindsSecSanctuary, hint: l10n.s.mindsSanctuaryHint)
+                    // 三等分 + 竖分隔:数字宽度差一倍(150 / 346 MB),靠内容宽度排会
+                    // 让空白忽大忽小;等分后再用分隔线把空白结构化,不然三个数挤在
+                    // 左边、右边空掉三分之二。
                     HStack(spacing: 0) {
                         heroNumber("\(st.conversationCount)", l10n.s.heroConversations)
+                        heroDivider
                         heroNumber(String(format: "%.0f MB", Double(viz.vault.bytes) / 1_048_576),
                                    l10n.s.heroVaultCopies)
+                        heroDivider
                         heroNumber("\(st.earliest.map { max(1, Int(Date().timeIntervalSince($0) / 86_400) + 1) } ?? 1)",
                                    l10n.s.heroLibraryDays)
-                        Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 16).padding(.vertical, 14)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -615,7 +653,11 @@ struct MindsView: View {
             Text(label)
                 .font(.system(size: 11)).foregroundStyle(DSLight.t3)
         }
-        .frame(minWidth: 150, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var heroDivider: some View {
+        Rectangle().fill(DSLight.sf3).frame(width: 1, height: 34)
     }
 
     /// 数据版陈述卡:与 statementCard 同形,但行来自 L10n 模板而非 md 解析。
@@ -633,13 +675,13 @@ struct MindsView: View {
                                 Image(systemName: icons[min(i, icons.count - 1)])
                                     .font(.system(size: 11)).foregroundStyle(DSLight.gold)
                                     .frame(width: 16)
-                                Text(row).font(BrandFont.mono(12)).foregroundStyle(DSLight.t1)
+                                Text(row).font(BrandFont.text(row, 12)).foregroundStyle(DSLight.t1)
                                     .lineLimit(3)
                             }
                         }
                     }
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
@@ -672,19 +714,19 @@ struct MindsView: View {
                                     .font(.system(size: 11)).foregroundStyle(DSLight.gold)
                                     .frame(width: 16)
                                 if let pct = percentileIn(row) {
-                                    Text(row).font(BrandFont.mono(12)).foregroundStyle(DSLight.t1)
+                                    Text(row).font(BrandFont.text(row, 12)).foregroundStyle(DSLight.t1)
                                         .lineLimit(3)
                                     MindsCharts.PercentileSlider(percentile: pct)
                                         .frame(width: 120)
                                 } else {
-                                    Text(row).font(BrandFont.mono(12)).foregroundStyle(DSLight.t1)
+                                    Text(row).font(BrandFont.text(row, 12)).foregroundStyle(DSLight.t1)
                                         .lineLimit(3)
                                 }
                             }
                         }
                     }
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
@@ -716,7 +758,9 @@ struct MindsView: View {
             if let sh = viz.shape {
                 MindsCharts.ShapeHistograms(shape: sh,
                                             durationLabels: ["<2m", "2-30m", "0.5-2h", "2h+"],
-                                            turnLabels: ["1-2", "3-5", "6-15", "16+"])
+                                            turnLabels: ["1-2", "3-5", "6-15", "16+"],
+                                            durationTitle: L10n.shared.s.mShapeDurationTitle,
+                                            turnTitle: L10n.shared.s.mShapeTurnTitle)
             }
         }
     }
@@ -777,7 +821,7 @@ struct MindsView: View {
                         }
                     }
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
@@ -806,7 +850,7 @@ struct MindsView: View {
                                             .font(.system(size: 13, weight: .medium)).foregroundStyle(DSLight.t1)
                                         if parts.count > 1 {
                                             Text(parts[1].trimmingCharacters(in: .whitespaces) + " 次")
-                                                .font(BrandFont.mono(11)).foregroundStyle(DSLight.gold)
+                                                .font(.system(size: 11)).foregroundStyle(DSLight.gold)
                                         }
                                     }
                                     .padding(.horizontal, 12).padding(.vertical, 6)
@@ -819,8 +863,9 @@ struct MindsView: View {
                                 .replacingOccurrences(of: "politeness & delegation: ", with: "")
                                 .replacingOccurrences(of: " ×", with: " ")
                                 .replacingOccurrences(of: " · ", with: "、")
-                            Text(l10n.s.mPoliteness(list))
-                                .font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
+                            let polite = l10n.s.mPoliteness(list)
+                            Text(polite)
+                                .font(BrandFont.text(polite, 11)).foregroundStyle(DSLight.t3)
                         }
                     }
                 }
@@ -883,7 +928,7 @@ struct MindsView: View {
                         }
                     }
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
@@ -902,6 +947,7 @@ struct MindsView: View {
                     let maxCount = counts.max() ?? 1
                     VStack(spacing: 6) {
                         ForEach(rows, id: \.id) { row in
+                            Hoverable { hovering in
                             Button { openConversation(row.id) } label: {
                                 HStack(spacing: 10) {
                                     Image(systemName: "figure.run")
@@ -909,20 +955,24 @@ struct MindsView: View {
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(row.label).font(.system(size: 13)).foregroundStyle(DSLight.t1)
                                             .fixedSize(horizontal: false, vertical: true)
-                                        Text(marathonMeta(row.meta))
-                                            .font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
+                                        let meta = marathonMeta(row.meta)
+                                        Text(meta)
+                                            .font(BrandFont.text(meta, 11)).foregroundStyle(DSLight.t3)
                                     }
                                     Spacer(minLength: 0)
                                     if let n = firstInt(after: "", in: row.meta) {
                                         MindsCharts.RatioBar(value: n, maxValue: maxCount)
                                     }
                                     Image(systemName: "arrow.forward")
-                                        .font(.system(size: 10)).foregroundStyle(DSLight.t3)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(hovering ? DSLight.gold : DSLight.t3)
                                 }
                                 .padding(.horizontal, 12).padding(.vertical, 9)
-                                .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
+                                .background(hovering ? DSLight.sf2 : DSLight.sf,
+                                            in: RoundedRectangle(cornerRadius: 8))
                             }
                             .buttonStyle(.plain)
+                            }
                         }
                     }
                 }
@@ -947,8 +997,9 @@ struct MindsView: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     Text(row.word).font(.system(size: 12)).foregroundStyle(DSLight.t2)
-                                    Text(fadedMeta(row.detail))
-                                        .font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
+                                    let meta = fadedMeta(row.detail)
+                                    Text(meta)
+                                        .font(BrandFont.text(meta, 10)).foregroundStyle(DSLight.t3)
                                     // 消退曲线(方案原案):说得多→归零的形状;序列全零时退回沉默条
                                     if let sr = series[row.word], sr.contains(where: { $0 > 0 }) {
                                         MindsCharts.DecaySparkline(series: sr)
@@ -997,11 +1048,12 @@ struct MindsView: View {
                         }
                         Color.clear.frame(width: 156, height: 1)
                     }
-                    .font(BrandFont.mono(9)).kerning(0.8).foregroundStyle(DSLight.t3)
+                    .font(.system(size: 9)).kerning(0.8).foregroundStyle(DSLight.t3)
                     .padding(.horizontal, 12).padding(.bottom, 6)
                     VStack(spacing: 2) {
                         ForEach(rows.prefix(8), id: \.path) { row in
                             VStack(spacing: 0) {
+                                Hoverable { hovering in
                                 Button {
                                     withAnimation(.easeOut(duration: 0.15)) {
                                         expandedProject = expandedProject == row.path ? nil : row.path
@@ -1024,13 +1076,17 @@ struct MindsView: View {
                                                 .font(BrandFont.mono(12, weight: .medium)).foregroundStyle(DSLight.gold)
                                                 .frame(width: 52, alignment: .trailing)
                                         }
-                                        Text(row.span).font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
+                                        Text(row.span).font(BrandFont.text(row.span, 11)).foregroundStyle(DSLight.t3)
                                             .frame(width: 156, alignment: .trailing).lineLimit(1)
                                     }
                                     .padding(.horizontal, 12).padding(.vertical, 7)
                                     .contentShape(Rectangle())
+                                    .background(hovering || expandedProject == row.path
+                                                ? DSLight.sf2 : Color.clear,
+                                                in: RoundedRectangle(cornerRadius: 6))
                                 }
                                 .buttonStyle(.plain)
+                                }
                                 if expandedProject == row.path {
                                     projectTimeline(cwd: row.path)
                                 }
@@ -1165,7 +1221,7 @@ struct MindsView: View {
                                  hint: l10n.s.mindsPhrasesHint)
                     FlowLayout(spacing: 8) {
                         ForEach(Array(chips.enumerated()), id: \.element.word) { i, c in
-                            vocabChip(c, mind: i < 6)
+                            vocabChip(c, mind: i < 3)
                         }
                     }
                 }
@@ -1175,7 +1231,7 @@ struct MindsView: View {
 
     private var vocabularySection: some View {
         // 一组(2026-08-16):"- 架构 (115×/15p) · 复用 (31×/9p) · …"
-        // 按说得多排序,不分类型——前 6 个金实底(说得最多的一眼可见),其余淡底。
+        // 按说得多排序,不分类型——前 3 个金实底(冠亚季军一眼可见),其余淡底同尺寸。
         let lines = sectionLines("VOCABULARY").filter { $0.hasPrefix("- ") }
         let chips = lines.first.map { chipsFrom(String($0.dropFirst(2))) } ?? []
         return Group {
@@ -1184,7 +1240,7 @@ struct MindsView: View {
                     sectionTitle("Vocabulary", l10n.s.mindsSecVocabulary, hint: l10n.s.mindsVocabularyHint)
                     FlowLayout(spacing: 8) {
                         ForEach(Array(chips.enumerated()), id: \.element.word) { i, c in
-                            vocabChip(c, mind: i < 6)
+                            vocabChip(c, mind: i < 3)
                         }
                     }
                 }
@@ -1206,24 +1262,28 @@ struct MindsView: View {
     /// mind 词金实底(身份词,一眼可见——用户三次找「第一性原理」的答案);
     /// work 词淡底(项目词)。meta:「39×·12p」→ 中文「39 次 · 12 个项目」。
     private func vocabChip(_ c: (word: String, meta: String), mind: Bool) -> some View {
+        Hoverable { hovering in
         Button {
             store.searchQuery = c.word
             store.mindsSelected = false
         } label: {
             HStack(spacing: 5) {
                 Text(c.word)
-                    .font(.system(size: mind ? 13 : 12, weight: mind ? .semibold : .regular))
+                    .font(.system(size: 12, weight: mind ? .semibold : .regular))
                     .foregroundStyle(mind ? Color.white : DSLight.gold)
                 if !c.meta.isEmpty {
-                    Text(vocabMeta(c.meta))
-                        .font(BrandFont.mono(10))
+                    let vm = vocabMeta(c.meta)
+                    Text(vm)
+                        .font(BrandFont.text(vm, 10))
                         .foregroundStyle(mind ? Color.white.opacity(0.75) : DSLight.t3)
                 }
             }
-            .padding(.horizontal, mind ? 14 : 12).padding(.vertical, mind ? 7 : 5)
-            .background(mind ? AnyShapeStyle(DSLight.gold) : AnyShapeStyle(DSLight.sf), in: Capsule())
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(mind ? AnyShapeStyle(DSLight.gold.opacity(hovering ? 0.85 : 1))
+                             : AnyShapeStyle(hovering ? DSLight.sf2 : DSLight.sf), in: Capsule())
         }
         .buttonStyle(.plain)
+        }
     }
 
     private func vocabMeta(_ meta: String) -> String {
@@ -1437,6 +1497,16 @@ struct FlowLayout: Layout {
             x += size.width + spacing
             rowH = max(rowH, size.height)
         }
+    }
+}
+
+/// 可点元素的 hover 反馈。整页有五类东西能点(词条搜索/马拉松打开/项目展开/
+/// 热力图格子/实体 chip),此前一个都没有悬停态,鼠标扫过去看不出哪里可点。
+private struct Hoverable<C: View>: View {
+    @ViewBuilder var content: (Bool) -> C
+    @State private var hovering = false
+    var body: some View {
+        content(hovering).onHover { hovering = $0 }
     }
 }
 

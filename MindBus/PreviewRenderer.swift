@@ -77,7 +77,9 @@ enum PreviewRenderer {
             Text("③ 双峰直方 + 轮次").font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
             MindsCharts.ShapeHistograms(shape: shape,
                                         durationLabels: ["<2m", "2-30m", "0.5-2h", "2h+"],
-                                        turnLabels: ["1-2", "3-5", "6-15", "16+"])
+                                        turnLabels: ["1-2", "3-5", "6-15", "16+"],
+                                        durationTitle: L10n.shared.s.mShapeDurationTitle,
+                                        turnTitle: L10n.shared.s.mShapeTurnTitle)
             Text("④ 杠杆双层条 + ⑤ 周几 7 柱 + ⑥ 滑条").font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
             MindsCharts.LeverageBar(userChars: 1_308_411, totalChars: 16_100_000)
             MindsCharts.WeekdayBars(days: [24, 31, 28, 26, 22, 3, 2],

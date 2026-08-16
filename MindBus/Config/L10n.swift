@@ -148,6 +148,7 @@ struct Strings {
     let mindsSecDormant: String
     let mindsDormantHint: String
     let mindsSecThisMonth: String
+    let mindsThisMonthHint: String
     let mindsSecStarred: String
     let mindsStarredHint: String
     let scanLiveCollected: String
@@ -165,7 +166,6 @@ struct Strings {
     let mShapeAvg: (Int) -> String
     let mWeekendLine: (String) -> String
     let mWeekdayLine: (String) -> String
-    let mMonthHead: (Int, String) -> String
     let mMonthDelta: (Int) -> String
     let mMonthTools: (String) -> String
     let mMonthFirstSeen: (String) -> String
@@ -225,6 +225,9 @@ struct Strings {
     let mindsSanctuaryHint: String
     let mindsSecShape: String
     let mindsShapeHint: String
+    /// 双峰直方两组的题头
+    let mShapeDurationTitle: String
+    let mShapeTurnTitle: String
     let mindsSecWeekend: String
     let mindsWeekendHint: String
     let mindsSecFlows: String
@@ -520,6 +523,7 @@ struct Strings {
         mindsSecDormant: "沉睡的项目",
         mindsDormantHint: "聊了很多，好久没碰",
         mindsSecThisMonth: "本月",
+        mindsThisMonthHint: "这个月比上个月热闹还是安静",
         mindsSecStarred: "你标记的重点",
         mindsStarredHint: "点击回到原对话",
         scanLiveCollected: "段对话已收录",
@@ -536,8 +540,7 @@ struct Strings {
         mShapeAvg: { "平均每条消息 \($0) 字——短指令,不是长文" },
         mWeekendLine: { "周末:\($0)" },
         mWeekdayLine: { "工作日:\($0)" },
-        mMonthHead: { "本月 \($0) 场对话\($1)" },
-        mMonthDelta: { $0 >= 0 ? "(比上月 +\($0))" : "(比上月 \($0))" },
+        mMonthDelta: { $0 >= 0 ? "比上月 +\($0)" : "比上月 \($0)" },
         mMonthTools: { "工具:\($0)" },
         mMonthFirstSeen: { "本月首见:\($0)" },
         mMonthLastYear: { "去年同月:\($0) 场" },
@@ -593,6 +596,8 @@ struct Strings {
         mindsSanctuaryHint: "都在你自己的硬盘上，谁也拿不走",
         mindsSecShape: "一起干活的样子",
         mindsShapeHint: "不是一问一答，是一起磨活",
+        mShapeDurationTitle: "每场聊多久",
+        mShapeTurnTitle: "来回几轮",
         mindsSecWeekend: "周末的你",
         mindsWeekendHint: "哪个项目占据了你的周末",
         mindsSecFlows: "知识流动",
@@ -866,6 +871,7 @@ struct Strings {
         mindsSecDormant: "Dormant projects",
         mindsDormantHint: "heavy investment, long untouched",
         mindsSecThisMonth: "This month",
+        mindsThisMonthHint: "busier or quieter than last month",
         mindsSecStarred: "Starred",
         mindsStarredHint: "click to revisit the conversation",
         scanLiveCollected: "conversations collected",
@@ -882,8 +888,7 @@ struct Strings {
         mShapeAvg: { "average message \($0) chars — short directives, not essays" },
         mWeekendLine: { "weekend: \($0)" },
         mWeekdayLine: { "weekdays: \($0)" },
-        mMonthHead: { "\($0) conversations this month\($1)" },
-        mMonthDelta: { $0 >= 0 ? " (+\($0) vs last month)" : " (\($0) vs last month)" },
+        mMonthDelta: { $0 >= 0 ? "+\($0) vs last month" : "\($0) vs last month" },
         mMonthTools: { "tools: \($0)" },
         mMonthFirstSeen: { "first seen this month: \($0)" },
         mMonthLastYear: { "same month last year: \($0)" },
@@ -939,6 +944,8 @@ struct Strings {
         mindsSanctuaryHint: "on your disk — no one takes it without you",
         mindsSecShape: "Collaboration Shape",
         mindsShapeHint: "you co-work, you don't just ask",
+        mShapeDurationTitle: "SESSION LENGTH",
+        mShapeTurnTitle: "TURNS",
         mindsSecWeekend: "Weekend Self",
         mindsWeekendHint: "which project owns your weekends",
         mindsSecFlows: "Knowledge Flows",

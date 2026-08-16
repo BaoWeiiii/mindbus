@@ -93,16 +93,21 @@ enum MindsCharts {
         let durationLabels: [String]
         let turnLabels: [String]
 
+        /// 两组各自的题头——不标的话 8 根柱子看起来是一组,读者不知道左边量时长右边量轮次。
+        let durationTitle: String
+        let turnTitle: String
+
         var body: some View {
-            HStack(spacing: 24) {
-                miniHistogram(values: shape.durationBands, labels: durationLabels)
-                miniHistogram(values: shape.turnBands, labels: turnLabels)
+            HStack(alignment: .top, spacing: 24) {
+                miniHistogram(values: shape.durationBands, labels: durationLabels, title: durationTitle)
+                miniHistogram(values: shape.turnBands, labels: turnLabels, title: turnTitle)
             }
         }
 
-        private func miniHistogram(values: [Int], labels: [String]) -> some View {
+        private func miniHistogram(values: [Int], labels: [String], title: String) -> some View {
             let maxV = max(values.max() ?? 1, 1)
-            return VStack(spacing: 4) {
+            return VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(BrandFont.text(title, 10)).foregroundStyle(DSLight.t3)
                 Chart(Array(values.enumerated()), id: \.offset) { i, v in
                     BarMark(x: .value("b", "\(i)"), y: .value("v", v), width: .fixed(26))
                         .foregroundStyle(v == maxV ? DSLight.gold : DSLight.gold.opacity(0.35))
@@ -114,6 +119,7 @@ enum MindsCharts {
                 HStack {
                     ForEach(labels, id: \.self) { l in
                         Text(l).font(BrandFont.mono(8)).foregroundStyle(DSLight.t3)
+                            .lineLimit(1).fixedSize()
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -159,7 +165,7 @@ enum MindsCharts {
                 .frame(height: 56).frame(maxWidth: .infinity)
                 HStack {
                     ForEach(Array(labels.enumerated()), id: \.offset) { i, l in
-                        Text(l).font(BrandFont.mono(9))
+                        Text(l).font(BrandFont.text(l, 9))
                             .foregroundStyle(i >= 5 ? DSLight.gold : DSLight.t3)
                             .frame(maxWidth: .infinity)
                     }

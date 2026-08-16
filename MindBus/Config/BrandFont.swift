@@ -37,4 +37,27 @@ enum BrandFont {
         guard registered else { return .system(size: size, weight: weight, design: .monospaced) }
         return .custom(weight == .regular ? "DMMono-Regular" : "DMMono-Medium", fixedSize: size)
     }
+
+    /// 按内容选字体：纯英数走 DM Mono，一旦含中日韩就整句走系统字体。
+    ///
+    /// 存在理由是本文件顶部那条规则在真机上被违反了——Minds 把「开场高峰 16-20—45%」
+    /// 这类整句中文塞进 `mono`，DM Mono 没有汉字字形，每个汉字都触发系统回退，
+    /// 一行里两套度量，字距忽宽忽窄、和数字对不齐。文案是 L10n 模板拼出来的，
+    /// 调用点无法在编译期知道里面有没有中文，所以把判断放到运行时这一处。
+    static func text(_ s: String, _ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        s.contains(where: { $0.isCJK }) ? .system(size: size, weight: weight) : mono(size, weight: weight)
+    }
+}
+
+extension Character {
+    /// 汉字/假名/中日韩标点/全角形式——判「这串字符该不该用系统字体」用，不求语言学精确。
+    var isCJK: Bool {
+        unicodeScalars.contains { s in
+            (0x3000...0x303F).contains(s.value)      // 中日韩标点
+                || (0x3040...0x30FF).contains(s.value)   // 假名
+                || (0x3400...0x4DBF).contains(s.value)   // 扩展 A
+                || (0x4E00...0x9FFF).contains(s.value)   // 基本区
+                || (0xFF00...0xFFEF).contains(s.value)   // 全角形式
+        }
+    }
 }
