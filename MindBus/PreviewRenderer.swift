@@ -24,9 +24,7 @@ enum PreviewRenderer {
             render(sidebarSample, name: "sidebar", size: CGSize(width: 220, height: 420), to: sub)
             render(sidebarMindsSample, name: "sidebar-minds", size: CGSize(width: 220, height: 420), to: sub)
             render(MindsPlaceholderView(), name: "minds-placeholder", size: CGSize(width: 700, height: 300), to: sub)
-            render(chartsGallery, name: "charts-gallery", size: CGSize(width: 760, height: 760), to: sub)
-            render(heatmapSample, name: "heatmap-grid", size: CGSize(width: 760, height: 140), to: sub)
-            render(mindsContentSample, name: "minds-content", size: CGSize(width: 840, height: 6200), to: sub)
+            render(mindsContentSample, name: "minds-content", size: CGSize(width: 900, height: 3400), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -60,63 +58,6 @@ enum PreviewRenderer {
     /// Minds 真内容页样张：临时目录造 minds.md + enriched.jsonl（一条待确认 + 一条已确认），
     /// 经 MINDBUS_MINDS_ROOT 注入让 MindsStore 读到假数据。渲 renderableContent 绕开
     /// ScrollView 盲区。
-    /// 可视化组件画廊:五张主图+滑条+三 sparkline,假数据一屏验证。
-    private static var chartsGallery: some View {
-        var hours = [Int](repeating: 0, count: 24)
-        for (h, v) in [(0, 2), (1, 1), (9, 4), (10, 6), (13, 8), (14, 10), (15, 9), (16, 14),
-                       (17, 18), (18, 16), (19, 12), (20, 15), (21, 13), (22, 8), (23, 4)] { hours[h] = v }
-        let months = [("2026-04", 6), ("2026-05", 72), ("2026-06", 15), ("2026-07", 30), ("2026-08", 22)]
-            .map { (month: $0.0, count: $0.1) }
-        let shape = ConversationIndex.CollaborationShape(
-            turnBands: [7, 9, 16, 113], durationBands: [34, 46, 17, 48], avgCharsPerMessage: 39)
-        return VStack(alignment: .leading, spacing: 22) {
-            Text("① 24h 节律条带").font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
-            MindsCharts.HourlyStrip(hours: hours)
-            Text("② 月度面积").font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
-            MindsCharts.MonthlyFlow(months: months)
-            Text("③ 双峰直方 + 轮次").font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
-            MindsCharts.ShapeHistograms(shape: shape,
-                                        durationLabels: ["<2m", "2-30m", "0.5-2h", "2h+"],
-                                        turnLabels: ["1-2", "3-5", "6-15", "16+"],
-                                        durationTitle: L10n.shared.s.mShapeDurationTitle,
-                                        turnTitle: L10n.shared.s.mShapeTurnTitle)
-            Text("④ 杠杆双层条 + ⑤ 周几 7 柱 + ⑥ 滑条").font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
-            MindsCharts.LeverageBar(userChars: 1_308_411, totalChars: 16_100_000)
-            MindsCharts.WeekdayBars(days: [24, 31, 28, 26, 22, 3, 2],
-                                    labels: ["一", "二", "三", "四", "五", "六", "日"])
-            HStack(spacing: 18) {
-                MindsCharts.PercentileSlider(percentile: 92).frame(width: 140)
-                MindsCharts.SpanLine(start: 0.15, end: 0.8)
-                MindsCharts.SilenceBar(silentDays: 92)
-                MindsCharts.RatioBar(value: 3706, maxValue: 5497)
-            }
-        }
-        .padding(28).frame(width: 760).background(DSLight.bg)
-    }
-
-    /// 热力图组件样张:假数据验证 5 档色阶与周对齐(popover 是离屏盲区,真机验证)。
-    private static var heatmapSample: some View {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        var daily: [(day: String, count: Int)] = []
-        for back in stride(from: 364, through: 0, by: -1) {
-            let d = Calendar.current.date(byAdding: .day, value: -back, to: Date())!
-            // 三段节奏:老数据稀疏、中段冲刺、近期常态——覆盖全部 5 档
-            let c: Int
-            switch back {
-            case 250...364: c = back % 11 == 0 ? 2 : 0
-            case 80...110:  c = back % 3 == 0 ? 12 : 7
-            default:        c = back % 5 == 0 ? 4 : (back % 3 == 0 ? 1 : 0)
-            }
-            if c > 0 { daily.append((day: f.string(from: d), count: c)) }
-        }
-        return HeatmapGrid(daily: daily,
-                           store: ConversationStore(indexPath: NSTemporaryDirectory() + "mb-preview-heat.sqlite"),
-                           onOpen: { _ in })
-            .padding(20).background(DSLight.bg)
-    }
-
     private static var mindsContentSample: some View {
         let root = NSTemporaryDirectory() + "minds-preview-sample"
         try? FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
@@ -239,7 +180,7 @@ enum PreviewRenderer {
         setenv("MINDBUS_MINDS_ROOT", root, 1)
         return MindsView(store: ConversationStore(indexPath: NSTemporaryDirectory() + "mb-preview-minds.sqlite")).renderableContent
             .frame(width: 840)
-            .background(DSLight.bg)
+            .background(MindsUI.page)
     }
 
     /// 空结果救援样张:高频实体建议 chips。

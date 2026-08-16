@@ -249,6 +249,15 @@ public final class ConversationStore: ObservableObject {
         index?.dailyCounts(days: 365, now: Date()) ?? []
     }
 
+    /// 按 id 批量取结束时间——马拉松对话行右侧的「最长 YYYY-MM-DD」要用。
+    /// md 里只有条数与跨度,没有日期,所以这一项现查索引。
+    public nonisolated func conversationEndDates(ids: [String]) -> [String: Date] {
+        guard let index, !ids.isEmpty else { return [:] }
+        var out: [String: Date] = [:]
+        for m in index.metadata(forIDs: ids) { out[m.id] = m.endAt }
+        return out
+    }
+
     /// 热力图格子下钻:某天的全部会话(id+标题),点击可打开。
     public func conversationsOn(day: String) -> [(id: String, label: String)] {
         (index?.conversationsOn(day: day) ?? []).map {

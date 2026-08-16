@@ -205,6 +205,39 @@ struct Strings {
     let heroLibraryDays: String
     let mindsSecDelegation: String
     let mindsDelegationHint: String
+    // ── Minds 三页重构(2026-08-17)
+    let mindsPageOverview: String
+    let mindsPageAI: String
+    let mindsPageProjects: String
+    /// 工作节律四条洞察:标题行 + 数据行(原来一整句挤在一行读不动)
+    let mRhythmPeakTitle: (String) -> String
+    let mRhythmPeakDetail: (Int, Int, Int) -> String
+    let mRhythmBusiestTitle: (String) -> String
+    let mRhythmBusiestDetail: (Int, Int) -> String
+    let mRhythmJuggleTitle: (String) -> String
+    let mRhythmJuggleDetail: (Int, String) -> String
+    let mRhythmWeekTitle: (Int) -> String
+    let mRhythmWeekDetail: (Int, Int) -> String
+    /// 最近活跃列
+    let mRelToday: String
+    let mRelDaysAgo: (Int) -> String
+    let mMarathonLongest: (String) -> String
+    /// 项目表新增列
+    let mProjColScale: String
+    let mProjColSpan: String
+    let mProjColRecent: String
+    /// 「你的语言」整行卡
+    let mindsSecLanguage: String
+    let mindsLanguageHint: String
+    /// 空态(不显示一排 0)
+    let mindsEmptyRhythm: String
+    let mindsEmptyGeneric: String
+    /// 图表 tooltip
+    let mHeatLegendLess: String
+    let mHeatLegendMore: String
+    let mHeatTipConversations: (Int) -> String
+    let mHourTipRange: (Int) -> String
+    let mHourTipCount: (Int, String) -> String
     /// 委托动词计数:%d=次数, %d=对话场数
     let mDelegCount: String
     /// 调研目的地亮点:%@=目的地, %@=点名次数
@@ -578,6 +611,32 @@ struct Strings {
         heroLibraryDays: "收纳天数",
         mindsSecDelegation: "你派给 AI 的活",
         mindsDelegationHint: "哪类事你最常交给 AI",
+        mindsPageOverview: "你的总览",
+        mindsPageAI: "你与 AI 的互动",
+        mindsPageProjects: "你的项目与语言资产",
+        mRhythmPeakTitle: { "开场高峰 \($0) 点" },
+        mRhythmPeakDetail: { "\($0)%(\($1)/\($2) 场)" },
+        mRhythmBusiestTitle: { "最忙一天 \($0)" },
+        mRhythmBusiestDetail: { "\($0) 场(占全部 \($1)%)" },
+        mRhythmJuggleTitle: { "平均每个活跃日跨 \($0) 个项目" },
+        mRhythmJuggleDetail: { "峰值 \($0)(\($1))" },
+        mRhythmWeekTitle: { "本周至今 \($0) 场" },
+        mRhythmWeekDetail: { "处于你个人历史的 P\($0)(中位 \($1))" },
+        mRelToday: "今天",
+        mRelDaysAgo: { "\($0) 天前" },
+        mMarathonLongest: { "最长 \($0)" },
+        mProjColScale: "相对规模",
+        mProjColSpan: "活跃期",
+        mProjColRecent: "最近活跃",
+        mindsSecLanguage: "你的语言",
+        mindsLanguageHint: "你反复说的话，跨项目带着走的说法，你未必察觉",
+        mindsEmptyRhythm: "继续使用一段时间后，这里会出现你的工作节律。",
+        mindsEmptyGeneric: "当前还没有足够数据计算这一项。",
+        mHeatLegendLess: "少",
+        mHeatLegendMore: "多",
+        mHeatTipConversations: { "\($0) 场对话" },
+        mHourTipRange: { String(format: "%02d:00–%02d:00", $0, ($0 + 1) % 24) },
+        mHourTipCount: { "\($0) 场对话 · 占全部 \($1)%" },
         mDelegCount: "%d 次 %d 场",
         mDelegResearch: "调研的第一目的地:%@(点名 %@ 次)",
         mindsSecFirstWords: "项目的第一句话",
@@ -926,6 +985,32 @@ struct Strings {
         heroLibraryDays: "days of library",
         mindsSecDelegation: "Delegation",
         mindsDelegationHint: "what you most often ask AI to do",
+        mindsPageOverview: "Your Overview",
+        mindsPageAI: "You and AI",
+        mindsPageProjects: "Projects & Language",
+        mRhythmPeakTitle: { "most conversations start \($0)" },
+        mRhythmPeakDetail: { "\($0)% (\($1) of \($2))" },
+        mRhythmBusiestTitle: { "busiest day \($0)" },
+        mRhythmBusiestDetail: { "\($0) conversations (\($1)% of everything)" },
+        mRhythmJuggleTitle: { "\($0) projects per active day" },
+        mRhythmJuggleDetail: { "peak \($0) on \($1)" },
+        mRhythmWeekTitle: { "\($0) so far this week" },
+        mRhythmWeekDetail: { "P\($0) of your own history (median \($1))" },
+        mRelToday: "today",
+        mRelDaysAgo: { "\($0)d ago" },
+        mMarathonLongest: { "longest \($0)" },
+        mProjColScale: "SCALE",
+        mProjColSpan: "ACTIVE PERIOD",
+        mProjColRecent: "LAST TOUCHED",
+        mindsSecLanguage: "Your Language",
+        mindsLanguageHint: "phrases you carry from project to project, probably without noticing",
+        mindsEmptyRhythm: "Keep using it for a while — your work rhythm will show up here.",
+        mindsEmptyGeneric: "Not enough data for this one yet.",
+        mHeatLegendLess: "less",
+        mHeatLegendMore: "more",
+        mHeatTipConversations: { "\($0) conversations" },
+        mHourTipRange: { String(format: "%02d:00–%02d:00", $0, ($0 + 1) % 24) },
+        mHourTipCount: { "\($0) conversations · \($1)% of all" },
         mDelegCount: "%d× %dc",
         mDelegResearch: "research destination #1: %@ (named %@ times)",
         mindsSecFirstWords: "First Words",
