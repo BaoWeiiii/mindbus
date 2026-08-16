@@ -1486,15 +1486,22 @@ struct FlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? 600
-        var x: CGFloat = 0, y: CGFloat = 0, rowH: CGFloat = 0
+        // 提议宽度可能是 .infinity(SwiftUI 测量阶段常给无限提议),而不是 nil——
+        // `?? 600` 对它无效,于是返回无限宽把整个窗口撑爆:2026-08-16 用户现场
+        // 「点开 Minds 一秒后侧栏与右侧按钮同时被裁」就是它(窗口撑大后居中,两边溢出屏幕),
+        // 而且只在 chips 拿到数据、本布局参与排版时发作,故有那一秒延迟。
+        let proposed = proposal.width ?? .infinity
+        let width = (proposed.isFinite && proposed > 0) ? proposed : 600
+        var x: CGFloat = 0, y: CGFloat = 0, rowH: CGFloat = 0, usedX: CGFloat = 0
         for sub in subviews {
             let size = sub.sizeThatFits(.unspecified)
             if x + size.width > width, x > 0 { x = 0; y += rowH + spacing; rowH = 0 }
             x += size.width + spacing
+            usedX = max(usedX, x)
             rowH = max(rowH, size.height)
         }
-        return CGSize(width: width, height: y + rowH)
+        // 返回**实际用掉的**宽度,不是提议宽度:占满提议会让父容器误以为需要这么宽
+        return CGSize(width: min(width, max(usedX - spacing, 0)), height: y + rowH)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
