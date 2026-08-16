@@ -91,24 +91,28 @@ struct MindsView: View {
             if minds.mechanicalMarkdown.isEmpty && minds.entriesBySpot.isEmpty {
                 fileMissing
             } else {
-                // 惊喜区在前（2026-08-12 重构：信息价值=意外度,你没意识到的模式才值钱）,
-                // 空节整节隐藏——「没有断点」不值得占一屏;五节全空时只剩统计区,合理降级
-                groupLabel(l10n.s.mindsGroupForYou)
-                sanctuarySection
-                dormantSection
-                fadedSection
-                thisMonthSection
+                // 布局(2026-08-16 重排):hero 数字开屏 → 四个语义组,短节双列
+                // 配对压缩纵向长度,大节独占整行。空节整节隐藏。
+                heroSection
+
+                groupLabel(l10n.s.mindsGroupRhythm)
                 heatmapSection
                 workRhythmSection
-                shapeSection
-                weekendSection
-                questionShapeSection
+                pair(thisMonthSection, weekendSection)
+
+                groupLabel(l10n.s.mindsGroupHowYouUseAI)
                 delegationSection
-                repeatedBriefingsSection
-                catchphrasesSection
-                leverageSection
+                questionShapeSection
+                pair(shapeSection, leverageSection)
                 projectLeverageSection
-                marathonsSection
+
+                groupLabel(l10n.s.mindsGroupLanguage)
+                repeatedBriefingsSection
+                pair(catchphrasesSection, fadedSection)
+
+                groupLabel(l10n.s.mindsGroupProjects)
+                pair(dormantSection, marathonsSection)
+
                 groupLabel(l10n.s.mindsGroupForAI)
                 overviewSection
                 projectsSection
@@ -116,7 +120,7 @@ struct MindsView: View {
                 weakSpotsSection
             }
         }
-        .frame(maxWidth: 760, alignment: .leading)
+        .frame(maxWidth: 1000, alignment: .leading)
         .padding(.horizontal, 40)
         .padding(.top, 48)
         .padding(.bottom, 80)
@@ -510,6 +514,76 @@ struct MindsView: View {
 
     /// Backblaze「You are backed up as of…」句式:常驻、现在时、金盾图标。
     /// 数据直查+L10n 模板(单语化:GUI 不再显 md 英文行)。
+    /// 双列配对:两个矮节并排,压缩纵向长度(宽屏 1000 列下每列 ~490)。
+    /// top 对齐——两节高度不等时短的悬顶,不拉伸。
+    private func pair(_ a: some View, _ b: some View) -> some View {
+        HStack(alignment: .top, spacing: 24) {
+            VStack(alignment: .leading, spacing: 0) { a }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 0) { b }
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Hero 数字带:开屏价值感——四个大数字横排(对话/副本/库龄/救回),
+    /// 里程碑与最近收录作副行。金色只给「已救回」(价值最强的数字)。
+    private var heroSection: some View {
+        Group {
+            if let st = viz.sanctuary, st.conversationCount > 0 {
+                VStack(alignment: .leading, spacing: 0) {
+                    sectionTitle("SANCTUARY", l10n.s.mindsSecSanctuary, hint: l10n.s.mindsSanctuaryHint)
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 0) {
+                            heroNumber("\(st.conversationCount)", l10n.s.heroConversations)
+                            heroNumber(String(format: "%.0f MB", Double(viz.vault.bytes) / 1_048_576),
+                                       l10n.s.heroVaultCopies)
+                            heroNumber("\(st.earliest.map { max(1, Int(Date().timeIntervalSince($0) / 86_400) + 1) } ?? 1)",
+                                       l10n.s.heroLibraryDays)
+                            if viz.rescuedCount > 0 {
+                                heroNumber("\(viz.rescuedCount)", l10n.s.heroRescued, gold: true)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        heroFootnote(st)
+                    }
+                    .padding(.horizontal, 20).padding(.vertical, 18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
+    }
+
+    private func heroNumber(_ value: String, _ label: String, gold: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(gold ? DSLight.gold : DSLight.t1)
+            Text(label)
+                .font(.system(size: 11)).foregroundStyle(DSLight.t3)
+        }
+        .frame(minWidth: 150, alignment: .leading)
+    }
+
+    private func heroFootnote(_ st: ConversationIndex.SanctuaryStats) -> some View {
+        var parts: [String] = []
+        if st.outlivedClaudeCode > 0 { parts.append(l10n.s.mSanctuaryOutlived(st.outlivedClaudeCode)) }
+        var passed: [String] = []
+        if let m = MindsBuilder.highestMilestone(st.conversationCount, in: MindsBuilder.conversationMilestones) {
+            passed.append(l10n.s.mSanctuaryMileConv(m))
+        }
+        if let m = MindsBuilder.highestMilestone(viz.volume.totalChars, in: MindsBuilder.characterMilestones) {
+            passed.append(l10n.s.mSanctuaryMileChars(MindsBuilder.compactChars(m)))
+        }
+        if !passed.isEmpty { parts.append(l10n.s.mSanctuaryMilestones(passed.joined(separator: " · "))) }
+        return Group {
+            if !parts.isEmpty {
+                Text(parts.joined(separator: "   ·   "))
+                    .font(BrandFont.mono(11)).foregroundStyle(DSLight.t2)
+            }
+        }
+    }
+
     private var sanctuarySection: some View {
         var rows: [String] = []
         if let st = viz.sanctuary, st.conversationCount > 0 {

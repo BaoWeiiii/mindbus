@@ -201,6 +201,14 @@ struct Strings {
     let mVocabWorkMeta: (Int) -> String
     let mindsSecQuestionShape: String
     let mindsQuestionShapeHint: String
+    let mindsGroupRhythm: String
+    let mindsGroupHowYouUseAI: String
+    let mindsGroupLanguage: String
+    let mindsGroupProjects: String
+    let heroConversations: String
+    let heroVaultCopies: String
+    let heroLibraryDays: String
+    let heroRescued: String
     let mindsSecDelegation: String
     let mindsDelegationHint: String
     /// 调研目的地亮点:%@=目的地, %@=点名次数
@@ -555,6 +563,14 @@ struct Strings {
         mVocabWorkMeta: { "\($0) 次" },
         mindsSecQuestionShape: "提问的形状",
         mindsQuestionShapeHint: "你的问题落在哪个认知层",
+        mindsGroupRhythm: "你的节奏",
+        mindsGroupHowYouUseAI: "你怎么用 AI",
+        mindsGroupLanguage: "你的语言",
+        mindsGroupProjects: "你的项目",
+        heroConversations: "场对话",
+        heroVaultCopies: "本地副本",
+        heroLibraryDays: "天库龄",
+        heroRescued: "场已救回",
         mindsSecDelegation: "你派给 AI 的活",
         mindsDelegationHint: "哪类事你最常交给 AI",
         mDelegResearch: "调研的第一目的地:%@(点名 %@ 次)",
@@ -890,6 +906,14 @@ struct Strings {
         mVocabWorkMeta: { "\($0)×" },
         mindsSecQuestionShape: "Question Shape",
         mindsQuestionShapeHint: "which cognitive layer your questions live in",
+        mindsGroupRhythm: "Your rhythm",
+        mindsGroupHowYouUseAI: "How you use AI",
+        mindsGroupLanguage: "Your language",
+        mindsGroupProjects: "Your projects",
+        heroConversations: "conversations",
+        heroVaultCopies: "local copies",
+        heroLibraryDays: "days of library",
+        heroRescued: "rescued",
         mindsSecDelegation: "Delegation",
         mindsDelegationHint: "what you most often ask AI to do",
         mDelegResearch: "research destination #1: %@ (named %@ times)",
