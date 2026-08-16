@@ -26,6 +26,9 @@ public enum MemoryBrowseTool {
     public static let spec = MCPToolSpec(
         name: "memory_browse",
         description: """
+        CALL THIS when the user remembers roughly WHEN or WHERE but not the exact words — \
+        "上个月那场" / "在某某项目里聊的" — or when memory_search returns nothing useful.
+
         Browse the user's conversation archive by structure instead of by keyword. With no \
         arguments it returns the library map: total conversations, time span, per-tool / \
         per-project / per-month counts, and the most frequent entities. Every line carries the \

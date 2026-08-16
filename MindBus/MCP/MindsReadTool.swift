@@ -20,6 +20,9 @@ public enum MindsReadTool {
     public static let spec = MCPToolSpec(
         name: "minds_read",
         description: """
+        CALL THIS at the START of a session (or before any personalized task) to know who \
+        you are working with — preferences, active projects, vocabulary — without asking.
+
         Read the user's Minds base — their own persistent profile built from this local \
         archive. The mechanical layer (OVERVIEW, PROJECT RHYTHM, TOP ENTITIES, VOCABULARY, \
         AGENT USAGE) is pure counted statistics, zero generation. WEAK SPOTS lists four gaps \

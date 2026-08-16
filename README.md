@@ -82,7 +82,11 @@ App 内置一个只读 MCP server。想让 Claude Code / Codex 用上它，把�
 
 > 把 `/Applications/MindBus.app/Contents/MacOS/mindbus-mcp` 注册成名为 mindbus 的 MCP server
 
-它自己会配好。之后你的 AI 就能搜索、翻阅你全部的历史对话，还能读你的思脉画像。除「补充画像」（每条都要注明来源、等你确认）外全部只读——索引以只读方式打开，不可能改动你的库。
+它自己会配好。再往你的 `CLAUDE.md`（或 `AGENTS.md`）里加一条，让 AI 养成先查历史的习惯：
+
+> 涉及过往决定、项目历史或「之前 / 上次」时，先用 mindbus 的 memory_search 查原始对话；新任务开始前用 minds_read 了解我的偏好。
+
+之后你的 AI 就能搜索、翻阅你全部的历史对话，还能读你的思脉画像。除「补充画像」（每条都要注明来源、等你确认）外全部只读——索引以只读方式打开，不可能改动你的库。
 
 ## 隐私
 

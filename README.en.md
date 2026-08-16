@@ -80,7 +80,11 @@ The app ships with a read-only MCP server. To hook it up, just tell your AI:
 
 > Register `/Applications/MindBus.app/Contents/MacOS/mindbus-mcp` as an MCP server named mindbus
 
-It will configure itself. Your AI can then search and read all your past conversations, plus your Minds profile. Everything is read-only except profile enrichment (each entry source-traced, awaiting your confirmation) — the index is opened read-only and cannot be modified.
+It will configure itself. Then add one line to your `CLAUDE.md` (or `AGENTS.md`) so the habit sticks:
+
+> When past decisions, project history, or "previously / last time" come up, search the original conversations with mindbus's memory_search first; before starting a new task, read my preferences with minds_read.
+
+Your AI can then search and read all your past conversations, plus your Minds profile. Everything is read-only except profile enrichment (each entry source-traced, awaiting your confirmation) — the index is opened read-only and cannot be modified.
 
 ## Privacy
 

@@ -19,6 +19,9 @@ public enum MemorySearchTool {
     public static let spec = MCPToolSpec(
         name: "memory_search",
         description: """
+        CALL THIS FIRST whenever the user references past work — "上次/之前/我们讨论过/当时为什么" \
+        or any question whose answer may live in an earlier session, in any AI tool.
+
         Search the user's own past AI conversations (Claude Code, Claude desktop, ChatGPT \
         desktop, browser AI platforms) by keyword. Ranked by relevance (BM25 over both a \
         character-trigram and a word tokenizer, so Chinese and English both work). Each result \
