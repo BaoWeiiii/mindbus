@@ -256,33 +256,6 @@ public final class ConversationStore: ObservableObject {
         }
     }
 
-    // MARK: - Wrapped 报告数据口(窗口化查询的薄转发——视图层不直接碰 index)
-
-    public func wrappedSourceCounts(from: Date, to: Date) -> [ConversationIndex.FacetCount] {
-        index?.sourceCounts(from: from, to: to) ?? []
-    }
-    public func wrappedBusiestDay(from: Date, to: Date) -> (day: String, count: Int)? {
-        index?.busiestDay(from: from, to: to)
-    }
-    public func wrappedHourQuarters(from: Date, to: Date) -> [Int] {
-        index?.hourQuarterHistogram(from: from, to: to) ?? [Int](repeating: 0, count: 6)
-    }
-    public func wrappedVolume(from: Date, to: Date) -> (userChars: Int, totalChars: Int) {
-        index?.corpusVolume(from: from, to: to) ?? (0, 0)
-    }
-    public func wrappedFirstConversation(from: Date, to: Date) -> ConversationIndex.UnfinishedThread? {
-        index?.firstConversation(from: from, to: to)
-    }
-    /// 窗口内 user 语料(口头禅卡用)。
-    public func wrappedUserCorpus(from: Date) -> [String] {
-        (index?.userCorpusWithDates() ?? []).filter { $0.startAt >= from }.map(\.text)
-    }
-    /// 窗口内活跃天数。
-    public func wrappedActiveDays(from: Date) -> Int {
-        let days = max(1, min(3_650, Int(Date().timeIntervalSince(from) / 86_400) + 1))
-        return index?.dailyCounts(days: days, now: Date()).count ?? 0
-    }
-
     // MARK: - Minds 可视化数据口(图表直查 store,文字行走 minds.md——两层并存)
 
     public nonisolated func vizHourly24() -> [Int] {

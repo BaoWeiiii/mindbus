@@ -107,7 +107,7 @@ Open the app; it scans automatically and the list is ready in seconds:
 - **Search**: Chinese or English keywords, highlighted hits, click to jump to the message.
 - **Browse**: filter by tool / project / time; project color tags; a gold breathing dot marks active conversations.
 - **Star & relay**: star key messages; "relay copy" carries selected content into any new chat.
-- **Minds & reports**: your counted self-portrait; 1/3/12-month stat cards, with one-click redaction before export.
+- **Minds**: your own portrait — phrases you repeat, verbs you delegate with, catchphrases, activity heatmaps.
 
 ### As an AI
 

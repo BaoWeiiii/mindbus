@@ -237,7 +237,6 @@ struct Strings {
     let mindsProjectLeverageHint: String
     let mindsSecFlows: String
     let mindsFlowsHint: String
-    let mindsWrappedButton: String
     let mindsProjectsHint: String
     let mindsSecOnThisDay: String
     let mindsOnThisDayHint: String
@@ -605,7 +604,6 @@ struct Strings {
         mindsProjectLeverageHint: "哪个项目最省你的话",
         mindsSecFlows: "知识流动",
         mindsFlowsHint: "项目之间共享的概念",
-        mindsWrappedButton: "生成报告",
         mindsProjectsHint: "点击展开历次会话",
         mindsSecOnThisDay: "那年今日",
         mindsOnThisDayHint: "同一个日期，更早的章节",
@@ -954,7 +952,6 @@ struct Strings {
         mindsProjectLeverageHint: "which project stretches your words furthest",
         mindsSecFlows: "Knowledge Flows",
         mindsFlowsHint: "concepts your projects share",
-        mindsWrappedButton: "Your Report",
         mindsProjectsHint: "click to expand history",
         mindsSecOnThisDay: "On This Day",
         mindsOnThisDayHint: "same date, earlier chapters",

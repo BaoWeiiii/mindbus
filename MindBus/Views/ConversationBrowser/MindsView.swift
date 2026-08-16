@@ -141,8 +141,6 @@ struct MindsView: View {
 
     // MARK: - 头部
 
-    @State private var showWrapped = false
-
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
@@ -154,16 +152,6 @@ struct MindsView: View {
                     .font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
             }
             Spacer(minLength: 0)
-            // Wrapped 报告入口(行业调研落地:窗口化的对话报告,导出本地 PNG)
-            Button { showWrapped = true } label: {
-                Label(l10n.s.mindsWrappedButton, systemImage: "sparkles.rectangle.stack")
-                    .font(.system(size: 12))
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(DSLight.goldG, in: Capsule())
-                    .foregroundStyle(DSLight.gold)
-            }
-            .buttonStyle(.plain)
-            .sheet(isPresented: $showWrapped) { WrappedView(store: store) }
         }
     }
 

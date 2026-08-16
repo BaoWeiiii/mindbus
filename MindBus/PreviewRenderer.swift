@@ -24,7 +24,6 @@ enum PreviewRenderer {
             render(sidebarSample, name: "sidebar", size: CGSize(width: 220, height: 420), to: sub)
             render(sidebarMindsSample, name: "sidebar-minds", size: CGSize(width: 220, height: 420), to: sub)
             render(MindsPlaceholderView(), name: "minds-placeholder", size: CGSize(width: 700, height: 300), to: sub)
-            render(wrappedSample, name: "wrapped-cards", size: CGSize(width: 520, height: 1560), to: sub)
             render(chartsGallery, name: "charts-gallery", size: CGSize(width: 760, height: 760), to: sub)
             render(heatmapSample, name: "heatmap-grid", size: CGSize(width: 760, height: 140), to: sub)
             render(mindsContentSample, name: "minds-content", size: CGSize(width: 840, height: 6200), to: sub)
@@ -61,30 +60,6 @@ enum PreviewRenderer {
     /// Minds 真内容页样张：临时目录造 minds.md + enriched.jsonl（一条待确认 + 一条已确认），
     /// 经 MINDBUS_MINDS_ROOT 注入让 MindsStore 读到假数据。渲 renderableContent 绕开
     /// ScrollView 盲区。
-    /// Wrapped 报告卡片样张:假数据全卡种(sheet 本体是渲染盲区,渲卡片列)。
-    private static var wrappedSample: some View {
-        let d = WrappedData(
-            conversationCount: 87,
-            bySource: [.init(key: "claudeCode", count: 52), .init(key: "codex", count: 31),
-                       .init(key: "claudeAgent", count: 4)],
-            busiestDay: (day: "2026-05-15", count: 58),
-            hourQuarters: [4, 1, 6, 20, 30, 26],
-            catchphrases: [(phrase: "继续", count: 47), (phrase: "好的", count: 23),
-                           (phrase: "为什么", count: 12)],
-            volume: (userChars: 1_308_411, totalChars: 15_620_688),
-            first: ConversationIndex.UnfinishedThread(
-                id: "f1", title: "帮我把选题库的爬虫跑起来", preview: "p",
-                cwd: "/Users/dev/Projects/TrendRadar",
-                endAt: Date(timeIntervalSince1970: 1_747_000_000)),
-            activeDayCount: 98,
-            shape: ConversationIndex.CollaborationShape(
-                turnBands: [7, 9, 16, 113], durationBands: [34, 46, 17, 48], avgCharsPerMessage: 39),
-            avgProjectsPerDay: 1.7,
-            topSourceShare: 60)
-        return WrappedCards(data: d, isZh: true)
-            .padding(28).background(DSLight.bg)
-    }
-
     /// 可视化组件画廊:五张主图+滑条+三 sparkline,假数据一屏验证。
     private static var chartsGallery: some View {
         var hours = [Int](repeating: 0, count: 24)
