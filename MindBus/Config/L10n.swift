@@ -183,6 +183,8 @@ struct Strings {
     let mDormantMeta: (Int, String) -> String
     let mFadedMeta: (Int, Int) -> String
     let mBriefSaid: (Int, Int) -> String
+    /// %d=天数:「还持续了 N 天」
+    let mBriefSpan: (Int) -> String
     let mFlowShared: (Int) -> String
     let mFlowBorn: (Int, String) -> String
     let mMarathonMeta: (Int, String, String) -> String
@@ -549,6 +551,7 @@ struct Strings {
         mDormantMeta: { "\($0) 场对话,最后一次 \($1)" },
         mFadedMeta: { "说过 \($0) 次,沉默 \($1) 天" },
         mBriefSaid: { "讲过 \($0) 遍 · 跨 \($1) 场对话" },
+        mBriefSpan: { "持续 \($0) 天" },
         mFlowShared: { "共享 \($0) 个概念" },
         mFlowBorn: { " · \($0) 个先生于 \($1)" },
         mMarathonMeta: { "\($0) 条消息,跨 \($1),\($2)" },
@@ -895,6 +898,7 @@ struct Strings {
         mDormantMeta: { "\($0) conversations, last touched \($1)" },
         mFadedMeta: { "said \($0)× · silent \($1) days" },
         mBriefSaid: { "said \($0)× · across \($1) conversations" },
+        mBriefSpan: { "over \($0) days" },
         mFlowShared: { "\($0) shared concepts" },
         mFlowBorn: { " · \($0) born in \($1) first" },
         mMarathonMeta: { "\($0) messages · over \($1) · \($2)" },

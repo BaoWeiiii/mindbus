@@ -250,9 +250,9 @@ final class MindsSurpriseTests: XCTestCase {
     func testRepeatedBriefingsToleratesSmallEdits() {
         // 同一段交代的三个变体,各改 2-3 个字——3-gram Jaccard 应聚成一组
         let corpus = [
-            (text: "你是资深审查员,只看规格符合性,不要提出风格意见", convID: "c1"),
-            (text: "你是资深审查员,只看规格符合性,不要给出风格意见", convID: "c2"),
-            (text: "你是资深审查员,只看规格的符合性,不要提风格意见", convID: "c3"),
+            (text: "你是资深审查员,只看规格符合性,不要提出风格意见", convID: "c1", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: "你是资深审查员,只看规格符合性,不要给出风格意见", convID: "c2", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: "你是资深审查员,只看规格的符合性,不要提风格意见", convID: "c3", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
         ]
         let groups = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
         XCTAssertEqual(groups.count, 1, "小改动的变体应聚为一组: \(groups)")
@@ -263,9 +263,9 @@ final class MindsSurpriseTests: XCTestCase {
         // 超过 80 字的长交代(真实场景:完整的角色设定/工作约定)也要能聚类
         let long = String(repeating: "这是一段很长的工作交代,包含背景约束和验收标准,", count: 5)  // ~115 字
         let corpus = [
-            (text: long + "最后按清单逐项检查", convID: "c1"),
-            (text: long + "最后按照清单逐项核对", convID: "c2"),
-            (text: long + "最后按清单逐一核查", convID: "c3"),
+            (text: long + "最后按清单逐项检查", convID: "c1", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: long + "最后按照清单逐项核对", convID: "c2", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: long + "最后按清单逐一核查", convID: "c3", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
         ]
         let groups = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
         XCTAssertEqual(groups.count, 1, "长交代不该被长度上限拒之门外: \(groups)")
@@ -726,11 +726,11 @@ final class MindsSurpriseTests: XCTestCase {
 
     func testRepeatedBriefingsClustersSimilarCrossConversation() {
         let brief = "你是资深审查员,正在审查 Task N 的代码质量,请只看规格符合性"
-        let corpus: [(text: String, convID: String)] = [
-            (text: brief.replacingOccurrences(of: "N", with: "3"), convID: "a"),
-            (text: brief.replacingOccurrences(of: "N", with: "4"), convID: "b"),
-            (text: brief.replacingOccurrences(of: "N", with: "5"), convID: "c"),
-            (text: "完全无关的一句话,聊聊今天天气怎么样吧", convID: "d"),
+        let corpus: [(text: String, convID: String, startAt: Date)] = [
+            (text: brief.replacingOccurrences(of: "N", with: "3"), convID: "a", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: brief.replacingOccurrences(of: "N", with: "4"), convID: "b", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: brief.replacingOccurrences(of: "N", with: "5"), convID: "c", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: "完全无关的一句话,聊聊今天天气怎么样吧", convID: "d", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
         ]
         let groups = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
         XCTAssertEqual(groups.count, 1, "三条同模板该聚成一组,无关句不进: \(groups)")
@@ -739,13 +739,13 @@ final class MindsSurpriseTests: XCTestCase {
     }
 
     func testRepeatedBriefingsFiltersNoiseAndSameConversation() {
-        let corpus: [(text: String, convID: String)] = [
+        let corpus: [(text: String, convID: String, startAt: Date)] = [
             // 编号行与 JSON 键值是粘贴残留,不算「你讲的话」
-            (text: "1. 地形倍率:road 1、plain 1、mountain 1.35", convID: "a"),
-            (text: "2. 地形倍率:road 1、plain 1、mountain 1.35", convID: "b"),
-            (text: "3. 地形倍率:road 1、plain 1、mountain 1.35", convID: "c"),
+            (text: "1. 地形倍率:road 1、plain 1、mountain 1.35", convID: "a", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: "2. 地形倍率:road 1、plain 1、mountain 1.35", convID: "b", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: "3. 地形倍率:road 1、plain 1、mountain 1.35", convID: "c", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
             // 同一会话内的三遍重复:times 够但 conversations=1,不算「反复交代」
-            (text: "帮我把这个模块重构一下注意保持接口\n帮我把这个模块重构一下注意保持接口\n帮我把这个模块重构一下注意保持接口", convID: "x"),
+            (text: "帮我把这个模块重构一下注意保持接口\n帮我把这个模块重构一下注意保持接口\n帮我把这个模块重构一下注意保持接口", convID: "x", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
         ]
         XCTAssertTrue(MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5).isEmpty)
     }

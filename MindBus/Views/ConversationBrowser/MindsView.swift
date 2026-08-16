@@ -391,7 +391,12 @@ struct MindsView: View {
     }
     private func briefMeta(_ d: String) -> String {
         guard let m = firstTwoGroups(d, #"said (\d+)× across (\d+) conversations"#) else { return d }
-        return l10n.s.mBriefSaid(Int(m.0) ?? 0, Int(m.1) ?? 0)
+        var out = l10n.s.mBriefSaid(Int(m.0) ?? 0, Int(m.1) ?? 0)
+        // 「隔一段时间还在讲」才是真·反复交代(用户三特征之三)
+        if let sp = firstTwoGroups(d, #"spanning (\d+) days()"#) {
+            out += "，" + l10n.s.mBriefSpan(Int(sp.0) ?? 0)
+        }
+        return out
     }
     private func flowMeta(_ d: String) -> String {
         guard let m = firstTwoGroups(d, #"(\d+) shared concepts(.*)"#) else { return d }

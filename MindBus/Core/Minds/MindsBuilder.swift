@@ -143,7 +143,7 @@ public enum MindsBuilder {
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 10)
         surprise.researchDestinations = researchDestinations(corpus: corpus)
         surprise.repeatedBriefings = repeatedBriefings(
-            corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 5)
+            corpus: corpusRows.map { (text: $0.text, convID: $0.convID, startAt: $0.startAt) }, limit: 5)
         // 四批:结构与关系维度
         surprise.shape = index.collaborationShape()
         surprise.weekendSplit = index.weekendSplit(minCount: 2)
@@ -393,8 +393,12 @@ public enum MindsBuilder {
         public let sample: String        // 组内最长样本
         public let times: Int            // 讲过几遍(含同会话重复)
         public let conversations: Int    // 跨几个会话
-        public init(sample: String, times: Int, conversations: Int) {
-            self.sample = sample; self.times = times; self.conversations = conversations
+        /// 首末两次相隔多少天(2026-08-16 用户三特征之三:「隔一段时间会说」)——
+        /// 一天里连讲三遍是当时较劲,隔三个月还在讲才是真·反复交代。
+        public let spanDays: Int
+        public init(sample: String, times: Int, conversations: Int, spanDays: Int = 0) {
+            self.sample = sample; self.times = times
+            self.conversations = conversations; self.spanDays = spanDays
         }
     }
 
@@ -405,14 +409,16 @@ public enum MindsBuilder {
     private static let briefingNoise = try? NSRegularExpression(
         pattern: #"^\d+[.、)]|^["'{}\[<]|"\w+"\s*:|^[-*] |^#{1,6} |^[A-Za-z]\d+[:：]|\w+=\S+.*\w+=\S+"#)
 
-    static func repeatedBriefings(corpus: [(text: String, convID: String)],
+    static func repeatedBriefings(corpus: [(text: String, convID: String, startAt: Date)],
                                   limit: Int) -> [RepeatedBriefing] {
         // ① 候选:14-200 字、含 CJK、非噪声。上限 200(2026-08-16 放宽):
         // v16 起行=整条消息,完整的角色设定/工作约定常超 80 字,老上限会把
         // 「反复交代的长话」整条拒之门外;粘贴防线已由消息压平+噪声正则+
         // 超长排除承担,不再需要 80 这道矮墙。
         var msgs: [(String, String)] = []
-        for (text, cid) in corpus {
+        var dateOf: [String: Date] = [:]        // convID → 会话时间(算首末间隔)
+        for (text, cid, startAt) in corpus {
+            dateOf[cid] = startAt
             for line in text.split(separator: "\n") {
                 let t = line.trimmingCharacters(in: .whitespaces)
                 guard (14...200).contains(t.count),
@@ -463,7 +469,11 @@ public enum MindsBuilder {
             let convs = Set(ids.map { msgs[$0].1 })
             guard convs.count >= 2 else { return nil }
             let sample = ids.map { msgs[$0].0 }.max(by: { $0.count < $1.count }) ?? ""
-            return RepeatedBriefing(sample: sample, times: ids.count, conversations: convs.count)
+            let dates = convs.compactMap { dateOf[$0] }.sorted()
+            let span = (dates.first != nil && dates.count > 1)
+                ? Int(dates.last!.timeIntervalSince(dates.first!) / 86_400) : 0
+            return RepeatedBriefing(sample: sample, times: ids.count,
+                                    conversations: convs.count, spanDays: span)
         }
         .sorted { $0.times != $1.times ? $0.times > $1.times : $0.sample < $1.sample }
         .prefix(limit).map { $0 }
@@ -944,7 +954,8 @@ public enum MindsBuilder {
             lines.append("(none — you rarely repeat yourself)")
         } else {
             for b in briefings {
-                lines.append("- \(flattened(b.sample).prefix(60)) — said \(b.times)× across \(b.conversations) conversations")
+                let span = b.spanDays >= 1 ? ", spanning \(b.spanDays) days" : ""
+                lines.append("- \(flattened(b.sample).prefix(60)) — said \(b.times)× across \(b.conversations) conversations\(span)")
             }
         }
         return lines.joined(separator: "\n")
