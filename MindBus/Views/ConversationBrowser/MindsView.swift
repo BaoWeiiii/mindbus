@@ -108,8 +108,7 @@ struct MindsView: View {
 
                 groupLabel(l10n.s.mindsGroupLanguage)
                 repeatedBriefingsSection
-                pair(catchphrasesSection, invokedNamesSection)
-                fadedSection
+                pair(catchphrasesSection, fadedSection)
 
                 groupLabel(l10n.s.mindsGroupProjects)
                 pair(dormantSection, marathonsSection)
@@ -793,39 +792,6 @@ struct MindsView: View {
         }
     }
 
-    /// 你搬出过的名字:引用谁=思维参照系。chips 同口头禅形态,金字胶囊。
-    private var invokedNamesSection: some View {
-        let line = sectionLines("NAMES YOU INVOKE").first { $0.hasPrefix("- ") }
-        let chips: [(String, String)] = line.map {
-            $0.dropFirst(2).split(separator: "|").compactMap { part in
-                let t = part.trimmingCharacters(in: .whitespaces)
-                guard let m = firstTwoGroups(t, #"^(.+) (\d+)x/(\d+)c$"#, third: true),
-                      let g3 = m.2 else { return nil }
-                return (m.0, l10n.s.mInvokedMeta(Int(m.1) ?? 0, Int(g3) ?? 0))
-            }
-        } ?? []
-        return Group {
-            if !chips.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    sectionTitle("Names You Invoke", l10n.s.mindsSecInvokedNames,
-                                 hint: l10n.s.mindsInvokedNamesHint)
-                    FlowLayout(spacing: 8) {
-                        ForEach(chips, id: \.0) { chip in
-                            HStack(spacing: 6) {
-                                Text(chip.0)
-                                    .font(.system(size: 13, weight: .medium)).foregroundStyle(DSLight.t1)
-                                Text(chip.1)
-                                    .font(BrandFont.mono(10)).foregroundStyle(DSLight.gold)
-                            }
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .background(DSLight.sf, in: Capsule())
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     private var catchphrasesSection: some View {
         let lines = sectionLines("CATCHPHRASES").filter { $0.hasPrefix("- ") }
         let phraseLine = lines.first { !$0.hasPrefix("- politeness") }
@@ -1201,38 +1167,17 @@ struct MindsView: View {
     }
 
     private var vocabularySection: some View {
-        // 双组:"- mind: 第一性原理 (39×·12p) · …" / "- work: 选题库 (87) · …"
+        // 一组(2026-08-16):"- 架构 (115×/15p) · 复用 (31×/9p) · …"
+        // 按说得多排序,不分类型——前 6 个金实底(说得最多的一眼可见),其余淡底。
         let lines = sectionLines("VOCABULARY").filter { $0.hasPrefix("- ") }
-        let mindChips = lines.first { $0.hasPrefix("- mind: ") }
-            .map { chipsFrom(String($0.dropFirst("- mind: ".count))) } ?? []
-        let workChips = lines.first { $0.hasPrefix("- work: ") }
-            .map { chipsFrom(String($0.dropFirst("- work: ".count))) } ?? []
+        let chips = lines.first.map { chipsFrom(String($0.dropFirst(2))) } ?? []
         return Group {
-            if !mindChips.isEmpty || !workChips.isEmpty {
+            if !chips.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     sectionTitle("Vocabulary", l10n.s.mindsSecVocabulary, hint: l10n.s.mindsVocabularyHint)
-                    VStack(alignment: .leading, spacing: 12) {
-                        if !mindChips.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(l10n.s.mVocabMindLabel)
-                                    .font(BrandFont.mono(10)).kerning(1).foregroundStyle(DSLight.gold)
-                                FlowLayout(spacing: 8) {
-                                    ForEach(mindChips, id: \.word) { c in
-                                        vocabChip(c, mind: true)
-                                    }
-                                }
-                            }
-                        }
-                        if !workChips.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(l10n.s.mVocabWorkLabel)
-                                    .font(BrandFont.mono(10)).kerning(1).foregroundStyle(DSLight.t3)
-                                FlowLayout(spacing: 8) {
-                                    ForEach(workChips, id: \.word) { c in
-                                        vocabChip(c, mind: false)
-                                    }
-                                }
-                            }
+                    FlowLayout(spacing: 8) {
+                        ForEach(Array(chips.enumerated()), id: \.element.word) { i, c in
+                            vocabChip(c, mind: i < 6)
                         }
                     }
                 }

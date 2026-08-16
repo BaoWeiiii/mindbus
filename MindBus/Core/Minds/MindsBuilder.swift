@@ -94,8 +94,14 @@ public enum MindsBuilder {
         let corpusRows = index.userCorpusRows()
         surprise.fadedWords = fadedWords(corpus: corpusRows.map { (text: $0.text, startAt: $0.startAt) },
                                          lexicon: index.loadLexicon(), now: now, limit: 5)
-        // 词表画像:tf + 跨项目数(思维词/项目词分组的数据源)
-        let vocabStats = userVocabularyStats(lexicon: index.loadLexicon(),
+        // 词表画像:tf + 跨项目数。展示词表 ≠ 检索词表(2026-08-16 用户定案:
+        // 「不要管这是什么类型的词,只要被反复提及就有用」)——检索那份必须严
+        // (边界熵 1.2 防碎片污染倒排),展示这份可以宽(说了 17 次的「宫本茂」
+        // 总在固定搭配里、邻字单一,严格口径永远学不到,但它显然是有用的信号)。
+        let displayLexicon = index.loadLexicon().union(
+            PersonalLexicon.build(corpus: corpusRows.map(\.text),
+                                  thresholds: displayLexiconThresholds))
+        let vocabStats = userVocabularyStats(lexicon: displayLexicon,
                                              corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) })
         let corpus = corpusRows.map(\.text)
         vocabFreqs = userVocabularyFrequencies(index: index, corpus: corpus)
@@ -136,7 +142,6 @@ public enum MindsBuilder {
         surprise.delegationVerbs = delegationVerbs(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 10)
         surprise.researchDestinations = researchDestinations(corpus: corpus)
-        surprise.invokedNames = invokedNames(corpus: corpus)
         surprise.repeatedBriefings = repeatedBriefings(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 5)
         // 四批:结构与关系维度
@@ -172,18 +177,18 @@ public enum MindsBuilder {
     public static func renderForInjection(index: ConversationIndex, entries: [MindsEntry]) -> String {
         let confirmed = entries.filter { $0.status == .confirmed }
         let overview = index.mapOverview()
-        // 注入口径(2026-08-13):思维词优先——agent 该先知道跟「人」走的词
-        let stats = userVocabularyStats(lexicon: index.loadLexicon(),
-                                        corpus: index.userCorpusRows().map { (text: $0.text, cwd: $0.cwd) })
+        // 注入口径与展示同源(2026-08-16):说得多 + 不是口水词,不判断类型
+        let corpusRows = index.userCorpusRows()
+        let displayLexicon = index.loadLexicon().union(
+            PersonalLexicon.build(corpus: corpusRows.map(\.text),
+                                  thresholds: displayLexiconThresholds))
+        let stats = userVocabularyStats(lexicon: displayLexicon,
+                                        corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) })
         let n = max(overview.conversationCount, 1)
-        let mindFirst = stats
-            .filter { Double($0.df) / Double(n) < stopwordDFRatio }
-            .sorted {
-                let a = $0.projects >= mindWordMinProjects, b = $1.projects >= mindWordMinProjects
-                if a != b { return a }
-                return $0.tf != $1.tf ? $0.tf > $1.tf : $0.word < $1.word
-            }
-        let vocabulary = mindFirst.prefix(10).map { (word: $0.word, df: $0.tf) }
+        let vocabulary = stats
+            .filter { Double($0.df) / Double(n) < stopwordDFRatio && $0.word.count >= 2 }
+            .sorted { $0.tf != $1.tf ? $0.tf > $1.tf : $0.word < $1.word }
+            .prefix(10).map { (word: $0.word, df: $0.tf) }
 
         var lines = ["# Minds", ""]
         lines.append("## Confirmed")
@@ -292,7 +297,6 @@ public enum MindsBuilder {
         // 2026-08-13 语料深读挖掘:提问形状(认知光谱)/项目出生句(创世叙事)
         var questionShape: [(kind: String, count: Int)] = []
         var delegationVerbs: [(verb: String, lines: Int, conversations: Int)] = []
-        var invokedNames: [(name: String, tf: Int, df: Int)] = []
         var researchDestinations: [(dest: String, count: Int)] = []
         var firstWords: [(project: String, quote: String, convID: String, at: Date)] = []
         var shape: ConversationIndex.CollaborationShape?
@@ -358,29 +362,6 @@ public enum MindsBuilder {
         }
         return counts.map { (dest: $0.key, count: $0.value) }
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.dest < $1.dest }
-    }
-
-    /// 你搬出过的名字:语料里反复引用的思想家/企业家——引用谁=你的思维参照系
-    /// (「第一性原理」的同族信号,2026-08-16 用户点名:乔布斯/马斯克/肖恩埃利斯
-    /// 说过但 Minds 捞不出——人名价值不在跨项目广度,词表口径不适配)。
-    /// 机械口径:静态名录 × 语料如实计数,tf≥3 才入选(说过一次不算参照系)。
-    static let invokedNameLexicon = [
-        "乔布斯", "马斯克", "贝索斯", "巴菲特", "芒格", "纳瓦尔", "张一鸣", "雷军",
-        "张小龙", "王兴", "肖恩埃利斯", "彼得蒂尔", "奥特曼", "卡帕西", "保罗格雷厄姆",
-        "Jobs", "Musk", "Bezos", "Naval", "Karpathy", "Altman", "Paul Graham",
-    ]
-
-    static func invokedNames(corpus: [String]) -> [(name: String, tf: Int, df: Int)] {
-        var out: [(String, Int, Int)] = []
-        for name in invokedNameLexicon {
-            var tf = 0, df = 0
-            for text in corpus {
-                let c = text.components(separatedBy: name).count - 1
-                if c > 0 { tf += c; df += 1 }
-            }
-            if tf >= 3 { out.append((name, tf, df)) }
-        }
-        return out.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0 < $1.0 }
     }
 
     /// 提问形状:你的问题落在哪个认知层——确认型(该不该)/方法型(怎么做)/
@@ -662,6 +643,11 @@ public enum MindsBuilder {
     /// 纯频次榜上后者天然碾压前者,身份词永远浮不上来。
     public static let mindWordMinProjects = 5
 
+    /// 展示词表阈值:比检索宽——邻字熵 1.2→0.35(固定搭配里的专名/术语也要能出来)。
+    /// 展示的容错成本只是「多一个不太有意思的词」,检索的成本是碎片污染整个倒排。
+    public static let displayLexiconThresholds = PersonalLexicon.Thresholds(
+        minFrequency: 8, cohesionPerExtraChar: 60, minBoundaryEntropy: 0.35)
+
     public struct VocabWord: Equatable {
         public let word: String
         public let tf: Int
@@ -749,7 +735,6 @@ public enum MindsBuilder {
             renderWeekendSplit(surprise.weekendSplit),
             renderQuestionShape(surprise.questionShape),
             renderDelegation(verbs: surprise.delegationVerbs, research: surprise.researchDestinations),
-            renderInvokedNames(surprise.invokedNames),
             renderRepeatedBriefings(surprise.repeatedBriefings),
             renderCatchphrases(phrases: surprise.catchphrases, politeness: surprise.politeness),
             renderLeverage(surprise.volume),
@@ -929,17 +914,6 @@ public enum MindsBuilder {
                             "why": "you dig for reasons first",
                             "what": "you start from definitions"]
             lines.append("- \(verdicts[top.kind] ?? "")")
-        }
-        return lines.joined(separator: "\n")
-    }
-
-    private static func renderInvokedNames(_ names: [(name: String, tf: Int, df: Int)]) -> String {
-        var lines = ["## NAMES YOU INVOKE",
-                     "Thinkers and builders you keep citing — your frame of reference, counted. (mechanical, \(names.count) names)"]
-        if names.isEmpty {
-            lines.append("(none said 3+ times yet)")
-        } else {
-            lines.append("- " + names.map { "\($0.name) \($0.tf)x/\($0.df)c" }.joined(separator: " | "))
         }
         return lines.joined(separator: "\n")
     }
@@ -1145,32 +1119,21 @@ public enum MindsBuilder {
                     "(none yet)"].joined(separator: "\n")
         }
         let n = max(totalConversations, 1)
-        let topical = stats.filter { Double($0.df) / Double(n) < stopwordDFRatio }
-        // 思维词三判据(2026-08-13 两轮真机迭代定稿):
-        // ① 词长 ≥3——汉语构词法先验:复合成词即概念化(能力/理解/希望是基础词,
-        //   第一性原理/产品经理是复合概念)。单用是相关性,与 ②③ 并用是先验;
-        // ② df<25%(topical 已滤)——主题性证据:聚集出现,非口头语;
-        // ③ 跨 ≥5 项目——随人性证据:跟人走,不跟事走。
-        // 两轮教训:只删①→泛词霸榜(需要 919×);只靠②→次级泛词涌入(能力 294×,
-        // 泛词 df 是连续谱无天然分界)。三判据缺一不可。
-        let mind = topical.filter { $0.projects >= mindWordMinProjects && $0.word.count >= 3 }
-            .sorted { $0.projects != $1.projects ? $0.projects > $1.projects
-                                                 : ($0.tf != $1.tf ? $0.tf > $1.tf : $0.word < $1.word) }
-            .prefix(8)
-        let mindWords = Set(mind.map(\.word))
-        let work = topical.filter { !mindWords.contains($0.word) }
+        // 唯一的两道筛子(2026-08-16 重做):说得够多 + 不是口水词。
+        // 不再判断词的「类型」——代码识别不了类型,按类型设门槛(要跨 5 个项目
+        // 才算思维词)会把「宫本茂」「复用」「乔布斯」这类真信号挡在门外。
+        // 口水词由 df 比例挡:需要 47% / 什么 40% 出局,复用 6% / 架构 10% 留下。
+        let topical = stats.filter { Double($0.df) / Double(n) < stopwordDFRatio && $0.word.count >= 2 }
+        let top = topical
             .sorted { $0.tf != $1.tf ? $0.tf > $1.tf : $0.word < $1.word }
-            .prefix(12)
+            .prefix(20)
         var lines = ["## VOCABULARY",
-                     "Your lexicon, counted in your own messages (not the AI's replies). "
-                        + "Mind words travel with you across projects; work words live inside one. "
+                     "Words you keep saying, counted in your own messages (not the AI's replies). "
+                        + "Filler words excluded; everything else earns its place by repetition. "
                         + "(mechanical, \(stats.count) terms)"]
-        if !mind.isEmpty {
+        if !top.isEmpty {
             // meta 分隔用「/」——「·」会与词间分隔符冲突,GUI 按「·」拆 chips 时被拆断
-            lines.append("- mind: " + mind.map { "\($0.word) (\($0.tf)×/\($0.projects)p)" }.joined(separator: " · "))
-        }
-        if !work.isEmpty {
-            lines.append("- work: " + work.map { "\($0.word) (\($0.tf))" }.joined(separator: " · "))
+            lines.append("- " + top.map { "\($0.word) (\($0.tf)×/\($0.projects)p)" }.joined(separator: " · "))
         }
         return lines.joined(separator: "\n")
     }

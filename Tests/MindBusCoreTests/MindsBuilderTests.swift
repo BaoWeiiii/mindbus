@@ -326,7 +326,8 @@ final class MindsBuilderTests: XCTestCase {
         let text = MindsBuilder.renderDocument(overview: emptyOverview(), projects: [],
                                                vocabulary: [("输入框", 12), ("智能体", 9)], refs: [],
                                                builtAt: date(2026, 8, 10))
-        XCTAssertTrue(text.contains("输入框 (12) · 智能体 (9)"), "词要带说过的次数")
+        // 新口径带跨项目数(2026-08-16 一组化):"词 (次数×/项目数p)"
+        XCTAssertTrue(text.contains("输入框 (12×/0p) · 智能体 (9×/0p)"), "词要带说过的次数")
     }
 
     /// 总次数覆盖全部引用（哪怕超过 5 条），但 Top 列表只列前 5——两个数字不该混淆。

@@ -143,27 +143,23 @@ final class MindsSurpriseTests: XCTestCase {
         XCTAssertEqual(stats.first { $0.word == "选题库" }?.projects, 1)
     }
 
-    func testRenderVocabularyMindWordsFirstAndStopwordsOut() {
-        // 146 场会话语境:df 47% 的「需要」是口头语(第一性判据——无主题性),
-        // 不进任何词表组(它的领地是 CATCHPHRASES);df 10% 的「第一性原理」
-        // 跨 12 项目=思维词置顶。字数不设限:df 才是本质,不是字数。
+    func testRenderVocabularyRanksByRepetitionAndDropsFillers() {
+        // 口径(2026-08-16 重做):唯一两道筛子——说得够多 + 不是口水词。
+        // 不再判断词的「类型」:跨几个项目、几个字、是不是人名,统统不问。
         let stats = [
             MindsBuilder.VocabWord(word: "所有事件类型", tf: 120, projects: 1, df: 4),
             MindsBuilder.VocabWord(word: "第一性原理", tf: 39, projects: 12, df: 14),
-            MindsBuilder.VocabWord(word: "上下文", tf: 67, projects: 11, df: 16),
-            MindsBuilder.VocabWord(word: "需要", tf: 919, projects: 39, df: 68),
-            // 次级泛词:df 压线(20%)+跨项目高,但 2 字基础词——构词法先验拦截
-            MindsBuilder.VocabWord(word: "能力", tf: 294, projects: 26, df: 30),
+            MindsBuilder.VocabWord(word: "需要", tf: 919, projects: 39, df: 68),   // df 47% 口水词
+            MindsBuilder.VocabWord(word: "复用", tf: 31, projects: 9, df: 9),      // 2 字,旧口径被字数拦
+            MindsBuilder.VocabWord(word: "宫本茂", tf: 17, projects: 1, df: 1),    // 单项目,旧口径被跨项目拦
         ]
         let doc = MindsBuilder.renderVocabulary(stats: stats, totalConversations: 146)
-        XCTAssertTrue(doc.contains("- mind: 第一性原理 (39×/12p) · 上下文 (67×/11p)"),
-                      "思维词按跨项目数排: \(doc)")
-        XCTAssertTrue(doc.contains("所有事件类型 (120)"), "单项目词留在 work 组")
-        XCTAssertFalse(doc.contains("需要"), "口头语(df 47%)不进任何组")
-        XCTAssertFalse(doc.contains("能力 (294×"), "次级泛词(2 字)不进思维词组")
-        XCTAssertTrue(doc.contains("- work: 能力 (294)"), "但按 df<25% 留在 work 组")
-        XCTAssertLessThan(doc.range(of: "- mind:")!.lowerBound,
-                          doc.range(of: "- work:")!.lowerBound, "思维词组置顶")
+        XCTAssertTrue(doc.contains("所有事件类型 (120×/1p) · 第一性原理 (39×/12p)"),
+                      "按说过次数排,不看跨项目数: \(doc)")
+        XCTAssertTrue(doc.contains("复用 (31×/9p)"), "2 字词不该被字数门槛拦掉")
+        XCTAssertTrue(doc.contains("宫本茂 (17×/1p)"), "只在一个项目里反复说的词同样有用")
+        XCTAssertFalse(doc.contains("需要"), "口水词(df 47%)是唯一被排除的")
+        XCTAssertFalse(doc.contains("- mind:"), "不再分思维词/项目词两组")
     }
 
     // MARK: - 语料纯度(v15:系统注入剔除)
@@ -277,27 +273,7 @@ final class MindsSurpriseTests: XCTestCase {
 
     // MARK: - 你搬出过的名字
 
-    func testInvokedNamesCountsAndThreshold() {
-        let corpus = [
-            "乔布斯说过要 stay hungry,乔布斯的产品哲学",
-            "再看看乔布斯怎么做的,对比一下马斯克",
-            "参考乔布斯",
-            "马斯克的第一性原理",
-        ]
-        let names = MindsBuilder.invokedNames(corpus: corpus)
-        let d = Dictionary(uniqueKeysWithValues: names.map { ($0.name, ($0.tf, $0.df)) })
-        XCTAssertEqual(d["乔布斯"]?.0, 4, "说过 4 次")
-        XCTAssertEqual(d["乔布斯"]?.1, 3, "跨 3 场")
-        XCTAssertNil(d["马斯克"], "2 次不到门槛(tf≥3)——说一两次不算参照系")
-    }
 
-    func testRenderInvokedNames() {
-        var s = MindsBuilder.SurpriseData()
-        s.invokedNames = [(name: "乔布斯", tf: 6, df: 2)]
-        let doc = render(s)
-        XCTAssertTrue(doc.contains("## NAMES YOU INVOKE"))
-        XCTAssertTrue(doc.contains("- 乔布斯 6x/2c"))
-    }
 
     // MARK: - 委托光谱
 
