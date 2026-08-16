@@ -28,6 +28,10 @@ Fully offline · No account · Not a single line of networking code
 
 ## What it is
 
+**A memory box for your AI tools.**
+
+Browse and star your history anytime — and let any AI tool tap into it, retrieving past context at minimal token cost.
+
 You run Claude Code in the terminal, switch to Claude Desktop's local agent mode, then spend an afternoon in Codex. Three tools, three transcript formats, three directories buried somewhere under `~/`.
 
 Finding that decision you made last week means digging through all of them.
