@@ -1110,7 +1110,14 @@ public enum MindsBuilder {
     }
 
     /// (2 字真概念词不再误伤,3 字口头语也拦得住)。
-    public static let stopwordDFRatio = 0.25
+    /// 口水词判据:出现在超过这个比例的会话里 = 你的口头语,不是你的标签。
+    /// 0.25→0.15(2026-08-16 实测定阈):真机数据在 15-20% 之间有天然断层——
+    /// 泛词全部卡在 20-25%(我们 23.3% · 设计 24.7% · 能力 20.7% · 用户 24.0% ·
+    /// 建议 24.0% · 必须 24.7%),有个性的词全部 ≤12%(选择 12.0% · 第一性原理
+    /// 10.7% · 架构 10.0% · 调度 8.7% · 复用 6.0% · 宫本茂 1.3%)。
+    /// 试过的两条弯路:项目分布熵(复用 0.87 比「我们」0.86 还均匀,无法区分)、
+    /// TF-IDF(过度奖励罕见词,「第一性原理」掉到 622 名,榜单全是整合稿/较优价)。
+    public static let stopwordDFRatio = 0.15
 
     static func renderVocabulary(stats: [VocabWord], totalConversations: Int) -> String {
         guard !stats.isEmpty else {
@@ -1126,7 +1133,7 @@ public enum MindsBuilder {
         let topical = stats.filter { Double($0.df) / Double(n) < stopwordDFRatio && $0.word.count >= 2 }
         let top = topical
             .sorted { $0.tf != $1.tf ? $0.tf > $1.tf : $0.word < $1.word }
-            .prefix(20)
+            .prefix(36)
         var lines = ["## VOCABULARY",
                      "Words you keep saying, counted in your own messages (not the AI's replies). "
                         + "Filler words excluded; everything else earns its place by repetition. "
