@@ -136,6 +136,7 @@ public enum MindsBuilder {
         surprise.delegationVerbs = delegationVerbs(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 10)
         surprise.researchDestinations = researchDestinations(corpus: corpus)
+        surprise.invokedNames = invokedNames(corpus: corpus)
         surprise.repeatedBriefings = repeatedBriefings(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 5)
         // 四批:结构与关系维度
@@ -291,6 +292,7 @@ public enum MindsBuilder {
         // 2026-08-13 语料深读挖掘:提问形状(认知光谱)/项目出生句(创世叙事)
         var questionShape: [(kind: String, count: Int)] = []
         var delegationVerbs: [(verb: String, lines: Int, conversations: Int)] = []
+        var invokedNames: [(name: String, tf: Int, df: Int)] = []
         var researchDestinations: [(dest: String, count: Int)] = []
         var firstWords: [(project: String, quote: String, convID: String, at: Date)] = []
         var shape: ConversationIndex.CollaborationShape?
@@ -356,6 +358,29 @@ public enum MindsBuilder {
         }
         return counts.map { (dest: $0.key, count: $0.value) }
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.dest < $1.dest }
+    }
+
+    /// 你搬出过的名字:语料里反复引用的思想家/企业家——引用谁=你的思维参照系
+    /// (「第一性原理」的同族信号,2026-08-16 用户点名:乔布斯/马斯克/肖恩埃利斯
+    /// 说过但 Minds 捞不出——人名价值不在跨项目广度,词表口径不适配)。
+    /// 机械口径:静态名录 × 语料如实计数,tf≥3 才入选(说过一次不算参照系)。
+    static let invokedNameLexicon = [
+        "乔布斯", "马斯克", "贝索斯", "巴菲特", "芒格", "纳瓦尔", "张一鸣", "雷军",
+        "张小龙", "王兴", "肖恩埃利斯", "彼得蒂尔", "奥特曼", "卡帕西", "保罗格雷厄姆",
+        "Jobs", "Musk", "Bezos", "Naval", "Karpathy", "Altman", "Paul Graham",
+    ]
+
+    static func invokedNames(corpus: [String]) -> [(name: String, tf: Int, df: Int)] {
+        var out: [(String, Int, Int)] = []
+        for name in invokedNameLexicon {
+            var tf = 0, df = 0
+            for text in corpus {
+                let c = text.components(separatedBy: name).count - 1
+                if c > 0 { tf += c; df += 1 }
+            }
+            if tf >= 3 { out.append((name, tf, df)) }
+        }
+        return out.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0 < $1.0 }
     }
 
     /// 提问形状:你的问题落在哪个认知层——确认型(该不该)/方法型(怎么做)/
@@ -724,6 +749,7 @@ public enum MindsBuilder {
             renderWeekendSplit(surprise.weekendSplit),
             renderQuestionShape(surprise.questionShape),
             renderDelegation(verbs: surprise.delegationVerbs, research: surprise.researchDestinations),
+            renderInvokedNames(surprise.invokedNames),
             renderRepeatedBriefings(surprise.repeatedBriefings),
             renderCatchphrases(phrases: surprise.catchphrases, politeness: surprise.politeness),
             renderLeverage(surprise.volume),
@@ -903,6 +929,17 @@ public enum MindsBuilder {
                             "why": "you dig for reasons first",
                             "what": "you start from definitions"]
             lines.append("- \(verdicts[top.kind] ?? "")")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func renderInvokedNames(_ names: [(name: String, tf: Int, df: Int)]) -> String {
+        var lines = ["## NAMES YOU INVOKE",
+                     "Thinkers and builders you keep citing — your frame of reference, counted. (mechanical, \(names.count) names)"]
+        if names.isEmpty {
+            lines.append("(none said 3+ times yet)")
+        } else {
+            lines.append("- " + names.map { "\($0.name) \($0.tf)x/\($0.df)c" }.joined(separator: " | "))
         }
         return lines.joined(separator: "\n")
     }

@@ -239,6 +239,10 @@ struct Strings {
     let mindsProjectsHint: String
     let mindsSecOnThisDay: String
     let mindsOnThisDayHint: String
+    let mindsSecInvokedNames: String
+    let mindsInvokedNamesHint: String
+    /// %@=次数 %@=场次
+    let mInvokedMeta: (Int, Int) -> String
     let mindsSecCatchphrases: String
     let mindsCatchphrasesHint: String
     let mindsSecRarities: String
@@ -600,6 +604,9 @@ struct Strings {
         mindsProjectsHint: "点击展开历次会话",
         mindsSecOnThisDay: "那年今日",
         mindsOnThisDayHint: "同一个日期，更早的章节",
+        mindsSecInvokedNames: "你搬出过的名字",
+        mindsInvokedNamesHint: "你反复请出的人,如实计数",
+        mInvokedMeta: { "\($0) 次,\($1) 场" },
         mindsSecCatchphrases: "口头禅",
         mindsCatchphrasesHint: "你总挂在嘴边的短句，原话照数",
         mindsSecRarities: "独一无二",
@@ -943,6 +950,9 @@ struct Strings {
         mindsProjectsHint: "click to expand history",
         mindsSecOnThisDay: "On This Day",
         mindsOnThisDayHint: "same date, earlier chapters",
+        mindsSecInvokedNames: "Names You Invoke",
+        mindsInvokedNamesHint: "the people you keep citing, counted",
+        mInvokedMeta: { "\($0)x, \($1) chats" },
         mindsSecCatchphrases: "Catchphrases",
         mindsCatchphrasesHint: "short messages you send again and again",
         mindsSecRarities: "Rarities",

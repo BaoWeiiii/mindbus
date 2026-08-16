@@ -108,7 +108,8 @@ struct MindsView: View {
 
                 groupLabel(l10n.s.mindsGroupLanguage)
                 repeatedBriefingsSection
-                pair(catchphrasesSection, fadedSection)
+                pair(catchphrasesSection, invokedNamesSection)
+                fadedSection
 
                 groupLabel(l10n.s.mindsGroupProjects)
                 pair(dormantSection, marathonsSection)
@@ -787,6 +788,39 @@ struct MindsView: View {
                         .padding(.horizontal, 14).padding(.vertical, 12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
+                }
+            }
+        }
+    }
+
+    /// 你搬出过的名字:引用谁=思维参照系。chips 同口头禅形态,金字胶囊。
+    private var invokedNamesSection: some View {
+        let line = sectionLines("NAMES YOU INVOKE").first { $0.hasPrefix("- ") }
+        let chips: [(String, String)] = line.map {
+            $0.dropFirst(2).split(separator: "|").compactMap { part in
+                let t = part.trimmingCharacters(in: .whitespaces)
+                guard let m = firstTwoGroups(t, #"^(.+) (\d+)x/(\d+)c$"#, third: true),
+                      let g3 = m.2 else { return nil }
+                return (m.0, l10n.s.mInvokedMeta(Int(m.1) ?? 0, Int(g3) ?? 0))
+            }
+        } ?? []
+        return Group {
+            if !chips.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    sectionTitle("Names You Invoke", l10n.s.mindsSecInvokedNames,
+                                 hint: l10n.s.mindsInvokedNamesHint)
+                    FlowLayout(spacing: 8) {
+                        ForEach(chips, id: \.0) { chip in
+                            HStack(spacing: 6) {
+                                Text(chip.0)
+                                    .font(.system(size: 13, weight: .medium)).foregroundStyle(DSLight.t1)
+                                Text(chip.1)
+                                    .font(BrandFont.mono(10)).foregroundStyle(DSLight.gold)
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(DSLight.sf, in: Capsule())
+                        }
+                    }
                 }
             }
         }

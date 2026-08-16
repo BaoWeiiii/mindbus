@@ -275,6 +275,30 @@ final class MindsSurpriseTests: XCTestCase {
         XCTAssertEqual(groups.count, 1, "长交代不该被长度上限拒之门外: \(groups)")
     }
 
+    // MARK: - 你搬出过的名字
+
+    func testInvokedNamesCountsAndThreshold() {
+        let corpus = [
+            "乔布斯说过要 stay hungry,乔布斯的产品哲学",
+            "再看看乔布斯怎么做的,对比一下马斯克",
+            "参考乔布斯",
+            "马斯克的第一性原理",
+        ]
+        let names = MindsBuilder.invokedNames(corpus: corpus)
+        let d = Dictionary(uniqueKeysWithValues: names.map { ($0.name, ($0.tf, $0.df)) })
+        XCTAssertEqual(d["乔布斯"]?.0, 4, "说过 4 次")
+        XCTAssertEqual(d["乔布斯"]?.1, 3, "跨 3 场")
+        XCTAssertNil(d["马斯克"], "2 次不到门槛(tf≥3)——说一两次不算参照系")
+    }
+
+    func testRenderInvokedNames() {
+        var s = MindsBuilder.SurpriseData()
+        s.invokedNames = [(name: "乔布斯", tf: 6, df: 2)]
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("## NAMES YOU INVOKE"))
+        XCTAssertTrue(doc.contains("- 乔布斯 6x/2c"))
+    }
+
     // MARK: - 委托光谱
 
     func testDelegationVerbsCountsLinesAndConversations() {
