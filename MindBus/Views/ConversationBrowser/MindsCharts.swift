@@ -30,7 +30,7 @@ enum MindsCharts {
                 }
                 .chartXAxis(.hidden)
                 .chartYAxis(.hidden)
-                .frame(height: 64)
+                .frame(height: 64).frame(maxWidth: .infinity)
                 HStack {
                     ForEach([0, 6, 12, 18], id: \.self) { h in
                         Text(String(format: "%02d", h)).font(BrandFont.mono(9)).foregroundStyle(DSLight.t3)
@@ -81,7 +81,7 @@ enum MindsCharts {
                 }
             }
             .chartYAxis(.hidden)
-            .frame(height: 88)
+            .frame(height: 88).frame(maxWidth: .infinity)
         }
     }
 
@@ -110,7 +110,7 @@ enum MindsCharts {
                 }
                 .chartXAxis(.hidden)
                 .chartYAxis(.hidden)
-                .frame(height: 52)
+                .frame(height: 52).frame(maxWidth: .infinity)
                 HStack {
                     ForEach(labels, id: \.self) { l in
                         Text(l).font(BrandFont.mono(8)).foregroundStyle(DSLight.t3)
@@ -136,7 +136,7 @@ enum MindsCharts {
                         .frame(width: max(6, geo.size.width * CGFloat(userChars) / CGFloat(max(totalChars, 1))))
                 }
             }
-            .frame(height: 10)
+            .frame(height: 10).frame(maxWidth: .infinity)
         }
     }
 
@@ -156,7 +156,7 @@ enum MindsCharts {
                 }
                 .chartXAxis(.hidden)
                 .chartYAxis(.hidden)
-                .frame(height: 56)
+                .frame(height: 56).frame(maxWidth: .infinity)
                 HStack {
                     ForEach(Array(labels.enumerated()), id: \.offset) { i, l in
                         Text(l).font(BrandFont.mono(9))
@@ -178,7 +178,7 @@ enum MindsCharts {
             GeometryReader { geo in
                 let x = geo.size.width * CGFloat(percentile) / 100
                 ZStack(alignment: .leading) {
-                    Capsule().fill(DSLight.sf3).frame(height: 4)
+                    Capsule().fill(DSLight.sf3).frame(height: 4).frame(maxWidth: .infinity)
                     Text("P\(percentile)")
                         .font(BrandFont.mono(9, weight: .medium))
                         .foregroundStyle(.white)
@@ -187,7 +187,7 @@ enum MindsCharts {
                         .offset(x: min(max(0, x - 16), geo.size.width - 34))
                 }
             }
-            .frame(height: 18)
+            .frame(height: 18).frame(maxWidth: .infinity)
         }
     }
 
@@ -201,7 +201,7 @@ enum MindsCharts {
         var body: some View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(DSLight.sf3).frame(height: 3)
+                    Capsule().fill(DSLight.sf3).frame(height: 3).frame(maxWidth: .infinity)
                     Capsule().fill(DSLight.gold.opacity(0.7))
                         .frame(width: max(4, geo.size.width * CGFloat(end - start)), height: 3)
                         .offset(x: geo.size.width * CGFloat(start))
@@ -246,7 +246,7 @@ enum MindsCharts {
         var body: some View {
             GeometryReader { geo in
                 ZStack(alignment: .trailing) {
-                    Capsule().fill(DSLight.sf3).frame(height: 3)
+                    Capsule().fill(DSLight.sf3).frame(height: 3).frame(maxWidth: .infinity)
                     Capsule().fill(DSLight.t3.opacity(0.55))
                         .frame(width: max(4, geo.size.width * CGFloat(min(silentDays, 365)) / 365), height: 3)
                 }
@@ -264,7 +264,7 @@ enum MindsCharts {
         var body: some View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(DSLight.sf3).frame(height: 3)
+                    Capsule().fill(DSLight.sf3).frame(height: 3).frame(maxWidth: .infinity)
                     Capsule().fill(DSLight.gold.opacity(0.65))
                         .frame(width: max(4, geo.size.width * CGFloat(value) / CGFloat(max(maxValue, 1))), height: 3)
                 }

@@ -72,8 +72,15 @@ struct MindsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            renderableContent
+        // 宽度硬约束(2026-08-16 三修):内部组件(Swift Charts 无宽度约束、
+        // FlowLayout 曾返回无限宽)会向父容器索取极大理想宽度,一路顶穿窗口——
+        // 现象是「点开 Minds 一秒后侧栏与右侧按钮同时被裁」(窗口被撑大后居中溢出)。
+        // 与其逐个组件排查,不如在这里钉死:内容宽度恒等于容器宽度,谁也别想超。
+        GeometryReader { geo in
+            ScrollView {
+                renderableContent
+                    .frame(width: geo.size.width, alignment: .topLeading)
+            }
         }
         .background(DSLight.bg)
         .onAppear {
@@ -129,7 +136,6 @@ struct MindsView: View {
                 overviewSection
                 projectsSection
                 vocabularySection
-                weakSpotsSection
             }
         }
         .frame(maxWidth: 1000, alignment: .leading)
@@ -1294,23 +1300,6 @@ struct MindsView: View {
 
     // MARK: - ⑥ WEAK SPOTS
 
-    private var weakSpotsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("Weak Spots", l10n.s.mindsSecWeakSpots)
-            ForEach(MindsSpot.allCases, id: \.rawValue) { spot in
-                spotCard(spot)
-            }
-            Text(l10n.s.mindsEnrichHint)
-                .font(.system(size: 12)).foregroundStyle(DSLight.t2)
-                .padding(.horizontal, 18).padding(.vertical, 14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 12))
-                .padding(.top, 16)
-
-            injectionRow
-        }
-    }
-
     // MARK: - CLAUDE.md 注入(闸门出口)
 
     /// 有 confirmed 条目才出现——spec §5 的闸门:未经确认的东西进不了常驻注入。
@@ -1364,38 +1353,6 @@ struct MindsView: View {
                 Text(l10n.s.mindsInjectConfirmBody)
             }
         }
-    }
-
-    private func spotName(_ spot: MindsSpot) -> String {
-        switch spot {
-        case .preferences: return l10n.s.mindsSpotPreferences
-        case .style: return l10n.s.mindsSpotStyle
-        case .goals: return l10n.s.mindsSpotGoals
-        case .stack: return l10n.s.mindsSpotStack
-        }
-    }
-
-    private func spotCard(_ spot: MindsSpot) -> some View {
-        let entries = minds.entriesBySpot[spot] ?? []
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(spotName(spot)).font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(DSLight.t1)
-                Spacer()
-                Text(spot.rawValue).font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
-            }
-            if entries.isEmpty {
-                Text(l10n.s.mindsSpotEmpty)
-                    .font(.system(size: 12)).foregroundStyle(DSLight.t3)
-                    .padding(.top, 10)
-            } else {
-                ForEach(entries, id: \.id) { entryCard($0) }
-            }
-        }
-        .padding(.horizontal, 20).padding(.vertical, 18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 14))
-        .padding(.top, 14)
     }
 
     private func entryCard(_ entry: MindsEntry) -> some View {
