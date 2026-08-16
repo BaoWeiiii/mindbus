@@ -213,6 +213,8 @@ struct Strings {
     let heroRescued: String
     let mindsSecDelegation: String
     let mindsDelegationHint: String
+    /// 委托动词计数:%d=次数, %d=对话场数
+    let mDelegCount: String
     /// 调研目的地亮点:%@=目的地, %@=点名次数
     let mDelegResearch: String
     let mindsSecFirstWords: String
@@ -233,11 +235,19 @@ struct Strings {
     let mindsShapeHint: String
     let mindsSecWeekend: String
     let mindsWeekendHint: String
-    let mindsSecProjectLeverage: String
-    let mindsProjectLeverageHint: String
     let mindsSecFlows: String
     let mindsFlowsHint: String
     let mindsProjectsHint: String
+    /// 项目总表列名:项目 / 场数 / 杠杆
+    let mProjColName: String
+    let mProjColCount: String
+    let mProjColLeverage: String
+    /// 活跃地图右侧三个小统计的标签
+    let mHeatActiveDays: String
+    let mHeatLongestRun: String
+    let mHeatLongestGap: String
+    /// 杠杆冠军脚注:%@=项目名, %d=比率
+    let mProjLeverageTop: String
     let mindsSecOnThisDay: String
     let mindsOnThisDayHint: String
     let mindsSecInvokedNames: String
@@ -581,6 +591,7 @@ struct Strings {
         heroRescued: "场已救回",
         mindsSecDelegation: "你派给 AI 的活",
         mindsDelegationHint: "哪类事你最常交给 AI",
+        mDelegCount: "%d 次 %d 场",
         mDelegResearch: "调研的第一目的地:%@(点名 %@ 次)",
         mindsSecFirstWords: "项目的第一句话",
         mindsFirstWordsHint: "每个项目的创世句·点击回到起点",
@@ -600,11 +611,16 @@ struct Strings {
         mindsShapeHint: "不是一问一答，是一起磨活",
         mindsSecWeekend: "周末的你",
         mindsWeekendHint: "哪个项目占据了你的周末",
-        mindsSecProjectLeverage: "项目杠杆榜",
-        mindsProjectLeverageHint: "哪个项目最省你的话",
         mindsSecFlows: "知识流动",
         mindsFlowsHint: "项目之间共享的概念",
         mindsProjectsHint: "点击展开历次会话",
+        mProjColName: "项目",
+        mProjColCount: "场数",
+        mProjColLeverage: "杠杆",
+        mHeatActiveDays: "活跃天数",
+        mHeatLongestRun: "最长连续",
+        mHeatLongestGap: "最长间歇",
+        mProjLeverageTop: "最省你话的项目:%@(你写 1 个字,换回 %d 个字)",
         mindsSecOnThisDay: "那年今日",
         mindsOnThisDayHint: "同一个日期，更早的章节",
         mindsSecInvokedNames: "你搬出过的名字",
@@ -929,6 +945,7 @@ struct Strings {
         heroRescued: "rescued",
         mindsSecDelegation: "Delegation",
         mindsDelegationHint: "what you most often ask AI to do",
+        mDelegCount: "%d× %dc",
         mDelegResearch: "research destination #1: %@ (named %@ times)",
         mindsSecFirstWords: "First Words",
         mindsFirstWordsHint: "how each project began · click to revisit",
@@ -948,11 +965,16 @@ struct Strings {
         mindsShapeHint: "you co-work, you don't just ask",
         mindsSecWeekend: "Weekend Self",
         mindsWeekendHint: "which project owns your weekends",
-        mindsSecProjectLeverage: "Leverage by Project",
-        mindsProjectLeverageHint: "which project stretches your words furthest",
         mindsSecFlows: "Knowledge Flows",
         mindsFlowsHint: "concepts your projects share",
         mindsProjectsHint: "click to expand history",
+        mProjColName: "PROJECT",
+        mProjColCount: "RUNS",
+        mProjColLeverage: "LEVERAGE",
+        mHeatActiveDays: "ACTIVE DAYS",
+        mHeatLongestRun: "LONGEST RUN",
+        mHeatLongestGap: "LONGEST GAP",
+        mProjLeverageTop: "your words stretch furthest in %@ — 1 char typed, %d back",
         mindsSecOnThisDay: "On This Day",
         mindsOnThisDayHint: "same date, earlier chapters",
         mindsSecInvokedNames: "Names You Invoke",

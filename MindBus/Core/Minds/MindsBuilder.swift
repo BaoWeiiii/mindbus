@@ -143,10 +143,10 @@ public enum MindsBuilder {
         // 观察项 A:反复交代的话(聚类毫秒级:候选千级、倒排有界)
         surprise.questionShape = questionShape(corpus: corpus)
         surprise.delegationVerbs = delegationVerbs(
-            corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 10)
+            corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 8)
         surprise.researchDestinations = researchDestinations(corpus: corpus)
         surprise.phrases = repeatedPhrases(
-            corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) }, limit: 24)
+            corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) }, limit: 12)
 
         let mechanical = renderDocument(overview: overview, projects: projects,
                                         vocabulary: vocabulary, vocabStats: vocabStats,
@@ -548,6 +548,9 @@ public enum MindsBuilder {
                 // 百千次量级霸榜(2026-08-12 真实数据两轮现场),那是语法不是你的话。
                 // 「继续」「好的」「ok」首字符都是文字;标记行首字符是 <、`、[。
                 guard let first = t.first, first.isLetter else { continue }
+                // 单字不是「短句」:真机上「A ×9」「好 ×11」这类混进来,读者第一反应是
+                // 「我没说过这个词」——选项字母 A/B、被拆行的单字都会以整行出现。
+                guard t.count >= 2 else { continue }
                 counts[t, default: 0] += 1
             }
         }
@@ -1287,7 +1290,7 @@ public enum MindsBuilder {
         let topical = stats.filter { Double($0.df) / Double(n) < stopwordDFRatio && $0.word.count >= 2 }
         let top = topical
             .sorted { $0.tf != $1.tf ? $0.tf > $1.tf : $0.word < $1.word }
-            .prefix(36)
+            .prefix(16)
         var lines = ["## VOCABULARY",
                      "Words you keep saying, counted in your own messages (not the AI's replies). "
                         + "Filler words excluded; everything else earns its place by repetition. "

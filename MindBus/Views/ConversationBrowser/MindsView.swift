@@ -113,29 +113,41 @@ struct MindsView: View {
                 // 配对压缩纵向长度,大节独占整行。空节整节隐藏。
                 heroSection
 
-                groupLabel(l10n.s.mindsGroupRhythm)
-                heatmapSection
-                workRhythmSection
-                pair(thisMonthSection, weekendSection)
+                // 组标题只在本组真有内容时才出现——否则空组留下一条孤零零的分隔线
+                if !viz.dailyHeat.isEmpty {
+                    groupLabel(l10n.s.mindsGroupRhythm)
+                    heatmapSection
+                    workRhythmSection
+                    pair(thisMonthSection, viz.month.cur.contains { $0.count > 0 },
+                         weekendSection, !viz.weekendSplit.weekend.isEmpty || !viz.weekendSplit.weekday.isEmpty)
+                }
 
-                groupLabel(l10n.s.mindsGroupHowYouUseAI)
-                delegationSection
-                questionShapeSection
-                pair(shapeSection, leverageSection)
-                projectLeverageSection
+                if hasAny("DELEGATION", "QUESTION SHAPE") || viz.shape != nil || viz.volume.userChars > 0 {
+                    groupLabel(l10n.s.mindsGroupHowYouUseAI)
+                    pair(delegationSection, hasDelegationVerbs,
+                         questionShapeSection, hasAny("QUESTION SHAPE"))
+                    pair(shapeSection, hasShapeRows, leverageSection, hasLeverageRatio)
+                }
 
-                groupLabel(l10n.s.mindsGroupLanguage)
-                phrasesSection
-                repeatedBriefingsSection
-                pair(catchphrasesSection, fadedSection)
+                if hasAny("PHRASES YOU REPEAT", "REPEATED BRIEFINGS", "CATCHPHRASES", "FADED WORDS") {
+                    groupLabel(l10n.s.mindsGroupLanguage)
+                    phrasesSection
+                    repeatedBriefingsSection
+                    pair(catchphrasesSection, hasAny("CATCHPHRASES"),
+                         fadedSection, hasAny("FADED WORDS"))
+                }
 
-                groupLabel(l10n.s.mindsGroupProjects)
-                pair(dormantSection, marathonsSection)
+                if hasAny("DORMANT PROJECTS", "MARATHONS", "PROJECT RHYTHM") {
+                    groupLabel(l10n.s.mindsGroupProjects)
+                    pair(dormantSection, hasAny("DORMANT PROJECTS"),
+                         marathonsSection, hasAny("MARATHONS"))
+                    projectsSection
+                }
 
-                groupLabel(l10n.s.mindsGroupForAI)
-                overviewSection
-                projectsSection
-                vocabularySection
+                if hasAny("VOCABULARY") {
+                    groupLabel(l10n.s.mindsGroupForAI)
+                    vocabularySection
+                }
             }
         }
         .frame(maxWidth: 1000, alignment: .leading)
@@ -180,6 +192,30 @@ struct MindsView: View {
     // 切开取行做原生渲染——不是通用 Markdown 解析器，格式变更时 MindsBuilder 与
     // 这里要同步改（两处都在仓内，格式测试锁着 Builder 侧）。
 
+    /// 这组里有没有任何一节能渲出内容——用来决定组标题出不出。
+    private func hasAny(_ names: String...) -> Bool {
+        names.contains { !sectionLines($0).filter { $0.hasPrefix("- ") }.isEmpty }
+    }
+
+    // 下面三个跟着各自 section 的渲染条件走(不是「有 bullet」就够),
+    // 差一点就会在双列里留半个空洞。
+
+    /// DELEGATION 节可能只有 research 那一条,动词条形图就是空的。
+    private var hasDelegationVerbs: Bool {
+        sectionLines("DELEGATION").contains { $0.hasPrefix("- ") && !$0.hasPrefix("- research") }
+    }
+
+    private var hasShapeRows: Bool {
+        guard let sh = viz.shape else { return false }
+        return sh.turnBands.reduce(0, +) > 0 || sh.durationBands.reduce(0, +) > 0
+            || sh.avgCharsPerMessage > 0
+    }
+
+    private var hasLeverageRatio: Bool {
+        let vol = viz.volume
+        return vol.userChars > 0 && vol.totalChars / vol.userChars > 0
+    }
+
     private func sectionLines(_ name: String) -> [String] {
         let md = minds.mechanicalMarkdown
         guard let start = md.range(of: "## \(name)\n") else { return [] }
@@ -204,7 +240,7 @@ struct MindsView: View {
                 Text(hint).font(.system(size: 11)).foregroundStyle(DSLight.t3)
             }
         }
-        .padding(.top, 44).padding(.bottom, 14)
+        .padding(.top, 30).padding(.bottom, 10)
     }
 
     // MARK: - 惊喜区（五节,空则整节隐藏）
@@ -217,7 +253,7 @@ struct MindsView: View {
             Text(text).font(BrandFont.mono(10)).kerning(1.2).foregroundStyle(DSLight.t3)
             Rectangle().fill(DSLight.sf3).frame(height: 1)
         }
-        .padding(.top, 40)
+        .padding(.top, 28)
     }
 
     /// 点行打开原会话（会话级定位,消息级留给收藏模块）。
@@ -249,14 +285,15 @@ struct MindsView: View {
     /// 提问的形状:四类问句横条——认知光谱(md 解析数字,L10n 模板)。
     private var questionShapeSection: some View {
         let lines = sectionLines("QUESTION SHAPE").filter { $0.hasPrefix("- ") }
-        // "- should-we 286 · how-to 206 · why 94 · what-is 89"
-        let counts: [(String, Int)] = lines.first.map { line in
+        // "- should-we 286 · how-to 206 · why 94 · what-is 89"——md 里是固定类别序,
+        // 条形图按数值降序读起来才是「排行」
+        let counts: [(String, Int)] = (lines.first.map { line in
             line.dropFirst(2).split(separator: "·").compactMap { part -> (String, Int)? in
                 let t = part.trimmingCharacters(in: .whitespaces)
                 guard let sp = t.lastIndex(of: " "), let n = Int(t[t.index(after: sp)...]) else { return nil }
                 return (String(t[..<sp]), n)
             }
-        } ?? []
+        } ?? []).sorted { $0.1 > $1.1 }
         let kindNames = ["should-we": l10n.s.mQKindConfirm, "how-to": l10n.s.mQKindHow,
                          "why": l10n.s.mQKindWhy, "what-is": l10n.s.mQKindWhat]
         let verdicts = ["should-we": l10n.s.mQVerdictConfirm, "how-to": l10n.s.mQVerdictHow,
@@ -288,7 +325,7 @@ struct MindsView: View {
                                 .padding(.top, 2)
                         }
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
@@ -324,15 +361,17 @@ struct MindsView: View {
                             HStack(spacing: 12) {
                                 Text(kv.0)
                                     .font(.system(size: 12)).foregroundStyle(DSLight.t1)
-                                    .frame(width: 64, alignment: .leading)
+                                    .frame(width: 52, alignment: .leading)
                                 GeometryReader { geo in
                                     Capsule()
                                         .fill(kv.1 == maxN ? DSLight.gold : DSLight.gold.opacity(0.35))
                                         .frame(width: max(4, geo.size.width * CGFloat(kv.1) / CGFloat(maxN)), height: 8)
                                         .frame(maxHeight: .infinity, alignment: .center)
                                 }
-                                Text("\(kv.1) 次 \(kv.2) 场").font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
-                                    .frame(width: 64, alignment: .trailing)
+                                // 半宽双列下这列最容易被裁:"215 次 36 场" 在 mono10 要 ~72pt,给 80
+                                Text(String(format: l10n.s.mDelegCount, kv.1, kv.2))
+                                    .font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
+                                    .frame(width: 80, alignment: .trailing)
                             }
                             .frame(height: 18)
                         }
@@ -342,7 +381,7 @@ struct MindsView: View {
                                 .padding(.top, 2)
                         }
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
@@ -374,7 +413,7 @@ struct MindsView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
@@ -458,19 +497,22 @@ struct MindsView: View {
             if !rows.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     sectionTitle("Dormant", l10n.s.mindsSecDormant, hint: l10n.s.mindsDormantHint)
-                    VStack(spacing: 2) {
+                    VStack(alignment: .leading, spacing: 8) {
                         ForEach(rows, id: \.word) { row in
-                            HStack(spacing: 12) {
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
                                 Image(systemName: "moon.zzz")
                                     .font(.system(size: 11)).foregroundStyle(DSLight.t3)
-                                Text(row.word).font(.system(size: 13)).foregroundStyle(DSLight.t1)
+                                    .frame(width: 16)
+                                Text(row.word).font(.system(size: 12)).foregroundStyle(DSLight.t1)
                                 Text(dormantMeta(row.detail))
                                     .font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
                                 Spacer(minLength: 0)
                             }
-                            .padding(.horizontal, 12).padding(.vertical, 7)
                         }
                     }
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
         }
@@ -498,7 +540,7 @@ struct MindsView: View {
                                 .font(BrandFont.mono(11)).foregroundStyle(DSLight.t2)
                         }
                         if !mo.newEntities.isEmpty {
-                            Text(l10n.s.mMonthFirstSeen(mo.newEntities.joined(separator: " · ")))
+                            Text(l10n.s.mMonthFirstSeen(mo.newEntities.prefix(5).joined(separator: " · ")))
                                 .font(BrandFont.mono(11)).foregroundStyle(DSLight.t2)
                                 .lineLimit(2)
                         }
@@ -507,7 +549,7 @@ struct MindsView: View {
                                 .font(BrandFont.mono(11)).foregroundStyle(DSLight.t2)
                         }
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
@@ -527,12 +569,18 @@ struct MindsView: View {
     /// 数据直查+L10n 模板(单语化:GUI 不再显 md 英文行)。
     /// 双列配对:两个矮节并排,压缩纵向长度(宽屏 1000 列下每列 ~490)。
     /// top 对齐——两节高度不等时短的悬顶,不拉伸。
-    private func pair(_ a: some View, _ b: some View) -> some View {
+    /// 双列并排。SwiftUI 看不出一个 View 会不会渲成空,所以两侧的「有没有内容」由调用方
+    /// 显式传进来——否则空的那半会留一个和邻居等高的洞(真机 dormant 空时就是这样)。
+    private func pair(_ a: some View, _ aOn: Bool, _ b: some View, _ bOn: Bool) -> some View {
         HStack(alignment: .top, spacing: 24) {
-            VStack(alignment: .leading, spacing: 0) { a }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            VStack(alignment: .leading, spacing: 0) { b }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if aOn {
+                VStack(alignment: .leading, spacing: 0) { a }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if bOn {
+                VStack(alignment: .leading, spacing: 0) { b }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 
@@ -557,7 +605,7 @@ struct MindsView: View {
                         }
                         heroFootnote(st)
                     }
-                    .padding(.horizontal, 20).padding(.vertical, 18)
+                    .padding(.horizontal, 16).padding(.vertical, 14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 12))
                 }
@@ -640,7 +688,7 @@ struct MindsView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
@@ -685,7 +733,7 @@ struct MindsView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
@@ -731,7 +779,8 @@ struct MindsView: View {
                 .map { "\($0.key) \($0.count)" }.joined(separator: " · ")))
         }
         if !split.weekday.isEmpty {
-            rows.append(l10n.s.mWeekdayLine(split.weekday.prefix(5)
+            // 半宽卡放不下 5 个项目名(真机上折两行还挂一个数字),与周末行取齐 3 个
+            rows.append(l10n.s.mWeekdayLine(split.weekday.prefix(3)
                 .map { "\($0.key) \($0.count)" }.joined(separator: " · ")))
         }
         let dayLabels = l10n.isZh ? ["一", "二", "三", "四", "五", "六", "日"]
@@ -742,50 +791,20 @@ struct MindsView: View {
         }
     }
 
-    /// 项目杠杆榜:比率大数字 + 条形。
-    private var projectLeverageSection: some View {
-        // "- name — 1:45 (3k typed → 170k, 5 conversations)"
-        let rows = sectionLines("LEVERAGE BY PROJECT").filter { $0.hasPrefix("- ") }
-            .compactMap(parseRecurring)
-        let ratios = rows.compactMap { row -> Int? in
-            guard let r = row.detail.range(of: #"^1:\d+"#, options: .regularExpression) else { return nil }
-            return Int(row.detail[r].dropFirst(2))
-        }
-        let maxRatio = ratios.max() ?? 1
-        return Group {
-            if !rows.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    sectionTitle("Leverage by Project", l10n.s.mindsSecProjectLeverage,
-                                 hint: l10n.s.mindsProjectLeverageHint)
-                    VStack(spacing: 2) {
-                        ForEach(Array(rows.enumerated()), id: \.offset) { i, row in
-                            HStack(spacing: 12) {
-                                Text(row.word).font(.system(size: 13)).foregroundStyle(DSLight.t1)
-                                    .frame(width: 140, alignment: .leading).lineLimit(1)
-                                Text(i < ratios.count ? "1:\(ratios[i])" : "")
-                                    .font(BrandFont.mono(12, weight: .medium)).foregroundStyle(DSLight.gold)
-                                    .frame(width: 54, alignment: .trailing)
-                                GeometryReader { geo in
-                                    RoundedRectangle(cornerRadius: 3)
-                                        .fill(DSLight.gold.opacity(0.55))
-                                        .frame(width: max(4, geo.size.width * CGFloat(i < ratios.count ? ratios[i] : 0) / CGFloat(maxRatio)))
-                                }
-                                .frame(height: 5)
-                                .background(DSLight.sf2, in: RoundedRectangle(cornerRadius: 3))
-                            }
-                            .padding(.horizontal, 12).padding(.vertical, 7)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     /// 知识流动:A ↔ B 共享概念数,点任一端进项目搜索。
 
     // MARK: - 惊喜区三批:那年今日 / 热力图 / 口头禅 / 独一无二
 
     @State private var mutedThisSession: Set<String> = []
+
+    /// 热力图右侧的小统计:值大、标签小,竖排三个。
+    private func heatStat(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label).font(.system(size: 11)).foregroundStyle(DSLight.t3)
+            Text(value).font(BrandFont.mono(15, weight: .medium)).foregroundStyle(DSLight.t1)
+                .frame(width: 34, alignment: .trailing)
+        }
+    }
 
     /// 活跃热力图:数据不走 minds.md(365 行数据不进文本文件),直接查 store。
     private var heatmapSection: some View {
@@ -794,10 +813,22 @@ struct MindsView: View {
             if !daily.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     sectionTitle("Activity Map", l10n.s.mindsSecHeatmap, hint: l10n.s.mindsHeatmapHint)
-                    HeatmapGrid(daily: daily, store: store, onOpen: openConversation)
-                        .padding(.horizontal, 14).padding(.vertical, 12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
+                    HStack(alignment: .top, spacing: 24) {
+                        HeatmapGrid(daily: daily, store: store, onOpen: openConversation)
+                        Spacer(minLength: 0)
+                        // 库龄短时格子阵只占三分之一宽,右边空着;这三个数原本挤在
+                        // 「工作节律」第四行,挪过来既补白又跟图同题
+                        if let a = viz.activeDays, a.active > 0 {
+                            VStack(alignment: .trailing, spacing: 8) {
+                                heatStat(l10n.s.mHeatActiveDays, "\(a.active)")
+                                heatStat(l10n.s.mHeatLongestRun, "\(a.longestRun)")
+                                heatStat(l10n.s.mHeatLongestGap, "\(a.longestGap)")
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
         }
@@ -866,9 +897,7 @@ struct MindsView: View {
         if let peak = viz.switching.peak, viz.switching.avgPerDay > 0 {
             rows.append(l10n.s.mRhythmJuggle(String(format: "%.1f", viz.switching.avgPerDay), peak.count, peak.day))
         }
-        if let a = viz.activeDays, a.active > 0 {
-            rows.append(l10n.s.mRhythmActive(a.active, a.window, a.longestRun, a.longestGap))
-        }
+        // 活跃/连续/间歇三个数移到「活跃地图」卡右侧(同题、且那边有空位)
         if let wp = viz.weekPercentile {
             rows.append(l10n.s.mRhythmWeek(wp.thisWeek, wp.percentile, wp.median))
         }
@@ -903,7 +932,7 @@ struct MindsView: View {
                                 .font(.system(size: 11)).foregroundStyle(DSLight.t3)
                         }
                     }
-                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .padding(.horizontal, 14).padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
@@ -929,7 +958,7 @@ struct MindsView: View {
                                         .font(.system(size: 11)).foregroundStyle(DSLight.t3)
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(row.label).font(.system(size: 13)).foregroundStyle(DSLight.t1)
-                                            .lineLimit(1)
+                                            .fixedSize(horizontal: false, vertical: true)
                                         Text(marathonMeta(row.meta))
                                             .font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
                                     }
@@ -990,100 +1019,98 @@ struct MindsView: View {
 
     // MARK: - ① 概览:大数字卡
 
-    private var overviewSection: some View {
-        let lines = sectionLines("OVERVIEW")
-        // "144 conversations across 3 tools, 2026-04-24 → 2026-08-10. …"
-        let head = lines.first ?? ""
-        let convCount = head.split(separator: " ").first.map(String.init) ?? "—"
-        let toolCount = head.range(of: #"across (\d+)"#, options: .regularExpression)
-            .map { head[$0].split(separator: " ").last.map(String.init) ?? "—" } ?? "—"
-        let days = daySpan(from: head)
-        let detail = lines.dropFirst().first?
-            .trimmingCharacters(in: CharacterSet(charactersIn: "- ")) ?? ""
-
-        return VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("Overview", l10n.s.mindsSecOverview)
-            HStack(spacing: 12) {
-                statCard(convCount, l10n.s.mindsConversationsUnit, detail)
-                statCard(toolCount, l10n.s.mindsToolsUnit, l10n.s.mindsAllLocal)
-                statCard(days, l10n.s.mindsDaysUnit, spanText(from: head))
-            }
-        }
-    }
-
-    private func statCard(_ num: String, _ label: String, _ detail: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(num).font(.system(size: 26, weight: .semibold)).foregroundStyle(DSLight.t1)
-            Text(label).font(.system(size: 11)).foregroundStyle(DSLight.t2)
-            Text(detail).font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
-                .lineLimit(1).padding(.top, 6)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20).padding(.vertical, 18)
-        .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func daySpan(from head: String) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        let dates = isoDates(in: head).compactMap { f.date(from: $0) }
-        guard dates.count >= 2 else { return "—" }
-        let days = Calendar(identifier: .gregorian)
-            .dateComponents([.day], from: dates[0], to: dates[1]).day ?? 0
-        return "\(days)"
-    }
-
-    private func spanText(from head: String) -> String {
-        let ds = isoDates(in: head).map { String($0.dropFirst(5)) }
-        return ds.count >= 2 ? "\(ds[0]) 至 \(ds[1])" : ""
-    }
-
-    // MARK: - ② 项目节奏:条形
-
     @State private var expandedProject: String?
 
+    /// 项目总表:场数条 + 杠杆比合表(2026-08-16 合并——原「项目杠杆榜」是同一批项目
+    /// 的第二张表,拆成两节既拉长页面又要读者自己对名字)。杠杆列查不到就留空。
     private var projectsSection: some View {
         // "- /path — 54 conversations, active 2026-05-15 → 2026-05-15, last touched 2026-07-18"
         let rows = sectionLines("PROJECT RHYTHM").filter { $0.hasPrefix("- ") }
             .compactMap(parseProject)
         let maxCount = rows.map(\.count).max() ?? 1
-        return VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("Project Rhythm", l10n.s.mindsSecProjects, hint: l10n.s.mindsProjectsHint)
-            VStack(spacing: 2) {
-                ForEach(rows.prefix(8), id: \.path) { row in
-                    VStack(spacing: 0) {
-                        Button {
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                expandedProject = expandedProject == row.path ? nil : row.path
-                            }
-                        } label: {
-                            HStack(spacing: 12) {
-                                Text(row.name).font(.system(size: 13)).foregroundStyle(DSLight.t1)
-                                    .frame(width: 180, alignment: .leading).lineLimit(1)
-                                Text("\(row.count)").font(BrandFont.mono(12)).foregroundStyle(DSLight.t2)
-                                    .frame(width: 30, alignment: .trailing)
-                                GeometryReader { geo in
-                                    RoundedRectangle(cornerRadius: 3)
-                                        .fill(DSLight.gold.opacity(0.72))
-                                        .frame(width: max(4, geo.size.width * CGFloat(row.count) / CGFloat(maxCount)))
-                                }
-                                .frame(height: 5)
-                                .background(DSLight.sf2, in: RoundedRectangle(cornerRadius: 3))
-                                Text(row.span).font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
-                                    .frame(width: 150, alignment: .trailing).lineLimit(1)
-                            }
-                            .padding(.horizontal, 12).padding(.vertical, 7)
-                            .contentShape(Rectangle())
+        let leverage = projectLeverageByName
+        return Group {
+            if !rows.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    sectionTitle("Project Rhythm", l10n.s.mindsSecProjects, hint: l10n.s.mindsProjectsHint)
+                    VStack(alignment: .leading, spacing: 0) {
+                    // 合表有五列,列名让「1:45」不用猜
+                    HStack(spacing: 12) {
+                        Text(l10n.s.mProjColName)
+                            .frame(width: 168, alignment: .leading)
+                        Text(l10n.s.mProjColCount)
+                            .frame(width: 30, alignment: .trailing)
+                        Spacer(minLength: 0)
+                        if !leverage.isEmpty {
+                            Text(l10n.s.mProjColLeverage)
+                                .frame(width: 52, alignment: .trailing)
                         }
-                        .buttonStyle(.plain)
-                        if expandedProject == row.path {
-                            projectTimeline(cwd: row.path)
+                        Color.clear.frame(width: 156, height: 1)
+                    }
+                    .font(BrandFont.mono(9)).kerning(0.8).foregroundStyle(DSLight.t3)
+                    .padding(.horizontal, 12).padding(.bottom, 6)
+                    VStack(spacing: 2) {
+                        ForEach(rows.prefix(8), id: \.path) { row in
+                            VStack(spacing: 0) {
+                                Button {
+                                    withAnimation(.easeOut(duration: 0.15)) {
+                                        expandedProject = expandedProject == row.path ? nil : row.path
+                                    }
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Text(row.name).font(.system(size: 13)).foregroundStyle(DSLight.t1)
+                                            .frame(width: 168, alignment: .leading).lineLimit(1)
+                                        Text("\(row.count)").font(BrandFont.mono(12)).foregroundStyle(DSLight.t2)
+                                            .frame(width: 30, alignment: .trailing)
+                                        GeometryReader { geo in
+                                            RoundedRectangle(cornerRadius: 3)
+                                                .fill(DSLight.gold.opacity(0.72))
+                                                .frame(width: max(4, geo.size.width * CGFloat(row.count) / CGFloat(maxCount)))
+                                        }
+                                        .frame(height: 5)
+                                        .background(DSLight.sf2, in: RoundedRectangle(cornerRadius: 3))
+                                        if !leverage.isEmpty {
+                                            Text(leverage[row.name].map { "1:\($0)" } ?? "")
+                                                .font(BrandFont.mono(12, weight: .medium)).foregroundStyle(DSLight.gold)
+                                                .frame(width: 52, alignment: .trailing)
+                                        }
+                                        Text(row.span).font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
+                                            .frame(width: 156, alignment: .trailing).lineLimit(1)
+                                    }
+                                    .padding(.horizontal, 12).padding(.vertical, 7)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                if expandedProject == row.path {
+                                    projectTimeline(cwd: row.path)
+                                }
+                            }
                         }
                     }
+                    // 杠杆冠军可能不在按场数排的前 8 行里,单独一行保住这条结论
+                    if let top = leverage.max(by: { $0.value < $1.value }) {
+                        Text(String(format: l10n.s.mProjLeverageTop, top.key, top.value))
+                            .font(.system(size: 11)).foregroundStyle(DSLight.t3)
+                            .padding(.horizontal, 12).padding(.top, 8)
+                    }
+                    }
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
         }
+    }
+
+    /// "- name — 1:45 (3k typed → 170k, 5 conversations)" → ["name": 45]
+    private var projectLeverageByName: [String: Int] {
+        var out: [String: Int] = [:]
+        for row in sectionLines("LEVERAGE BY PROJECT").filter({ $0.hasPrefix("- ") }).compactMap(parseRecurring) {
+            guard let r = row.detail.range(of: #"^1:\d+"#, options: .regularExpression),
+                  let n = Int(row.detail[r].dropFirst(2)) else { continue }
+            out[row.word] = n
+        }
+        return out
     }
 
     /// 行内展开:该项目历次会话(Matched Runs 思路)——月度节奏条 + 最近 5 场可点。
@@ -1116,7 +1143,7 @@ struct MindsView: View {
                     HStack(spacing: 8) {
                         Circle().fill(DSLight.gold.opacity(0.5)).frame(width: 4, height: 4)
                         Text(conv.label).font(.system(size: 12)).foregroundStyle(DSLight.t2)
-                            .lineLimit(1)
+                            .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
                         Text(conv.endAt.relativeLabel(isZh: l10n.s.sidebarMinds != "Minds"))
                             .font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)

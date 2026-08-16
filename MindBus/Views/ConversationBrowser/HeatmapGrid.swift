@@ -11,10 +11,14 @@ struct HeatmapGrid: View {
 
     @State private var selectedDay: String?
 
-    private static let cell: CGFloat = 10
+    /// 格子边长上限(列宽由等分算出,不超过它)
+    private static let cell: CGFloat = 14
     private static let gap: CGFloat = 3
 
     /// 周一为一周之首(工作语境;GitHub 用周日,本产品用户是开发者,周一直觉更顺)。
+    ///
+    /// 窗口不固定 365 天:库只有 115 天时,前 250 列全是空格子——一半图在讲「没有数据」。
+    /// 起点取「第一条有记录的那天」和「365 天前」里更晚的那个,再对齐到那周的周一。
     private var weeks: [[(day: String, count: Int)?]] {
         var byDay: [String: Int] = [:]
         for d in daily { byDay[d.day] = d.count }
@@ -25,9 +29,12 @@ struct HeatmapGrid: View {
         f.timeZone = .current
         f.dateFormat = "yyyy-MM-dd"
 
+        var start = cal.date(byAdding: .day, value: -364, to: today)!
+        if let firstActive = daily.filter({ $0.count > 0 }).map(\.day).min(),
+           let d = f.date(from: firstActive), d > start {
+            start = cal.startOfDay(for: d)
+        }
         var days: [(String, Int)?] = []
-        // 起点对齐到 365 天前那周的周一,末尾到今天——首列可能有前导空格
-        let start = cal.date(byAdding: .day, value: -364, to: today)!
         let weekdayOffset = (cal.component(.weekday, from: start) + 5) % 7   // 周一=0
         days.append(contentsOf: Array(repeating: nil, count: weekdayOffset))
         var cursor = start
@@ -41,16 +48,40 @@ struct HeatmapGrid: View {
         }
     }
 
+    /// 每列取该周第一天的月份,月份变了才标——没有刻度的格子阵读不出时间。
+    private func monthLabel(for week: [(day: String, count: Int)?], previous: String?) -> String? {
+        guard let day = week.compactMap({ $0?.day }).first else { return nil }
+        let month = String(day.prefix(7))
+        guard month != previous else { return nil }
+        return String(day.dropFirst(5).prefix(2))
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: Self.gap) {
-            ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
+        let cols = weeks
+        var seen: String?
+        var labels: [String?] = []
+        for w in cols {
+            let l = monthLabel(for: w, previous: seen)
+            if l != nil, let d = w.compactMap({ $0?.day }).first { seen = String(d.prefix(7)) }
+            labels.append(l)
+        }
+        // 列等分宽度 + 格子正方形:窗口宽时格子长大填满卡片,窄时自己缩,
+        // 上限 `cell` 拦住「只有 18 列」时格子涨成大方块。
+        return HStack(alignment: .top, spacing: Self.gap) {
+            ForEach(Array(cols.enumerated()), id: \.offset) { i, week in
                 VStack(spacing: Self.gap) {
+                    Text(labels[i] ?? " ")
+                        .font(BrandFont.mono(9)).foregroundStyle(DSLight.t3)
+                        .lineLimit(1).fixedSize()
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(Array(week.enumerated()), id: \.offset) { _, entry in
                         cellView(entry)
                     }
                 }
+                .frame(maxWidth: .infinity)
             }
         }
+        .frame(maxWidth: CGFloat(max(cols.count, 1)) * (Self.cell + Self.gap), alignment: .leading)
     }
 
     @ViewBuilder
@@ -58,7 +89,7 @@ struct HeatmapGrid: View {
         if let entry {
             RoundedRectangle(cornerRadius: 2)
                 .fill(color(for: entry.count))
-                .frame(width: Self.cell, height: Self.cell)
+                .aspectRatio(1, contentMode: .fit)
                 .help("\(entry.day) · \(entry.count)")
                 .onTapGesture { if entry.count > 0 { selectedDay = entry.day } }
                 .popover(isPresented: Binding(
@@ -68,7 +99,7 @@ struct HeatmapGrid: View {
                     dayPopover(entry.day)
                 }
         } else {
-            Color.clear.frame(width: Self.cell, height: Self.cell)
+            Color.clear.aspectRatio(1, contentMode: .fit)
         }
     }
 
