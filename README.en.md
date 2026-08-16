@@ -32,99 +32,95 @@ Fully offline · No account · Not a single line of networking code
 
 Browse and star your history anytime — and let any AI tool tap into it, retrieving past context at minimal token cost.
 
-You run Claude Code in the terminal, switch to Claude Desktop's local agent mode, then spend an afternoon in Codex. Three tools, three transcript formats, three directories buried somewhere under `~/`.
+<img src="assets/screenshots/browser.png" alt="Conversation browser" width="840" />
 
-Finding that decision you made last week means digging through all of them.
+**The problem it solves**: you run Claude Code in a terminal, Agent mode in Claude desktop, and Codex on the side. Three tools, three log formats, three directories buried under `~/` — finding last week's decision means digging through them one by one, while every new AI session starts from zero.
 
-MindBus is a macOS menu bar app that reads those transcripts into one window so you can **search, read, copy, star, and relay** across them.
+The box serves both sides:
 
-On top of that, it turns your accumulated conversations into something you can see:
+**For you to browse and keep —**
 
-- **Sanctuary** — every conversation keeps a compressed local copy. Claude Code only retains 30 days; here they stay forever, and the app shows you how many have already outlived that window.
-- **Minds** — a mechanical self-portrait counted from your own conversations: what you most often ask AI to do (delegation verbs), the shape of your questions, each project's first words, unfinished threads, recurring questions, your catchphrases, knowledge flowing between projects, an activity heatmap… 26 sections, every line counted, not generated (zero LLM involved).
-- **Your Report** — 1/3/12-month stat cards on demand: cross-tool split, busiest day, leverage ratio, your archetype. Redacted export available.
-- **Deletion you control** — delete conversations or single messages; after confirmation they vanish completely from MindBus (list, search, Minds, archived copy) and never come back on rescan — while the original files in your tool directories are **never touched**.
-
-And it *can't* send your data anywhere — not because we promise not to, but because there is no networking code in the source.
-
-## Screenshots
-
-The conversation browser — sidebar per tool, project-tagged list, searchable detail with starring and relay:
-
-<img src="assets/screenshots/browser.png" alt="Browser" width="840" />
-
-Minds — your mechanical self-portrait, surprise sections first (Sanctuary / On This Day / Unfinished Threads…):
+- **One window**: every conversation in one place — search, browse, copy, star, relay into a new chat.
+- **Kept for good**: each conversation has a compressed local copy. Claude Code keeps 30 days; here they stay forever.
+- **Minds**: a self-portrait counted from your own conversations — what you most often ask AI to do, the shape of your questions, each project's first words, your catchphrases… 26 sections, every line counted, not generated.
+- **Deletion you control**: conversations and single messages, gone completely after confirmation, never resurrected on rescan — original files **never touched**.
 
 <img src="assets/screenshots/minds.png" alt="Minds" width="700" />
 
-Your report & activity map:
+**For AI to call —**
 
-<p>
-<img src="assets/screenshots/wrapped.png" alt="Report" width="420" />
-</p>
-<img src="assets/screenshots/heatmap.png" alt="Heatmap" width="700" />
+- A built-in read-only MCP server: any connected AI can search this history and read your profile.
+- Low cost is engineered: the [Memory Transit Protocol](docs/MEMORY-TRANSIT.md) guarantees any conversation is reachable within three transfers, ~4K tokens end to end — no direct route promised, arrival guaranteed.
 
-> All screenshots use built-in demo data (Chinese UI shown; the app ships bilingual).
+The app **cannot** send your data anywhere — not "we promise not to", it simply cannot reach the network.
 
-## Supported sources
+## Supported AI tools
 
-The app reads these three locations, read-only, without modifying the originals:
+The app reads exactly these three locations, read-only, never modifying originals:
 
 | Source | Path |
 | --- | --- |
 | Claude Code | `~/.claude/projects/**/*.jsonl` |
-| Claude Desktop (local agent mode) | `~/Library/Application Support/Claude/local-agent-mode-sessions/` |
+| Claude desktop (local Agent mode) | `~/Library/Application Support/Claude/local-agent-mode-sessions/` |
 | Codex | `~/.codex/sessions/**/*.jsonl` |
 
-Parsers for Cursor, OpenClaw and GitHub Copilot exist in the codebase but aren't wired into the scan yet — their format handling needs validation against more real-world samples first.
+> Note: you need to have used at least one of these — MindBus collects conversations you already have. No history, empty box.
 
-## For your AI: MCP Server
+Parsers for Cursor, OpenClaw, and GitHub Copilot are in the repo but not yet enabled — they need more real-world samples to validate. Contributions welcome.
 
-The app ships with a read-only MCP server. To hook it up, just tell your AI:
+## Under the hood
 
-> Register `/Applications/MindBus.app/Contents/MacOS/mindbus-mcp` as an MCP server named mindbus
+Three technical baselines, one for each word of the positioning:
 
-It will configure itself. Then add one line to your `CLAUDE.md` (or `AGENTS.md`) so the habit sticks:
-
-> When past decisions, project history, or "previously / last time" come up, search the original conversations with mindbus's memory_search first; before starting a new task, read my preferences with minds_read.
-
-Your AI can then search and read all your past conversations, plus your Minds profile. Everything is read-only except profile enrichment (each entry source-traced, awaiting your confirmation) — the index is opened read-only and cannot be modified.
-
-## Privacy
-
-This is the whole point of the project. Rather than asking you to trust a promise, verify it yourself — clone the repo and run:
+**"Your" — data never leaves your machine.** The app cannot make a network request. Verify it yourself:
 
 ```bash
 grep -rn "URLSession\|URLRequest" MindBus/
 ```
 
-**No output.** This app has no ability to make network requests:
+**No output.** No accounts, no crash reporting, no analytics. Parsing and indexing happen locally; the index is a SQLite file on your disk. The only network feature is the update check (Sparkle → GitHub Releases, one-click off; the networking lives inside Sparkle, not in this repo).
 
-- **The only external dependency is [Sparkle](https://github.com/sparkle-project/Sparkle)** (the auto-update framework, see below). No crash reporting SDK, no analytics.
-- **No accounts.** Nothing to register, nothing to sign into.
-- **Conversations never leave your machine.** Parsing and indexing happen locally; the index is a SQLite file on your own disk.
-- **Read-only.** The app never modifies the transcript files your AI tools produce.
+**"Browse anytime" — a local full-text engine.** BM25 with dual tokenizers (Chinese and English each get their own), a personal lexicon learned from your own corpus, query expansion, and project-context weighting. Minds is zero-LLM throughout — every line traces back to counts, dates, conversations.
 
-**The only network feature is the update check** (Sparkle → GitHub Releases): on by default, one toggle in Settings to turn off, every update EdDSA-signature-verified. New versions never interrupt you — they light up a banner at the top of Settings. Turned off, the app is fully offline — and the `grep` above still returns nothing (the networking code lives in the Sparkle framework, not in this repo's sources).
+**"Minimal token cost" — the [Memory Transit Protocol](docs/MEMORY-TRANSIT.md).** A five-step disclosure ladder (map → line → search → digest → original), token bill published; the structural path is capped at three hops, 100% reachable, independent of retrieval luck.
 
-## Installation
+## How to use
 
-### Download the DMG
+### As a person
 
-Grab `MindBus-x.y.z.dmg` from [Releases](https://github.com/BaoWeiiii/mindbus/releases/latest) (Universal — Apple Silicon & Intel), open it, and drag MindBus into Applications.
+Open the app; it scans automatically and the list is ready in seconds:
 
-The DMG is signed with an Apple Developer ID and notarized — it opens with a double-click.
+- **Search**: Chinese or English keywords, highlighted hits, click to jump to the message.
+- **Browse**: filter by tool / project / time; project color tags; a gold breathing dot marks active conversations.
+- **Star & relay**: star key messages; "relay copy" carries selected content into any new chat.
+- **Minds & reports**: your counted self-portrait; 1/3/12-month stat cards, with one-click redaction before export.
 
-### Build from source
+### As an AI
+
+Two sentences. First, tell your AI:
+
+> Register `/Applications/MindBus.app/Contents/MacOS/mindbus-mcp` as an MCP server named mindbus
+
+It configures itself. Second, add to your `CLAUDE.md` (or `AGENTS.md`):
+
+> When past decisions, project history, or "previously / last time" come up, search the original conversations with mindbus's memory_search first; before starting a new task, read my preferences with minds_read.
+
+Everything is read-only except profile enrichment (source-traced, awaiting your confirmation) — the index opens read-only and cannot be modified.
+
+## Install
+
+Download `MindBus-x.y.z.dmg` from [Releases](https://github.com/BaoWeiiii/mindbus/releases/latest) (universal for Apple Silicon and Intel), drag into Applications. The DMG is signed with an Apple Developer ID and notarized — it opens with a double-click.
+
+Or build from source:
 
 ```bash
 git clone https://github.com/BaoWeiiii/mindbus.git
 cd mindbus
 swift build -c release
-./scripts/build-release.sh        # produces MindBus.app (add --dmg for a DMG)
+./scripts/build-release.sh        # packages MindBus.app (add --dmg for a DMG)
 ```
 
-Requires Xcode 15+ / Swift 5.9+ and macOS 13.0 or later. Apps you build yourself carry no quarantine flag, so Gatekeeper won't block them.
+Requires Xcode 15+ / Swift 5.9+, macOS 13.0 or later.
 
 ## Development
 
