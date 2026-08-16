@@ -34,29 +34,35 @@ Browse and star your history anytime — and let any AI tool tap into it, retrie
 
 <img src="assets/screenshots/browser.png" alt="Conversation browser" width="840" />
 
-**The problems it solves**, in order of pain:
+One box, two customers: **you**, and **your AI**. It cures five pains —
 
-1. **Your conversations are being deleted on a timer.** Claude Code silently cleans up all history after 30 days — official policy. Every user who lasts 30 days **will** one day find their records gone. Not "might happen" — scheduled to happen, and unrecoverable by the time you notice.
-2. **What survives is hard to find.** Three tools, three log formats, three directories buried under `~/` — finding last week's decision means digging one by one.
-3. **AI forgets everything, every session.** Each new chat starts from zero: decisions made, dead ends explored, preferences agreed — you explain it all again.
+### For you
 
-The box serves both sides:
+**① Fear of loss.**
+Claude Code silently deletes all history after 30 days — official policy, with reports of deletion even after changing the setting. Everyone who lasts 30 days will one day find their records gone, unrecoverably.
+→ **Kept for good**: every conversation gets a compressed local copy. The tool deletes its own; yours stays. The app shows how many conversations have outlived those 30 days — and how many were rescued by that copy.
 
-**For you to browse and keep —**
+**② Hard to find.**
+Three tools, three formats, three directories buried under `~/`. Finding last week's decision means digging one by one.
+→ **One window for everything**: search in Chinese or English straight to the message, filter by tool / project / time, star what matters, relay any selection into a new chat.
 
-- **One window**: every conversation in one place — search, browse, copy, star, relay into a new chat.
-- **Kept for good**: each conversation has a compressed local copy. Claude Code keeps 30 days; here they stay forever.
-- **Minds**: a self-portrait counted from your own conversations — what you most often ask AI to do, the shape of your questions, your catchphrases, activity heatmaps… every line counted, not generated.
-- **Deletion you control**: conversations and single messages, gone completely after confirmation, never resurrected on rescan — original files **never touched**.
+**③ Invisible worth.**
+Hundreds of conversations, a million characters typed — and none of it feels like anything. Just logs on a disk.
+→ **Minds & reports**: a self-portrait counted from your own words — what you most often ask AI to do, your catchphrases, the briefings you keep repeating; stat cards on demand that show the weight of your months.
 
 <img src="assets/screenshots/minds.png" alt="Minds" width="700" />
 
-**For AI to call —**
+### For your AI
 
-- A built-in read-only MCP server: any connected AI can search this history and read your profile.
-- Low cost is engineered: the [Memory Transit Protocol](docs/MEMORY-TRANSIT.md) guarantees any conversation is reachable within three transfers, ~4K tokens end to end — no direct route promised, arrival guaranteed.
+**④ Amnesia.**
+Every new session starts from zero: decisions made, dead ends explored, preferences agreed — all gone, and you explain again.
+→ **Built-in read-only MCP**: any connected AI can search this full history and read your profile — picking up where you left off instead of meeting you for the first time, every time.
 
-The app **cannot** send your data anywhere — not "we promise not to", it simply cannot reach the network.
+**⑤ Token burn.**
+To give AI your history today, you either inject whole conversations (hundreds of thousands of tokens) or gamble on keyword search and pay for the misses.
+→ **The [Memory Transit Protocol](docs/MEMORY-TRANSIT.md)**: hand the AI a 1.5K-token map first, let it decide whether and where, then drill down layer by layer — ~4K tokens end to end, any conversation reachable within three transfers. No direct route promised; arrival guaranteed.
+
+All of this happens on your machine — the app **cannot** send data anywhere. Not "we promise not to"; it simply cannot reach the network.
 
 ## Supported AI tools
 
