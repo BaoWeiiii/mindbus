@@ -249,6 +249,32 @@ final class MindsSurpriseTests: XCTestCase {
         XCTAssertTrue(doc.contains("you ask AI to judge, more than to explain"), "主导型结论")
     }
 
+    // MARK: - 反复交代的容错边界
+
+    func testRepeatedBriefingsToleratesSmallEdits() {
+        // 同一段交代的三个变体,各改 2-3 个字——3-gram Jaccard 应聚成一组
+        let corpus = [
+            (text: "你是资深审查员,只看规格符合性,不要提出风格意见", convID: "c1"),
+            (text: "你是资深审查员,只看规格符合性,不要给出风格意见", convID: "c2"),
+            (text: "你是资深审查员,只看规格的符合性,不要提风格意见", convID: "c3"),
+        ]
+        let groups = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
+        XCTAssertEqual(groups.count, 1, "小改动的变体应聚为一组: \(groups)")
+        XCTAssertEqual(groups.first?.times, 3)
+    }
+
+    func testRepeatedBriefingsAcceptsLongBriefings() {
+        // 超过 80 字的长交代(真实场景:完整的角色设定/工作约定)也要能聚类
+        let long = String(repeating: "这是一段很长的工作交代,包含背景约束和验收标准,", count: 5)  // ~115 字
+        let corpus = [
+            (text: long + "最后按清单逐项检查", convID: "c1"),
+            (text: long + "最后按照清单逐项核对", convID: "c2"),
+            (text: long + "最后按清单逐一核查", convID: "c3"),
+        ]
+        let groups = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
+        XCTAssertEqual(groups.count, 1, "长交代不该被长度上限拒之门外: \(groups)")
+    }
+
     // MARK: - 委托光谱
 
     func testDelegationVerbsCountsLinesAndConversations() {

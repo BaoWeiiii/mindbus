@@ -401,12 +401,15 @@ public enum MindsBuilder {
 
     static func repeatedBriefings(corpus: [(text: String, convID: String)],
                                   limit: Int) -> [RepeatedBriefing] {
-        // ① 候选行:14-80 字、含 CJK、非噪声
+        // ① 候选:14-200 字、含 CJK、非噪声。上限 200(2026-08-16 放宽):
+        // v16 起行=整条消息,完整的角色设定/工作约定常超 80 字,老上限会把
+        // 「反复交代的长话」整条拒之门外;粘贴防线已由消息压平+噪声正则+
+        // 超长排除承担,不再需要 80 这道矮墙。
         var msgs: [(String, String)] = []
         for (text, cid) in corpus {
             for line in text.split(separator: "\n") {
                 let t = line.trimmingCharacters(in: .whitespaces)
-                guard (14...80).contains(t.count),
+                guard (14...200).contains(t.count),
                       t.contains(where: { ("\u{4E00}"..."\u{9FFF}").contains($0) }) else { continue }
                 if let re = briefingNoise,
                    re.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)) != nil { continue }
