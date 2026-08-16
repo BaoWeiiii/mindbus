@@ -9,19 +9,17 @@ struct ConversationBrowserView: View {
         // 自绘三栏（替代 NavigationSplitView）：侧栏平贴无浮动卡（参考 mac 原生 chat app），
         // 色差 + 1px 细线分栏，折叠动画自管，列宽固定不漂。
         HStack(spacing: 0) {
-            // 折叠 = 宽度动画,不是移除+transition(2026-08-16 修):移除式条件视图
-            // 的 move transition 在兄弟分支(Minds 大视图)切换重布局时会残留位移,
-            // 整列侧栏被冻在左移中间帧——文字裁头、logo 消失。视图恒在、只动宽度,
-            // 没有插入/移除就没有 transition 可残留;clipped 让收窄时内容贴右滑出,
-            // 观感与原 move(edge: .leading) 一致。
-            BrowserSidebarView()
-                .frame(width: 220)
-                .background(DSLight.sf)   // 比主区深一级：背景层级差分隔（设计系统主推）
-                .frame(width: store.sidebarCollapsed ? 0 : 220, alignment: .trailing)
-                .clipped()
-                .opacity(store.sidebarCollapsed ? 0 : 1)
-            Rectangle().fill(DSLight.rule)
-                .frame(width: store.sidebarCollapsed ? 0 : 1)
+            // 侧栏零动画(2026-08-16 二修):折叠动画两种写法都出过同一个病——
+            // ① 移除+move transition:切到 Minds 大视图重布局时位移残留;
+            // ② 宽度动画+trailing 对齐:中间帧宽度 <220 时内容靠右、左缘被裁,
+            //    主线程一卡(Minds 首帧的 SQL)就永远冻在那一帧,文字裁头 logo 消失。
+            // 折叠是低频操作,不值得为它的 0.2s 动画赔上整列错位。直接条件渲染。
+            if !store.sidebarCollapsed {
+                BrowserSidebarView()
+                    .frame(width: 220)
+                    .background(DSLight.sf)   // 比主区深一级：背景层级差分隔（设计系统主推）
+                Rectangle().fill(DSLight.rule).frame(width: 1)
+            }
 
             if store.favoritesSelected {
                 FavoritesRootView(store: store)
@@ -40,7 +38,6 @@ struct ConversationBrowserView: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .animation(.easeOut(duration: 0.2), value: store.sidebarCollapsed)
         .background(DSLight.bg)
         .grain()   // 纸张质感层：设计指南「质感 > 颜色 > 布局」，对齐 web 的 body::before noise
         .frame(minWidth: 900, minHeight: 600)

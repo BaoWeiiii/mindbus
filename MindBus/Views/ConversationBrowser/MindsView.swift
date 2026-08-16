@@ -42,7 +42,10 @@ struct MindsView: View {
     }
     @State private var viz = VizSnapshot()
 
-    private func refreshViz() {
+    /// 纯取数(后台执行):只读 index 的 nonisolated 查询,不碰任何 @Published 状态。
+    private nonisolated static func buildViz(store: ConversationStore,
+                                             fadedWords: [String],
+                                             rescuedCount: Int) -> VizSnapshot {
         var v = VizSnapshot()
         v.hourly24 = store.vizHourly24()
         v.weekday7 = store.vizWeekday7()
@@ -51,14 +54,10 @@ struct MindsView: View {
         v.volume = store.vizVolume()
         v.dailyHeat = store.dailyHeat()
         v.earliest = store.vizEarliest()
-        // faded 词从刚 reload 的 md 解析——语料只拉这一次
-        let words = sectionLines("FADED WORDS").filter { $0.hasPrefix("- ") }
-            .compactMap(parseRecurring).map(\.word)
-        v.fadedSeries = store.vizFadedSeries(words: words)
-        // 整行陈述节数据
+        v.fadedSeries = store.vizFadedSeries(words: fadedWords)
         v.sanctuary = store.vizSanctuary()
         v.vault = store.vizVault()
-        v.rescuedCount = store.rescuedIDs.count
+        v.rescuedCount = rescuedCount
         v.busiest = store.vizBusiest()
         v.switching = store.vizSwitching()
         v.activeDays = MindsBuilder.activeDays(daily: v.dailyHeat, window: 365)
@@ -69,7 +68,7 @@ struct MindsView: View {
         v.weekendSplit = store.vizWeekendSplit()
         v.month = store.vizMonth()
         v.latestNight = store.vizLatestNight()
-        viz = v
+        return v
     }
 
     var body: some View {
@@ -79,7 +78,19 @@ struct MindsView: View {
         .background(DSLight.bg)
         .onAppear {
             minds.reload()
-            refreshViz()
+            // 图表数据整串挪出主线程(2026-08-16):十几个 SQL 同步跑在主线程,
+            // 点开 Minds 要卡几秒——期间 SwiftUI 布局被冻住,侧栏动画停在中间帧
+            // (用户截图现场:整列左移、文字裁头)。后台取完回主线程一次性赋值。
+            let fadedWords = sectionLines("FADED WORDS").filter { $0.hasPrefix("- ") }
+                .compactMap(parseRecurring).map(\.word)
+            let rescued = store.rescuedIDs.count
+            let s = store
+            Task {
+                let v = await Task.detached(priority: .userInitiated) {
+                    Self.buildViz(store: s, fadedWords: fadedWords, rescuedCount: rescued)
+                }.value
+                viz = v
+            }
         }
     }
 

@@ -245,7 +245,7 @@ public final class ConversationStore: ObservableObject {
     }
 
     /// 活跃热力图数据:近 365 天每日会话数(本机时区)。Minds 页展示时拉取。
-    public func dailyHeat() -> [(day: String, count: Int)] {
+    public nonisolated func dailyHeat() -> [(day: String, count: Int)] {
         index?.dailyCounts(days: 365, now: Date()) ?? []
     }
 
@@ -285,23 +285,23 @@ public final class ConversationStore: ObservableObject {
 
     // MARK: - Minds 可视化数据口(图表直查 store,文字行走 minds.md——两层并存)
 
-    public func vizHourly24() -> [Int] {
+    public nonisolated func vizHourly24() -> [Int] {
         index?.hourHistogram24() ?? [Int](repeating: 0, count: 24)
     }
-    public func vizWeekday7() -> [Int] {
+    public nonisolated func vizWeekday7() -> [Int] {
         index?.weekdayHistogram() ?? [Int](repeating: 0, count: 7)
     }
-    public func vizMonthlyFlow() -> [(month: String, count: Int)] {
+    public nonisolated func vizMonthlyFlow() -> [(month: String, count: Int)] {
         (index?.mapOverview().byMonth ?? []).map { (month: $0.key, count: $0.count) }
     }
-    public func vizShape() -> ConversationIndex.CollaborationShape? {
+    public nonisolated func vizShape() -> ConversationIndex.CollaborationShape? {
         index?.collaborationShape()
     }
-    public func vizVolume() -> (userChars: Int, totalChars: Int) {
+    public nonisolated func vizVolume() -> (userChars: Int, totalChars: Int) {
         index?.corpusVolume() ?? (0, 0)
     }
     /// FADED 消退曲线:词的近 12 月出现序列(词 ≤5 个,千级文本扫描几十 ms)。
-    public func vizFadedSeries(words: [String]) -> [String: [Int]] {
+    public nonisolated func vizFadedSeries(words: [String]) -> [String: [Int]] {
         guard let index, !words.isEmpty else { return [:] }
         let corpus = index.userCorpusWithDates()
         var out: [String: [Int]] = [:]
@@ -312,19 +312,19 @@ public final class ConversationStore: ObservableObject {
     }
 
     // Minds 单语化:整行陈述节直查数据(GUI 用 L10n 模板渲染,不再显 md 英文行)
-    public func vizSanctuary() -> ConversationIndex.SanctuaryStats? {
+    public nonisolated func vizSanctuary() -> ConversationIndex.SanctuaryStats? {
         index?.sanctuaryStats(now: Date())
     }
-    public func vizVault() -> (files: Int, bytes: Int64) { MindsBuilder.vaultFootprint() }
-    public func vizBusiest() -> (day: String, count: Int)? { index?.busiestDay() }
-    public func vizSwitching() -> (avgPerDay: Double, peak: (day: String, count: Int)?) {
+    public nonisolated func vizVault() -> (files: Int, bytes: Int64) { MindsBuilder.vaultFootprint() }
+    public nonisolated func vizBusiest() -> (day: String, count: Int)? { index?.busiestDay() }
+    public nonisolated func vizSwitching() -> (avgPerDay: Double, peak: (day: String, count: Int)?) {
         index?.projectSwitching() ?? (0, nil)
     }
-    public func vizWeekly() -> [(week: String, count: Int)] { index?.weeklyCounts() ?? [] }
-    public func vizWeekendSplit() -> (weekday: [ConversationIndex.FacetCount], weekend: [ConversationIndex.FacetCount]) {
+    public nonisolated func vizWeekly() -> [(week: String, count: Int)] { index?.weeklyCounts() ?? [] }
+    public nonisolated func vizWeekendSplit() -> (weekday: [ConversationIndex.FacetCount], weekend: [ConversationIndex.FacetCount]) {
         index?.weekendSplit(minCount: 2) ?? ([], [])
     }
-    public func vizMonth() -> (cur: [ConversationIndex.FacetCount], prev: [ConversationIndex.FacetCount],
+    public nonisolated func vizMonth() -> (cur: [ConversationIndex.FacetCount], prev: [ConversationIndex.FacetCount],
                                newEntities: [String], lastYear: Int) {
         guard let index else { return ([], [], [], 0) }
         let now = Date()
@@ -339,14 +339,14 @@ public final class ConversationStore: ObservableObject {
                 index.newEntities(since: mStart, limit: 8).map(\.text),
                 ly)
     }
-    public func vizLatestNight() -> (thread: ConversationIndex.UnfinishedThread, clock: String)? {
+    public nonisolated func vizLatestNight() -> (thread: ConversationIndex.UnfinishedThread, clock: String)? {
         index?.latestNightConversation()
     }
 
     public func wrappedSwitchingAvg() -> Double {
         index?.projectSwitching().avgPerDay ?? 0
     }
-    public func vizEarliest() -> Date? {
+    public nonisolated func vizEarliest() -> Date? {
         index?.sanctuaryStats(now: Date()).earliest
     }
 
