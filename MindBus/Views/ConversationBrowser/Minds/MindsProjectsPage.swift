@@ -246,8 +246,7 @@ struct MindsCommonWords: View {
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        let chips = ctx.bullets("VOCABULARY").first
-            .map { ctx.chips(from: String($0.dropFirst(2))) } ?? []
+        let chips = ctx.doc.chipRow("VOCABULARY")
         return Group {
             if !chips.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {

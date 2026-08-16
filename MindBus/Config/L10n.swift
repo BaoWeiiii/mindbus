@@ -223,6 +223,8 @@ struct Strings {
     let mRelDaysAgo: (Int) -> String
     let mMarathonLongest: (String) -> String
     /// 项目表新增列
+    /// 活跃期连接词「至」
+    let mSpanTo: String
     let mProjColScale: String
     let mProjColSpan: String
     let mProjColRecent: String
@@ -625,6 +627,7 @@ struct Strings {
         mRelToday: "今天",
         mRelDaysAgo: { "\($0) 天前" },
         mMarathonLongest: { "最长 \($0)" },
+        mSpanTo: "至",
         mProjColScale: "相对规模",
         mProjColSpan: "活跃期",
         mProjColRecent: "最近活跃",
@@ -999,6 +1002,7 @@ struct Strings {
         mRelToday: "today",
         mRelDaysAgo: { "\($0)d ago" },
         mMarathonLongest: { "longest \($0)" },
+        mSpanTo: "→",
         mProjColScale: "SCALE",
         mProjColSpan: "ACTIVE PERIOD",
         mProjColRecent: "LAST TOUCHED",

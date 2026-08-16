@@ -186,12 +186,13 @@ struct MindsHeatmap: View {
     private static let gap: CGFloat = 3
 
     var body: some View {
-        let cols = weeks
+        let layout = MindsHeatmapLayout(daily: daily, now: Date())
+        let cols = layout.weeks
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: Self.gap) {
                 ForEach(Array(cols.enumerated()), id: \.offset) { i, week in
                     VStack(spacing: Self.gap) {
-                        Text(monthLabels(cols)[i] ?? " ")
+                        Text(layout.monthLabels[i] ?? " ")
                             .font(BrandFont.mono(9))
                             .foregroundStyle(MindsUI.textTertiary)
                             .lineLimit(1).fixedSize()
@@ -208,97 +209,44 @@ struct MindsHeatmap: View {
     }
 
     @ViewBuilder
-    private func cell(_ entry: (day: String, count: Int)?) -> some View {
-        if let entry {
+    private func cell(_ entry: MindsHeatmapLayout.Cell) -> some View {
+        if let day = entry.day {
             RoundedRectangle(cornerRadius: 3)
-                .fill(MindsUI.heat[bucket(entry.count)])
+                .fill(MindsUI.heat[MindsHeatmapLayout.bucket(entry.count)])
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
-                    if hovered == entry.day, entry.count > 0 {
+                    if hovered == day, entry.count > 0 {
                         RoundedRectangle(cornerRadius: 3)
                             .stroke(MindsUI.accentStrong, lineWidth: 1.5)
                     }
                 }
-                .onHover { hovered = $0 ? entry.day : (hovered == entry.day ? nil : hovered) }
-                .onTapGesture { if entry.count > 0 { opened = entry.day } }
+                .onHover { hovered = $0 ? day : (hovered == day ? nil : hovered) }
+                .onTapGesture { if entry.count > 0 { opened = day } }
                 .overlay(alignment: .bottom) {
-                    if hovered == entry.day, entry.count > 0 {
-                        MindsTooltip(lines: [longDay(entry.day),
+                    if hovered == day, entry.count > 0 {
+                        MindsTooltip(lines: [longDay(day),
                                              l10n.s.mHeatTipConversations(entry.count)])
                             .offset(y: -Self.cell - 6)
-                            .transition(.opacity)
                             .allowsHitTesting(false)
                             .zIndex(10)
                     }
                 }
-                .popover(isPresented: Binding(get: { opened == entry.day },
+                .popover(isPresented: Binding(get: { opened == day },
                                               set: { if !$0 { opened = nil } })) {
-                    dayPopover(entry.day)
+                    dayPopover(day)
                 }
         } else {
             Color.clear.aspectRatio(1, contentMode: .fit)
         }
     }
 
-    private func bucket(_ count: Int) -> Int {
-        switch count {
-        case 0: return 0
-        case 1...2: return 1
-        case 3...5: return 2
-        case 6...9: return 3
-        default: return 4
-        }
-    }
-
     private func longDay(_ iso: String) -> String {
-        guard let d = MindsContext.day(from: iso) else { return iso }
+        guard let d = MindsDocument.day(from: iso) else { return iso }
         let f = DateFormatter()
         f.locale = Locale(identifier: ctx.isZh ? "zh_CN" : "en_US")
         f.dateStyle = .long
         f.timeStyle = .none
         return f.string(from: d)
-    }
-
-    /// 周一为一周之首（工作语境；GitHub 用周日，本产品用户是开发者）
-    private var weeks: [[(day: String, count: Int)?]] {
-        var byDay: [String: Int] = [:]
-        for d in daily { byDay[d.day] = d.count }
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        var start = cal.date(byAdding: .day, value: -364, to: today)!
-        if let firstActive = daily.filter({ $0.count > 0 }).map(\.day).min(),
-           let d = MindsContext.day(from: firstActive), d > start {
-            start = cal.startOfDay(for: d)
-        }
-        var days: [(String, Int)?] = []
-        let offset = (cal.component(.weekday, from: start) + 5) % 7
-        days.append(contentsOf: Array(repeating: nil, count: offset))
-        var cursor = start
-        while cursor <= today {
-            let key = MindsContext.dayString(cursor)
-            days.append((key, byDay[key] ?? 0))
-            cursor = cal.date(byAdding: .day, value: 1, to: cursor)!
-        }
-        return stride(from: 0, to: days.count, by: 7).map {
-            Array(days[$0..<min($0 + 7, days.count)])
-        }
-    }
-
-    /// 月份变了才标——没有刻度的格子阵读不出时间
-    private func monthLabels(_ cols: [[(day: String, count: Int)?]]) -> [String?] {
-        var seen: String?
-        var out: [String?] = []
-        for w in cols {
-            guard let day = w.compactMap({ $0?.day }).first else { out.append(nil); continue }
-            let month = String(day.prefix(7))
-            if month != seen {
-                seen = month
-                out.append(String(day.dropFirst(5).prefix(2)))
-            } else {
-                out.append(nil)
-            }
-        }
-        return out
     }
 
     private func dayPopover(_ day: String) -> some View {

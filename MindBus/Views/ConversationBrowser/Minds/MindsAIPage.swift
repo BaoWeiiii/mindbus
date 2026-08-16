@@ -34,7 +34,7 @@ struct MindsTaskRanking: View {
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        let verbs = parse()
+        let verbs = ctx.doc.delegationVerbs()
         let maxN = verbs.map(\.count).max() ?? 1
         return Group {
             if !verbs.isEmpty {
@@ -43,12 +43,12 @@ struct MindsTaskRanking: View {
                     VStack(alignment: .leading, spacing: 9) {
                         ForEach(Array(verbs.enumerated()), id: \.offset) { _, v in
                             MindsBarRow(label: v.verb, value: v.count, maxValue: maxN,
-                                        trailing: String(format: l10n.s.mDelegCount, v.count, v.convs),
+                                        trailing: String(format: l10n.s.mDelegCount, v.count, v.conversations),
                                         isTop: v.count == maxN)
                         }
-                        if let dest = research {
+                        if let dest = ctx.doc.researchDestination() {
                             Spacer(minLength: 6)
-                            Text(String(format: l10n.s.mDelegResearch, dest.0, dest.1))
+                            Text(String(format: l10n.s.mDelegResearch, dest.destination, "\(dest.count)"))
                                 .font(.system(size: 12)).foregroundStyle(MindsUI.textSecondary)
                         }
                     }
@@ -58,28 +58,6 @@ struct MindsTaskRanking: View {
         }
     }
 
-    /// "- 设计 215×/36c · 验证 192×/40c · …"
-    private func parse() -> [(verb: String, count: Int, convs: Int)] {
-        let lines = ctx.bullets("DELEGATION")
-        guard let line = lines.first(where: { !$0.hasPrefix("- research") }) else { return [] }
-        var out: [(String, Int, Int)] = []
-        for part in line.dropFirst(2).split(separator: "·") {
-            let t = part.trimmingCharacters(in: .whitespaces)
-            guard let sp = t.lastIndex(of: " ") else { continue }
-            let nums = t[t.index(after: sp)...].split(separator: "×")
-            guard nums.count == 2, let n = Int(nums[0]),
-                  let c = Int(nums[1].dropFirst().dropLast()) else { continue }
-            out.append((String(t[..<sp]), n, c))
-        }
-        return out
-    }
-
-    /// "- research destination #1: github (12 of your 调研 orders; …"
-    private var research: (String, String)? {
-        guard let line = ctx.bullets("DELEGATION").first(where: { $0.hasPrefix("- research destination") })
-        else { return nil }
-        return ctx.twoGroups(line, #"#1: (\S+) \((\d+)"#)
-    }
 }
 
 // MARK: - 提问的形状
@@ -89,8 +67,8 @@ struct MindsQuestionShape: View {
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        let counts = parse()
-        let maxN = counts.map(\.1).max() ?? 1
+        let counts = ctx.doc.questionShape()
+        let maxN = counts.map(\.count).max() ?? 1
         let names = ["should-we": l10n.s.mQKindConfirm, "how-to": l10n.s.mQKindHow,
                      "why": l10n.s.mQKindWhy, "what-is": l10n.s.mQKindWhat]
         let verdicts = ["should-we": l10n.s.mQVerdictConfirm, "how-to": l10n.s.mQVerdictHow,
@@ -102,11 +80,11 @@ struct MindsQuestionShape: View {
                                        hint: l10n.s.mindsQuestionShapeHint)
                     VStack(alignment: .leading, spacing: 9) {
                         ForEach(Array(counts.enumerated()), id: \.offset) { _, kv in
-                            MindsBarRow(label: names[kv.0] ?? kv.0, value: kv.1, maxValue: maxN,
-                                        trailing: "\(kv.1)", trailingWidth: 44,
-                                        isTop: kv.1 == maxN)
+                            MindsBarRow(label: names[kv.kind] ?? kv.kind, value: kv.count,
+                                        maxValue: maxN, trailing: "\(kv.count)", trailingWidth: 44,
+                                        isTop: kv.count == maxN)
                         }
-                        if let top = counts.max(by: { $0.1 < $1.1 }), let v = verdicts[top.0] {
+                        if let top = counts.first, let v = verdicts[top.kind] {
                             Spacer(minLength: 6)
                             Text(v).font(.system(size: 12)).foregroundStyle(MindsUI.textSecondary)
                         }
@@ -117,15 +95,6 @@ struct MindsQuestionShape: View {
         }
     }
 
-    /// md 里是固定类别序，条形图按数值降序才是「排行」
-    private func parse() -> [(String, Int)] {
-        guard let line = ctx.bullets("QUESTION SHAPE").first else { return [] }
-        return line.dropFirst(2).split(separator: "·").compactMap { part -> (String, Int)? in
-            let t = part.trimmingCharacters(in: .whitespaces)
-            guard let sp = t.lastIndex(of: " "), let n = Int(t[t.index(after: sp)...]) else { return nil }
-            return (String(t[..<sp]), n)
-        }.sorted { $0.1 > $1.1 }
-    }
 }
 
 // MARK: - 一起干活的样子
@@ -283,8 +252,7 @@ struct MindsRepeatedPhrases: View {
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        let chips = ctx.bullets("PHRASES YOU REPEAT").first
-            .map { ctx.chips(from: String($0.dropFirst(2))) } ?? []
+        let chips = ctx.doc.chipRow("PHRASES YOU REPEAT")
         return Group {
             if !chips.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
@@ -309,9 +277,7 @@ struct MindsCatchphrases: View {
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        let lines = ctx.bullets("CATCHPHRASES")
-        let phrases = lines.first(where: { !$0.contains("politeness") })
-            .map { ctx.chips(from: String($0.dropFirst(2))) } ?? []
+        let phrases = ctx.doc.catchphrases()
         return Group {
             if !phrases.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
@@ -320,21 +286,13 @@ struct MindsCatchphrases: View {
                     VStack(alignment: .leading, spacing: 12) {
                         FlowLayout(spacing: 8) {
                             ForEach(Array(phrases.enumerated()), id: \.offset) { i, c in
-                                // md 里是「继续 ×251」，词与次数之间没有括号
-                                let parts = c.word.split(separator: "×")
-                                let word = parts.first.map { $0.trimmingCharacters(in: .whitespaces) } ?? c.word
-                                let count = parts.count > 1 ? String(parts[1]) : c.meta
-                                MindsTagChip(word: word,
-                                             meta: count.isEmpty ? "" : l10n.s.mVocabWorkMeta(Int(count) ?? 0),
-                                             emphasis: i < 3) { ctx.search(word) }
+                                MindsTagChip(word: c.phrase,
+                                             meta: l10n.s.mVocabWorkMeta(c.count),
+                                             emphasis: i < 3) { ctx.search(c.phrase) }
                             }
                         }
                         Spacer(minLength: 6)
-                        if let polite = lines.first(where: { $0.contains("politeness") }) {
-                            let list = polite.dropFirst(2)
-                                .replacingOccurrences(of: "politeness & delegation: ", with: "")
-                                .replacingOccurrences(of: " ×", with: " ")
-                                .replacingOccurrences(of: " · ", with: "、")
+                        if let list = ctx.doc.politenessLine() {
                             Text(l10n.s.mPoliteness(list))
                                 .font(.system(size: 12)).foregroundStyle(MindsUI.textTertiary)
                                 .fixedSize(horizontal: false, vertical: true)
