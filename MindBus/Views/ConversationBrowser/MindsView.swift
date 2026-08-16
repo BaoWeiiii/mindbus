@@ -159,7 +159,7 @@ struct MindsView: View {
     private var rebuildStamp: String {
         guard let range = minds.mechanicalMarkdown.range(
             of: #"rebuilt \d{4}-\d{2}-\d{2}"#, options: .regularExpression) else { return "" }
-        return String(minds.mechanicalMarkdown[range]) + " · "
+        return String(minds.mechanicalMarkdown[range]) + "  "
     }
 
     private var fileMissing: some View {
@@ -195,7 +195,7 @@ struct MindsView: View {
                     .font(BrandFont.mono(11)).kerning(1.4).foregroundStyle(DSLight.t3)
             }
             if let hint {
-                Text("· \(hint)").font(.system(size: 11)).foregroundStyle(DSLight.t3)
+                Text(hint).font(.system(size: 11)).foregroundStyle(DSLight.t3)
             }
         }
         .padding(.top, 44).padding(.bottom, 14)
@@ -325,7 +325,7 @@ struct MindsView: View {
                                         .frame(width: max(4, geo.size.width * CGFloat(kv.1) / CGFloat(maxN)), height: 8)
                                         .frame(maxHeight: .infinity, alignment: .center)
                                 }
-                                Text("\(kv.1)×/\(kv.2)c").font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
+                                Text("\(kv.1) 次 \(kv.2) 场").font(BrandFont.mono(10)).foregroundStyle(DSLight.t3)
                                     .frame(width: 64, alignment: .trailing)
                             }
                             .frame(height: 18)
@@ -575,10 +575,10 @@ struct MindsView: View {
         if let m = MindsBuilder.highestMilestone(viz.volume.totalChars, in: MindsBuilder.characterMilestones) {
             passed.append(l10n.s.mSanctuaryMileChars(MindsBuilder.compactChars(m)))
         }
-        if !passed.isEmpty { parts.append(l10n.s.mSanctuaryMilestones(passed.joined(separator: " · "))) }
+        if !passed.isEmpty { parts.append(l10n.s.mSanctuaryMilestones(passed.joined(separator: "、"))) }
         return Group {
             if !parts.isEmpty {
-                Text(parts.joined(separator: "   ·   "))
+                Text(parts.joined(separator: "    "))
                     .font(BrandFont.mono(11)).foregroundStyle(DSLight.t2)
             }
         }
@@ -599,7 +599,7 @@ struct MindsView: View {
             if let m = MindsBuilder.highestMilestone(viz.volume.totalChars, in: MindsBuilder.characterMilestones) {
                 passed.append(l10n.s.mSanctuaryMileChars(MindsBuilder.compactChars(m)))
             }
-            if !passed.isEmpty { rows.append(l10n.s.mSanctuaryMilestones(passed.joined(separator: " · "))) }
+            if !passed.isEmpty { rows.append(l10n.s.mSanctuaryMilestones(passed.joined(separator: "、"))) }
             if let latest = st.latestActivity {
                 rows.append(l10n.s.mSanctuaryCollected(Self.dayString(latest)))
             }
@@ -813,7 +813,7 @@ struct MindsView: View {
                                         Text(parts.first.map { $0.trimmingCharacters(in: .whitespaces) } ?? chip)
                                             .font(.system(size: 13, weight: .medium)).foregroundStyle(DSLight.t1)
                                         if parts.count > 1 {
-                                            Text("×" + parts[1].trimmingCharacters(in: .whitespaces))
+                                            Text(parts[1].trimmingCharacters(in: .whitespaces) + " 次")
                                                 .font(BrandFont.mono(11)).foregroundStyle(DSLight.gold)
                                         }
                                     }
@@ -825,6 +825,8 @@ struct MindsView: View {
                         if let politeLine {
                             let list = String(politeLine.dropFirst(2))
                                 .replacingOccurrences(of: "politeness & delegation: ", with: "")
+                                .replacingOccurrences(of: " ×", with: " ")
+                                .replacingOccurrences(of: " · ", with: "、")
                             Text(l10n.s.mPoliteness(list))
                                 .font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
                         }
@@ -1023,7 +1025,7 @@ struct MindsView: View {
 
     private func spanText(from head: String) -> String {
         let ds = isoDates(in: head).map { String($0.dropFirst(5)) }
-        return ds.count >= 2 ? "\(ds[0]) → \(ds[1])" : ""
+        return ds.count >= 2 ? "\(ds[0]) 至 \(ds[1])" : ""
     }
 
     // MARK: - ② 项目节奏:条形
@@ -1126,7 +1128,7 @@ struct MindsView: View {
         let rest = body[dash.upperBound...]
         let count = Int(rest.split(separator: " ").first ?? "") ?? 0
         let dates = isoDates(in: String(rest)).map { String($0.dropFirst(5)) }
-        var span = dates.count >= 2 ? "\(dates[0]) → \(dates[1])" : ""
+        var span = dates.count >= 2 ? "\(dates[0]) 至 \(dates[1])" : ""
         // 最近 14 天有动静的标活跃——比只看结束日期更符合「节奏」直觉
         if let last = dates.last, isRecent(monthDay: last) { span += " · \(l10n.s.mindsActiveNow)" }
         return (path, (path as NSString).lastPathComponent, count, span)
