@@ -154,23 +154,6 @@ enum PreviewRenderer {
         - milestones passed: 100 conversations · 10.0M characters
         - last collected 2026-08-12
 
-        ## ON THIS DAY
-        Same date, earlier chapters. (mechanical, 2 found)
-        - 三个月前的选题会:户外装备赛道拆解 — TrendRadar, 2026-05-12 (id: 00000000-0000-4000-8000-000000000002)
-        - 半年前的技术选型:Tauri 还是原生 — mindbus, 2026-02-12 (id: 00000000-0000-4000-8000-000000000001)
-
-        ## UNFINISHED THREADS
-        Conversations where the last word was yours. (mechanical, 3 threads)
-        - 液态玻璃描边到底怎么调才不脏 — mindbus, 2026-08-11 (id: 00000000-0000-4000-8000-000000000001)
-        - PricingLab 的订阅档位怎么定 — PricingLab, 2026-08-09 (id: 00000000-0000-4000-8000-000000000002)
-        - expedition 测试为什么偶发超时 — StrategyGame, 2026-08-05 (id: 11111111-2222-4333-8444-555555555555)
-
-        ## RECURRING QUESTIONS
-        Topics you keep coming back to. (mechanical, 3 topics)
-        - MemoryLeak — 5 conversations, 2026-05-14 → 2026-08-02
-        - Sparkle — 4 conversations, 2026-06-01 → 2026-08-08
-        - expedition.test.ts — 3 conversations, 2026-05-20 → 2026-07-30
-
         ## DORMANT PROJECTS
         Heavy investments untouched for 30+ days. (mechanical, 2 projects)
         - StrategyGame — 54 conversations, last touched 2026-07-18
@@ -225,11 +208,6 @@ enum PreviewRenderer {
         - 设计 215×/36c · 验证 192×/40c · 测试 182×/42c · 优化 170×/30c · 检查 113×/28c · 分析 110×/17c · 修复 86×/26c · 调研 64×/22c
         - research destination #1: github (12 of your 调研 orders; then 产品 9 · 最新 2)
 
-        ## FIRST WORDS
-        How each project began — the opening line you typed. (mechanical, 2 projects)
-        - mindbus — "目前的项目状态是什么" (2026-08-01, id: 00000000-0000-4000-8000-000000000001)
-        - TrendRadar — "帮我看一下户外装备赛道的热度趋势" (2026-05-12, id: 00000000-0000-4000-8000-000000000002)
-
         ## REPEATED BRIEFINGS
         Things you keep explaining from scratch. (mechanical, 2 groups)
         - 你是 Senior Code Reviewer,正在审查 Task 4 的代码质量,请只看规格符合性 — said 6× across 4 conversations
@@ -240,12 +218,6 @@ enum PreviewRenderer {
         - 继续 ×47 · 好的 ×23 · 可以 ×15 · 为什么 ×12
         - politeness & delegation: 帮我 ×89 · 谢谢 ×31 · please ×6
 
-        ## RARITIES
-        One-of-a-kind moments. (mechanical)
-        - deepest night: 2026-07-31 at 03:47 you started "排查内存暴涨" (id: 00000000-0000-4000-8000-000000000002)
-        - asked once, never again: LevelDB (2026-04-02) · WebRTC (2026-03-15) · 拼音声调 (2026-02-28)
-        - your rare words: 协程池 ×2 · 逃逸分析 ×3 · 墨水屏 ×2
-
         ## LEVERAGE BY PROJECT
         Which project stretches your words furthest. (mechanical, 5 projects)
         - homelab — 1:45 (3k typed → 170k, 5 conversations)
@@ -253,12 +225,6 @@ enum PreviewRenderer {
         - PricingLab — 1:8 (60k typed → 528k, 6 conversations)
         - StrategyGame — 1:7 (162k typed → 1.2M, 54 conversations)
         - Codex — 1:2 (70k typed → 148k, 7 conversations)
-
-        ## KNOWLEDGE FLOWS
-        Your projects are not islands — concepts they share. (mechanical, 3 pairs)
-        - ResearchKit ↔ mindbus — 87 shared concepts
-        - Spider ↔ TrendRadar — 47 shared concepts
-        - Hotel ↔ India — 13 shared concepts
 
         ## STARRED HIGHLIGHTS
         Messages you bookmarked. (mechanical, 2 shown)
@@ -277,19 +243,10 @@ enum PreviewRenderer {
         - /Users/dev/Projects/PricingLab — 6 conversations, active 2026-07-09 → 2026-08-05, last touched 2026-08-10
         - /Users/dev/Projects/ResearchKit — 5 conversations, active 2026-07-01 → 2026-08-10, last touched 2026-08-10
 
-        ## TOP ENTITIES
-        Top 20 entities by conversation frequency. (mechanical, 10 entities)
-        NodeNext (42) · GitHub (39) · src/index.ts (39) · expedition.test.ts (30) · TypeScript (23) · WorldState (16) · ARMY_ENCOUNTERED_ENEMY (15) · ObjectiveEvent (14) · GameDate (10) · MindBus (10)
-
         ## VOCABULARY
         Your lexicon, counted in your own messages. (mechanical, 12 terms)
         - mind: 第一性原理 (39×/12p) · 上下文 (67×/11p) · 确定性 (8×/6p)
         - work: 主工作区 (31) · 类型检查 (18) · 继续推进 (16) · 工作树 (14) · 解析器 (12) · 子代理 (11)
-
-        ## AGENT USAGE
-        Referenced by agents 2 times across 2 conversations. (mechanical, 2 references) Top:
-        - conversation_id="00000000-0000-4000-8000-000000000001" — 1 times, last 2026-08-10
-        - conversation_id="00000000-0000-4000-8000-000000000002" — 1 times, last 2026-08-10
 
         <!-- weak-spots -->
         ## WEAK SPOTS

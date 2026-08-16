@@ -88,7 +88,7 @@ final class MindsReadToolTests: XCTestCase {
         let out = MindsReadTool.spec.run([:], index)
         XCTAssertTrue(out.text.contains("## OVERVIEW"))
         XCTAssertTrue(out.text.contains("0 conversations across 0 tools."))
-        XCTAssertTrue(out.text.contains("## AGENT USAGE"))
+        XCTAssertTrue(out.text.contains("## VOCABULARY"))
     }
 
     // MARK: - 标记缺失降级

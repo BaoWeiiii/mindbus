@@ -85,9 +85,6 @@ public enum MindsBuilder {
         let projectTails = Set(overview.byProject.map {
             ($0.key as NSString).lastPathComponent.lowercased()
         })
-        surprise.recurring = surprise.recurring
-            .filter { !projectTails.contains($0.text.lowercased()) }
-            .prefix(5).map { $0 }
         surprise.hourQuarters = index.hourQuarterHistogram()
         surprise.busiestDay = index.busiestDay()
         surprise.switching = index.projectSwitching()
@@ -100,27 +97,11 @@ public enum MindsBuilder {
         // 词表画像:tf + 跨项目数(思维词/项目词分组的数据源)
         let vocabStats = userVocabularyStats(lexicon: index.loadLexicon(),
                                              corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) })
-        // 三批：那年今日 / 口头禅 / 独特性 / 活跃天数
-        let monthDayF = DateFormatter()
-        monthDayF.locale = Locale(identifier: "en_US_POSIX")
-        monthDayF.timeZone = TimeZone.current
-        monthDayF.dateFormat = "MM-dd"
-        // 屏蔽表过滤(Apple「被回忆伤害」教训):被 mute 的会话不进重浮,
-        // 多取一些再滤,保证滤后仍有内容
-        let mutedStore = MutedResurfaceStore.shared
-        surprise.onThisDay = index.onThisDay(monthDay: monthDayF.string(from: now),
-                                             minAgeDays: 30, now: now, limit: 10)
-            .filter { !mutedStore.isMuted($0.id) }
-            .prefix(3).map { $0 }
         let corpus = corpusRows.map(\.text)
         vocabFreqs = userVocabularyFrequencies(index: index, corpus: corpus)
         let vocabulary = rankVocabulary(frequencies: vocabFreqs, limit: 20)
         surprise.catchphrases = catchphrases(corpus: corpus, limit: 5)
         surprise.politeness = politeness(corpus: corpus)
-        surprise.latestNight = index.latestNightConversation()
-        surprise.oneOffTopics = index.oneOffTopics(minAgeDays: 90, now: now, limit: 4)
-        surprise.rareWords = vocabFreqs.filter { (2...3).contains($0.value) }
-            .sorted { $0.key < $1.key }.prefix(3).map { (word: $0.key, count: $0.value) }
         // 窗口取 min(365, 库龄):库才 112 天时「46/365」显得懒散,真相是 41% 活跃
         let libraryDays = index.sanctuaryStats(now: now).earliest
             .map { max(1, Int(now.timeIntervalSince($0) / 86_400) + 1) } ?? 365
@@ -155,18 +136,12 @@ public enum MindsBuilder {
         surprise.delegationVerbs = delegationVerbs(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 10)
         surprise.researchDestinations = researchDestinations(corpus: corpus)
-        surprise.firstWords = index.projectFirstCorpus(limit: 5).compactMap { row in
-            firstMeaningfulLine(of: row.text).map {
-                (project: friendlyProjectTail(row.tail), quote: $0, convID: row.convID, at: row.startAt)
-            }
-        }
         surprise.repeatedBriefings = repeatedBriefings(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 5)
         // 四批:结构与关系维度
         surprise.shape = index.collaborationShape()
         surprise.weekendSplit = index.weekendSplit(minCount: 2)
         surprise.projectLeverage = index.projectLeverage(minConversations: 5, limit: 5)
-        surprise.knowledgeFlows = index.knowledgeFlows(minShared: 8, limit: 3)
 
         let mechanical = renderDocument(overview: overview, projects: projects,
                                         vocabulary: vocabulary, vocabStats: vocabStats,
@@ -407,30 +382,6 @@ public enum MindsBuilder {
 
     /// 项目出生句:从最早会话的 user 语料里取第一条像「人话」的行
     /// (5-100 字、非系统注入、非结构化粘贴——复用 briefingNoise 过滤)。
-    static func firstMeaningfulLine(of text: String) -> String? {
-        for line in text.split(separator: "\n") {
-            var t = line.trimmingCharacters(in: .whitespaces)
-            // 超长消息(v16 压平后=整条带巨型粘贴)不整条跳过:创世消息的常见形态是
-            // 「一句人话 + 粘贴的上下文」,人话在首个句末标点处结束(StrategyGame 真机现场:
-            // 「下面是迁移到新项目…的完整上下文。```markdown <几千字>」)。取首句;
-            // 前 300 字内无句读的才真是纯粘贴,跳过。
-            if t.count > 300 {
-                guard let end = t.prefix(300).firstIndex(where: { "。！？；!?;".contains($0) })
-                else { continue }
-                t = String(t[..<end])
-            }
-            guard (5...300).contains(t.count),
-                  t.contains(where: { $0.isLetter }) else { continue }
-            if let re = briefingNoise,
-               re.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)) != nil { continue }
-            return t
-        }
-        return nil
-    }
-
-    /// 反复交代的话:跨会话高相似的 user 指令聚类(3-gram Jaccard,零 LLM)。
-    /// 真机现场:「你是 Senior Code Reviewer,正在审查 Task N…」被手工讲过 5+ 遍——
-    /// Reflect 的「反复解释同一背景→建 Project/Skill」的机械打底;LLM 层复用现有
     /// enrich 管道:宿主模型 minds_read 读到这节 → 分析 → minds_enrich 写建议。
     public struct RepeatedBriefing: Equatable {
         public let sample: String        // 组内最长样本
@@ -759,9 +710,6 @@ public enum MindsBuilder {
                             vaultBytes: surprise.vaultBytes,
                             totalChars: surprise.volume.totalChars,
                             rescuedCount: surprise.rescuedCount, builtAt: builtAt),
-            renderOnThisDay(surprise.onThisDay),
-            renderUnfinished(surprise.unfinished),
-            renderRecurring(surprise.recurring),
             renderDormant(surprise.dormant),
             renderFaded(surprise.fadedWords),
             renderThisMonth(current: surprise.monthCurrent, previous: surprise.monthPrevious,
@@ -773,56 +721,24 @@ public enum MindsBuilder {
             renderWeekendSplit(surprise.weekendSplit),
             renderQuestionShape(surprise.questionShape),
             renderDelegation(verbs: surprise.delegationVerbs, research: surprise.researchDestinations),
-            renderFirstWords(surprise.firstWords),
             renderRepeatedBriefings(surprise.repeatedBriefings),
             renderCatchphrases(phrases: surprise.catchphrases, politeness: surprise.politeness),
-            renderRarities(latestNight: surprise.latestNight, oneOff: surprise.oneOffTopics,
-                           rareWords: surprise.rareWords),
             renderLeverage(surprise.volume),
             renderProjectLeverage(surprise.projectLeverage),
-            renderKnowledgeFlows(surprise.knowledgeFlows),
             renderMarathons(surprise.marathons),
             statsDivider,
             renderOverview(overview),
             renderProjectRhythm(projects),
-            renderTopEntities(overview.topEntities),
             renderVocabulary(stats: vocabStats.isEmpty
                 ? vocabulary.map { VocabWord(word: $0.word, tf: $0.df, projects: 0) } : vocabStats,
                 totalConversations: overview.conversationCount),
-            renderAgentUsage(refs: refs),
         ]
         return sections.joined(separator: "\n\n")
     }
 
     // MARK: - 惊喜区渲染（五节。空态各有一句诚实文案，不装数据多）
 
-    private static func renderUnfinished(_ threads: [ConversationIndex.UnfinishedThread]) -> String {
-        var lines = ["## UNFINISHED THREADS",
-                     "Conversations where the last word was yours — asked, not answered. Last 14 days. (mechanical, \(threads.count) threads)"]
-        if threads.isEmpty {
-            lines.append("(none — every recent conversation got a reply)")
-        } else {
-            for t in threads {
-                let label = flattened(t.title?.isEmpty == false ? t.title! : t.preview).prefix(60)
-                let proj = friendlyProjectTail((t.cwd as NSString).lastPathComponent)
-                lines.append("- \(label) — \(proj.isEmpty ? "?" : proj), \(day(t.endAt)) (id: \(t.id))")
-            }
-        }
-        return lines.joined(separator: "\n")
-    }
 
-    private static func renderRecurring(_ entities: [ConversationIndex.RecurringEntity]) -> String {
-        var lines = ["## RECURRING QUESTIONS",
-                     "Topics you keep coming back to — ≥3 conversations spanning ≥7 days, top-10 staples excluded. (mechanical, \(entities.count) topics)"]
-        if entities.isEmpty {
-            lines.append("(none yet — needs more history to detect)")
-        } else {
-            for e in entities {
-                lines.append("- \(e.text) — \(e.conversationCount) conversations, \(day(e.firstAt)) → \(day(e.lastAt))")
-            }
-        }
-        return lines.joined(separator: "\n")
-    }
 
     private static func renderDormant(_ projects: [ProjectRhythm]) -> String {
         var lines = ["## DORMANT PROJECTS",
@@ -967,20 +883,6 @@ public enum MindsBuilder {
         return lines.joined(separator: "\n")
     }
 
-    private static func renderOnThisDay(_ threads: [ConversationIndex.UnfinishedThread]) -> String {
-        var lines = ["## ON THIS DAY",
-                     "Same date, earlier chapters — what today used to look like. (mechanical, \(threads.count) found)"]
-        if threads.isEmpty {
-            lines.append("(nothing yet — this date has no history older than a month)")
-        } else {
-            for t in threads {
-                let label = flattened(t.title?.isEmpty == false ? t.title! : t.preview).prefix(60)
-                let proj = friendlyProjectTail((t.cwd as NSString).lastPathComponent)
-                lines.append("- \(label) — \(proj.isEmpty ? "?" : proj), \(day(t.endAt)) (id: \(t.id))")
-            }
-        }
-        return lines.joined(separator: "\n")
-    }
 
     private static func renderQuestionShape(_ shape: [(kind: String, count: Int)]) -> String {
         let total = shape.reduce(0) { $0 + $1.count }
@@ -1019,18 +921,6 @@ public enum MindsBuilder {
         return lines.joined(separator: "\n")
     }
 
-    private static func renderFirstWords(_ words: [(project: String, quote: String, convID: String, at: Date)]) -> String {
-        var lines = ["## FIRST WORDS",
-                     "How each project began — the opening line you typed. (mechanical, \(words.count) projects)"]
-        if words.isEmpty {
-            lines.append("(none yet)")
-        } else {
-            for w in words {
-                lines.append("- \(w.project) — \"\(flattened(w.quote).prefix(50))\" (\(day(w.at)), id: \(w.convID))")
-            }
-        }
-        return lines.joined(separator: "\n")
-    }
 
     private static func renderRepeatedBriefings(_ briefings: [RepeatedBriefing]) -> String {
         var lines = ["## REPEATED BRIEFINGS",
@@ -1064,30 +954,6 @@ public enum MindsBuilder {
         return lines.joined(separator: "\n")
     }
 
-    private static func renderRarities(latestNight: (thread: ConversationIndex.UnfinishedThread, clock: String)?,
-                                       oneOff: [(text: String, at: Date)],
-                                       rareWords: [(word: String, count: Int)]) -> String {
-        var lines = ["## RARITIES",
-                     "One-of-a-kind moments — no crowd needed to make these special. (mechanical)"]
-        var any = false
-        if let ln = latestNight {
-            let label = flattened(ln.thread.title?.isEmpty == false ? ln.thread.title! : ln.thread.preview).prefix(40)
-            lines.append("- deepest night: \(day(ln.thread.endAt)) at \(ln.clock) you started \"\(label)\" (id: \(ln.thread.id))")
-            any = true
-        }
-        if !oneOff.isEmpty {
-            lines.append("- asked once, never again: "
-                + oneOff.map { "\($0.text) (\(day($0.at)))" }.joined(separator: " · "))
-            any = true
-        }
-        if !rareWords.isEmpty {
-            lines.append("- your rare words: "
-                + rareWords.map { "\($0.word) ×\($0.count)" }.joined(separator: " · "))
-            any = true
-        }
-        if !any { lines.append("(none yet)") }
-        return lines.joined(separator: "\n")
-    }
 
     private static func renderLeverage(_ volume: (userChars: Int, totalChars: Int)) -> String {
         var lines = ["## LEVERAGE",
@@ -1190,32 +1056,6 @@ public enum MindsBuilder {
         return lines.joined(separator: "\n")
     }
 
-    private static func renderKnowledgeFlows(_ flows: [ConversationIndex.KnowledgeFlow]) -> String {
-        var lines = ["## KNOWLEDGE FLOWS",
-                     "Your projects are not islands — concepts they share. (mechanical, \(flows.count) pairs)"]
-        if flows.isEmpty {
-            lines.append("(no significant overlap yet)")
-        } else {
-            for f in flows {
-                // 方向:一边首现占主导(≥1.5 倍)标箭头,否则双向
-                let arrow: String
-                let detail: String
-                if f.bornInAFirst >= max(1, f.bornInBFirst * 3 / 2), f.bornInAFirst > f.bornInBFirst {
-                    arrow = "→"; detail = ", \(f.bornInAFirst) born in \(f.projectA) first"
-                } else if f.bornInBFirst >= max(1, f.bornInAFirst * 3 / 2), f.bornInBFirst > f.bornInAFirst {
-                    arrow = "←"; detail = ", \(f.bornInBFirst) born in \(f.projectB) first"
-                } else {
-                    arrow = "↔"; detail = ""
-                }
-                lines.append("- \(f.projectA) \(arrow) \(f.projectB) — \(f.sharedEntities) shared concepts\(detail)")
-            }
-        }
-        return lines.joined(separator: "\n")
-    }
-
-    /// 多行文本压成单行（连续空白折一个空格）。minds.md 是行式格式——收藏快照里的
-    /// Markdown 标题（`## 已实现`）一旦带换行原样进文件，就成了伪节标题，节解析
-    /// （GUI `sectionLines` / MCP `minds_read`）会在那里错误断节（2026-08-12 真实
     /// 数据抓到的现场）。所有进「- 」数据行的自由文本都必须经过这里。
     private static func flattened(_ text: String) -> String {
         text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
@@ -1255,19 +1095,6 @@ public enum MindsBuilder {
         return lines.joined(separator: "\n")
     }
 
-    private static func renderTopEntities(_ entities: [ConversationIndex.EntityStat]) -> String {
-        let lines = ["## TOP ENTITIES",
-                    "Top \(entities.count) entities by conversation frequency. (mechanical, \(entities.count) entities)",
-                    compactList(entities.map { (text: $0.text, count: $0.conversationCount) })]
-        return lines.joined(separator: "\n")
-    }
-
-    /// 双组词表(2026-08-13):mind 行=跨 ≥5 项目的思维词汇(按跨项目数再按 tf),
-    /// work 行=项目词汇(按 tf)。「第一性原理」这类跟人走的词从此置顶,
-    /// 不再被单项目的高频工作词(「所有事件类型」×120)淹没。
-    /// 口头语分界:出现在超过这个比例的会话里=无主题性(真机分布空沟在 15%-34%,
-    /// 取 0.25 居中)。口头语不进词表任何组——它们的领地是 CATCHPHRASES。
-    /// 这替代了此前的「词长 ≥3」补丁:字数只是与功能词的相关性,df 才是本质
     /// (2 字真概念词不再误伤,3 字口头语也拦得住)。
     public static let stopwordDFRatio = 0.25
 
@@ -1308,21 +1135,6 @@ public enum MindsBuilder {
         return lines.joined(separator: "\n")
     }
 
-    private static func renderAgentUsage(refs: [(id: String, count: Int, last: Date)]) -> String {
-        let totalRefs = refs.reduce(0) { $0 + $1.count }
-        var lines = ["## AGENT USAGE",
-                    "Your past self, helping your present self — old conversations pulled back by agents \(totalRefs) times. "
-                        + "(mechanical, \(totalRefs) references) Top:"]
-        let top5 = refs.prefix(5)
-        if top5.isEmpty {
-            lines.append("(none yet)")
-        } else {
-            for r in top5 {
-                lines.append("- conversation_id=\"\(r.id)\" — \(r.count) times, last \(day(r.last))")
-            }
-        }
-        return lines.joined(separator: "\n")
-    }
 
     private static func compactList(_ pairs: [(text: String, count: Int)]) -> String {
         guard !pairs.isEmpty else { return "(none yet)" }

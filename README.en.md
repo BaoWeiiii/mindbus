@@ -46,7 +46,7 @@ The box serves both sides:
 
 - **One window**: every conversation in one place — search, browse, copy, star, relay into a new chat.
 - **Kept for good**: each conversation has a compressed local copy. Claude Code keeps 30 days; here they stay forever.
-- **Minds**: a self-portrait counted from your own conversations — what you most often ask AI to do, the shape of your questions, each project's first words, your catchphrases… 26 sections, every line counted, not generated.
+- **Minds**: a self-portrait counted from your own conversations — what you most often ask AI to do, the shape of your questions, your catchphrases, activity heatmaps… every line counted, not generated.
 - **Deletion you control**: conversations and single messages, gone completely after confirmation, never resurrected on rescan — original files **never touched**.
 
 <img src="assets/screenshots/minds.png" alt="Minds" width="700" />

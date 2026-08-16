@@ -95,9 +95,6 @@ struct MindsView: View {
                 // 空节整节隐藏——「没有断点」不值得占一屏;五节全空时只剩统计区,合理降级
                 groupLabel(l10n.s.mindsGroupForYou)
                 sanctuarySection
-                onThisDaySection
-                unfinishedSection
-                recurringSection
                 dormantSection
                 fadedSection
                 thisMonthSection
@@ -107,20 +104,15 @@ struct MindsView: View {
                 weekendSection
                 questionShapeSection
                 delegationSection
-                firstWordsSection
                 repeatedBriefingsSection
                 catchphrasesSection
-                raritiesSection
                 leverageSection
                 projectLeverageSection
-                flowsSection
                 marathonsSection
                 groupLabel(l10n.s.mindsGroupForAI)
                 overviewSection
                 projectsSection
-                entitiesSection
                 vocabularySection
-                agentUsageSection
                 weakSpotsSection
             }
         }
@@ -224,56 +216,7 @@ struct MindsView: View {
         store.selectedConversationId = id
     }
 
-    private var unfinishedSection: some View {
-        // "- 标题 — proj, 2026-08-11 (id: c9)"——用最后一个 " — " 拆,标题里可能有破折号
-        let rows = sectionLines("UNFINISHED THREADS").filter { $0.hasPrefix("- ") }
-            .compactMap(parseUnfinished)
-        return Group {
-            if !rows.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    sectionTitle("Unfinished", l10n.s.mindsSecUnfinished, hint: l10n.s.mindsUnfinishedHint)
-                    VStack(spacing: 6) {
-                        ForEach(rows, id: \.id) { row in
-                            Button { openConversation(row.id) } label: {
-                                HStack(spacing: 10) {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(row.label).font(.system(size: 13)).foregroundStyle(DSLight.t1)
-                                            .lineLimit(1)
-                                        Text(row.meta).font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
-                                    }
-                                    Spacer(minLength: 0)
-                                    Image(systemName: "arrow.forward")
-                                        .font(.system(size: 10)).foregroundStyle(DSLight.t3)
-                                }
-                                .padding(.horizontal, 14).padding(.vertical, 9)
-                                .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
-                                // 金条用 overlay 跟随卡片实际高度——放进 HStack 会因
-                                // Rectangle 无高度约束把整张卡撑到吃掉剩余画布
-                                .overlay(alignment: .leading) {
-                                    UnevenRoundedRectangle(topLeadingRadius: 8, bottomLeadingRadius: 8)
-                                        .fill(DSLight.gold).frame(width: 2.5)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /// FIRST WORDS 专用:行尾是「(date, id: x)」而非「(id: x)」,parseUnfinished 接不住
     /// (2026-08-13 离屏渲染抓出的空节 bug)。quote 当主行——创世句是主角,项目名是注脚。
-    private func parseFirstWord(_ line: String) -> (id: String, label: String, meta: String)? {
-        let pattern = #"^- (.+?) — "(.+)" \(([0-9-]+), id: ([^)]+)\)$"#
-        guard let re = try? NSRegularExpression(pattern: pattern),
-              let m = re.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
-              m.numberOfRanges == 5,
-              let rp = Range(m.range(at: 1), in: line), let rq = Range(m.range(at: 2), in: line),
-              let rd = Range(m.range(at: 3), in: line), let ri = Range(m.range(at: 4), in: line)
-        else { return nil }
-        return (String(line[ri]), String(line[rq]), "\(line[rp]) · \(line[rd])")
-    }
 
     private func parseUnfinished(_ line: String) -> (id: String, label: String, meta: String)? {
         let body = String(line.dropFirst(2))
@@ -286,37 +229,6 @@ struct MindsView: View {
                 String(front[dash.upperBound...]))
     }
 
-    private var recurringSection: some View {
-        // "- MemoryLeak — 3 conversations, 2026-05-01 → 2026-07-30"
-        let rows = sectionLines("RECURRING QUESTIONS").filter { $0.hasPrefix("- ") }
-            .compactMap(parseRecurring)
-        return Group {
-            if !rows.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    sectionTitle("Recurring", l10n.s.mindsSecRecurring, hint: l10n.s.mindsRecurringHint)
-                    VStack(spacing: 2) {
-                        ForEach(rows, id: \.word) { row in
-                            Button { store.focusedEntity = row.word } label: {
-                                HStack(spacing: 12) {
-                                    Text(row.word).font(BrandFont.mono(13)).foregroundStyle(DSLight.t1)
-                                        .lineLimit(1)
-                                    Text(recurringMeta(row.detail))
-                                        .font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
-                                    Spacer(minLength: 0)
-                                    // 跨度线段:全库时间轴上 first→last 的位置(词级 sparkline)
-                                    if let span = spanFraction(of: row.detail) {
-                                        MindsCharts.SpanLine(start: span.0, end: span.1)
-                                    }
-                                }
-                                .padding(.horizontal, 12).padding(.vertical, 7)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     private func parseRecurring(_ line: String) -> (word: String, detail: String)? {
         let body = String(line.dropFirst(2))
@@ -429,39 +341,6 @@ struct MindsView: View {
     }
 
     /// 项目的第一句话:创世句卡,可点回到起点。
-    private var firstWordsSection: some View {
-        let rows = sectionLines("FIRST WORDS").filter { $0.hasPrefix("- ") }
-            .compactMap(parseFirstWord)   // 「- proj — "quote" (date, id: x)」→ quote 主行/proj·date meta
-        return Group {
-            if !rows.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    sectionTitle("First Words", l10n.s.mindsSecFirstWords, hint: l10n.s.mindsFirstWordsHint)
-                    VStack(spacing: 6) {
-                        ForEach(rows, id: \.id) { row in
-                            Button { openConversation(row.id) } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "sparkle")
-                                        .font(.system(size: 10)).foregroundStyle(DSLight.gold)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(row.label).font(.system(size: 13)).foregroundStyle(DSLight.t1)
-                                            .lineLimit(1)
-                                        Text(row.meta).font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
-                                    }
-                                    Spacer(minLength: 0)
-                                    Image(systemName: "arrow.forward")
-                                        .font(.system(size: 10)).foregroundStyle(DSLight.t3)
-                                }
-                                .padding(.horizontal, 12).padding(.vertical, 9)
-                                .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     /// 反复交代的话(观察项 A 的 GUI 节——此前只有 md,本次单语化补齐)。
     private var repeatedBriefingsSection: some View {
         let rows = sectionLines("REPEATED BRIEFINGS").filter { $0.hasPrefix("- ") }
@@ -818,59 +697,10 @@ struct MindsView: View {
     }
 
     /// 知识流动:A ↔ B 共享概念数,点任一端进项目搜索。
-    private var flowsSection: some View {
-        // "- ResearchKit ↔ mindbus — 87 shared concepts"
-        let rows = sectionLines("KNOWLEDGE FLOWS").filter { $0.hasPrefix("- ") }
-            .compactMap(parseRecurring)
-        return Group {
-            if !rows.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    sectionTitle("Knowledge Flows", l10n.s.mindsSecFlows, hint: l10n.s.mindsFlowsHint)
-                    VStack(spacing: 6) {
-                        ForEach(rows, id: \.word) { row in
-                            HStack(spacing: 10) {
-                                Image(systemName: "arrow.left.arrow.right")
-                                    .font(.system(size: 10)).foregroundStyle(DSLight.gold)
-                                Text(row.word).font(.system(size: 13)).foregroundStyle(DSLight.t1)
-                                Spacer(minLength: 0)
-                                Text(flowMeta(row.detail))
-                                    .font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
-                            }
-                            .padding(.horizontal, 12).padding(.vertical, 8)
-                            .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     // MARK: - 惊喜区三批:那年今日 / 热力图 / 口头禅 / 独一无二
 
     @State private var mutedThisSession: Set<String> = []
-
-    private var onThisDaySection: some View {
-        let rows = sectionLines("ON THIS DAY").filter { $0.hasPrefix("- ") }
-            .compactMap(parseUnfinished)
-            .filter { !mutedThisSession.contains($0.id) }
-        return Group {
-            if !rows.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    sectionTitle("On This Day", l10n.s.mindsSecOnThisDay, hint: l10n.s.mindsOnThisDayHint)
-                    VStack(spacing: 6) {
-                        ForEach(rows, id: \.id) { row in
-                            OnThisDayRow(row: row,
-                                         onOpen: { openConversation(row.id) },
-                                         onMute: {
-                                             MutedResurfaceStore.shared.mute(row.id)
-                                             mutedThisSession.insert(row.id)
-                                         })
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     /// 活跃热力图:数据不走 minds.md(365 行数据不进文本文件),直接查 store。
     private var heatmapSection: some View {
@@ -930,24 +760,6 @@ struct MindsView: View {
         }
     }
 
-    private var raritiesSection: some View {
-        var rows: [String] = []
-        if let ln = viz.latestNight {
-            let label = String((ln.thread.title?.isEmpty == false ? ln.thread.title! : ln.thread.preview).prefix(40))
-            rows.append(l10n.s.mRaritiesNight(Self.dayString(ln.thread.endAt), ln.clock, label))
-        }
-        // 一次性话题与稀有词仍从 md 解析(列表内容,词+日期原样)
-        for line in sectionLines("RARITIES").filter({ $0.hasPrefix("- ") }) {
-            let body = String(line.dropFirst(2))
-            if body.hasPrefix("asked once, never again: ") {
-                rows.append(l10n.s.mRaritiesOnce(String(body.dropFirst("asked once, never again: ".count))))
-            } else if body.hasPrefix("your rare words: ") {
-                rows.append(l10n.s.mRaritiesRare(String(body.dropFirst("your rare words: ".count))))
-            }
-        }
-        return dataCard("RARITIES", title: l10n.s.mindsSecRarities, hint: l10n.s.mindsRaritiesHint,
-                        icons: ["moon.stars", "questionmark.bubble", "sparkle"], rows: rows)
-    }
 
     // MARK: - 惊喜区二批:工作节律 / 杠杆率 / 马拉松 / 不再说的词
 
@@ -1257,20 +1069,6 @@ struct MindsView: View {
 
     // MARK: - ③ 高频实体 / ④ 概念词表:chip 流
 
-    private var entitiesSection: some View {
-        // "NodeNext (42) · GitHub (39) · …" 单行
-        let flat = sectionLines("TOP ENTITIES").dropFirst().joined(separator: " ")
-        let chips = flat.split(separator: "·").map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        return VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("Top Entities", l10n.s.mindsSecEntities, hint: l10n.s.mindsEntitiesHint)
-            FlowLayout(spacing: 8) {
-                ForEach(chips.prefix(14), id: \.self) { chip in
-                    entityChip(chip)
-                }
-            }
-        }
-    }
 
     private func entityChip(_ raw: String) -> some View {
         // "NodeNext (42)" → 词 + 计数
@@ -1398,34 +1196,6 @@ struct MindsView: View {
 
     // MARK: - ⑤ Agent 引用
 
-    private var agentUsageSection: some View {
-        // conversation_id="…" — 1 times, last 2026-08-10
-        let rows = sectionLines("AGENT USAGE").filter { $0.hasPrefix("- ") }
-            .compactMap(parseRef)
-        return Group {
-            if !rows.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    sectionTitle("Agent Usage", l10n.s.mindsSecAgentUsage, hint: l10n.s.mindsAgentUsageHint)
-                    ForEach(rows, id: \.id) { row in
-                        Button {
-                            store.mindsSelected = false
-                            store.selectedConversationId = row.id
-                        } label: {
-                            HStack {
-                                Text(refTitle(row.id)).font(.system(size: 13))
-                                    .foregroundStyle(DSLight.t1).lineLimit(1)
-                                Spacer()
-                                Text(row.meta).font(BrandFont.mono(11)).foregroundStyle(DSLight.t3)
-                            }
-                            .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-    }
 
     private func parseRef(_ line: String) -> (id: String, meta: String)? {
         guard let m = line.range(of: #"conversation_id="([^"]+)""#, options: .regularExpression)

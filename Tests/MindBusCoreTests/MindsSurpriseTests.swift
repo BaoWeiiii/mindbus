@@ -229,24 +229,7 @@ final class MindsSurpriseTests: XCTestCase {
         XCTAssertEqual(d["what"], 0)
     }
 
-    func testFirstMeaningfulLineSkipsNoiseAndInjection() {
-        let text = """
-        1. 编号粘贴行不算
-        {"json": "行不算"}
-        目前的项目状态是什么
-        后面这行不该被取到
-        """
-        XCTAssertEqual(MindsBuilder.firstMeaningfulLine(of: text), "目前的项目状态是什么")
-    }
 
-    func testFirstMeaningfulLineClipsLongPasteAtSentenceEnd() {
-        let paste = String(repeating: "长", count: 400)
-        XCTAssertEqual(MindsBuilder.firstMeaningfulLine(of: "下面是迁移到新项目的完整上下文。\(paste)"),
-                       "下面是迁移到新项目的完整上下文",
-                       "「一句人话+巨型粘贴」的创世消息取首句,不整条跳过")
-        XCTAssertNil(MindsBuilder.firstMeaningfulLine(of: paste),
-                     "前 300 字无句读=纯粘贴,跳过")
-    }
 
     func testProjectFirstCorpusReturnsEarliest() throws {
         let base = Date(timeIntervalSince1970: 1_700_000_000)
@@ -261,13 +244,9 @@ final class MindsSurpriseTests: XCTestCase {
     func testRenderQuestionShapeAndFirstWords() {
         var s = MindsBuilder.SurpriseData()
         s.questionShape = [("confirm", 286), ("how", 206), ("why", 94), ("what", 89)]
-        s.firstWords = [(project: "mindbus", quote: "目前的项目状态是什么",
-                         convID: "c1", at: Date(timeIntervalSince1970: 1_754_000_000))]
         let doc = render(s)
         XCTAssertTrue(doc.contains("- should-we 286 · how-to 206 · why 94 · what-is 89"), doc)
         XCTAssertTrue(doc.contains("you ask AI to judge, more than to explain"), "主导型结论")
-        XCTAssertTrue(doc.contains("## FIRST WORDS"))
-        XCTAssertTrue(doc.contains("mindbus — \"目前的项目状态是什么\""))
     }
 
     // MARK: - 委托光谱
@@ -319,8 +298,7 @@ final class MindsSurpriseTests: XCTestCase {
 
     func testRenderSurpriseSectionsAppearBeforeStats() {
         let doc = render(MindsBuilder.SurpriseData())
-        for header in ["## UNFINISHED THREADS", "## RECURRING QUESTIONS", "## DORMANT PROJECTS",
-                       "## THIS MONTH"] {
+        for header in ["## DORMANT PROJECTS", "## THIS MONTH"] {
             XCTAssertTrue(doc.contains(header), "缺 \(header)")
             XCTAssertLessThan(doc.range(of: header)!.lowerBound,
                               doc.range(of: "## OVERVIEW")!.lowerBound,
@@ -329,16 +307,6 @@ final class MindsSurpriseTests: XCTestCase {
         XCTAssertTrue(doc.contains("the raw counts your AI consumes"), "统计区要有分隔说明")
     }
 
-    func testRenderUnfinishedListsThreadWithProjectTail() {
-        var s = MindsBuilder.SurpriseData()
-        s.unfinished = [ConversationIndex.UnfinishedThread(
-            id: "c9", title: "液态玻璃怎么调", preview: "p", cwd: "/Users/dev/mindbus",
-            endAt: Date(timeIntervalSince1970: 1_700_000_000))]
-        let doc = render(s)
-        XCTAssertTrue(doc.contains("液态玻璃怎么调"))
-        XCTAssertTrue(doc.contains("mindbus"), "项目尾名要可见")
-        XCTAssertTrue(doc.contains("id: c9"), "要带会话 id 供定位")
-    }
 
     func testRenderThisMonthShowsDelta() {
         var s = MindsBuilder.SurpriseData()
@@ -526,31 +494,14 @@ final class MindsSurpriseTests: XCTestCase {
 
     func testRenderThirdBatchSections() {
         var s = MindsBuilder.SurpriseData()
-        s.onThisDay = [ConversationIndex.UnfinishedThread(
-            id: "o1", title: "三个月前的选题", preview: "p", cwd: "/p/TrendRadar",
-            endAt: Date(timeIntervalSince1970: 1_747_000_000))]
         s.catchphrases = [(phrase: "继续", count: 47), (phrase: "好的", count: 23)]
         s.politeness = [(word: "帮我", count: 89)]
-        s.latestNight = (ConversationIndex.UnfinishedThread(
-            id: "n1", title: "深夜排错", preview: "p", cwd: "/p",
-            endAt: Date(timeIntervalSince1970: 1_747_000_000)), "03:47")
-        s.oneOffTopics = [(text: "LevelDB", at: Date(timeIntervalSince1970: 1_740_000_000))]
-        s.rareWords = [(word: "协程池", count: 2)]
         s.activeDays = MindsBuilder.ActiveDays(active: 98, window: 365, longestRun: 12, longestGap: 9)
         s.hourQuarters = [0, 0, 0, 0, 0, 4]
         let doc = render(s)
-        XCTAssertTrue(doc.contains("## ON THIS DAY"))
-        XCTAssertTrue(doc.contains("三个月前的选题 — TrendRadar"))
         XCTAssertTrue(doc.contains("- 继续 ×47 · 好的 ×23"))
         XCTAssertTrue(doc.contains("politeness & delegation: 帮我 ×89"))
-        XCTAssertTrue(doc.contains("deepest night:"))
-        XCTAssertTrue(doc.contains("at 03:47"))
-        XCTAssertTrue(doc.contains("asked once, never again: LevelDB"))
-        XCTAssertTrue(doc.contains("your rare words: 协程池 ×2"))
         XCTAssertTrue(doc.contains("active 98 of the last 365 days — longest run 12, longest break 9"))
-        // ON THIS DAY 排最前(重逢感是当日情绪入口)
-        XCTAssertLessThan(doc.range(of: "## ON THIS DAY")!.lowerBound,
-                          doc.range(of: "## UNFINISHED THREADS")!.lowerBound)
     }
 
     // MARK: - B 批:个人史百分位 / 去年同月
@@ -659,7 +610,6 @@ final class MindsSurpriseTests: XCTestCase {
             ConversationIndex.ProjectLeverage(name: "homelab", userChars: 3_730, totalChars: 170_637, conversationCount: 5),
             ConversationIndex.ProjectLeverage(name: "Codex", userChars: 70_255, totalChars: 148_600, conversationCount: 7),
         ]
-        s.knowledgeFlows = [ConversationIndex.KnowledgeFlow(projectA: "ResearchKit", projectB: "mindbus", sharedEntities: 87)]
         let doc = render(s)
         XCTAssertTrue(doc.contains("77% of conversations run 16+ of your turns"),
                       "113/145 整数除法 = 77%")
@@ -669,8 +619,7 @@ final class MindsSurpriseTests: XCTestCase {
         XCTAssertTrue(doc.contains("- weekdays: StrategyGame 54 · Codex 7"))
         XCTAssertTrue(doc.contains("- homelab — 1:45"))
         XCTAssertTrue(doc.contains("- Codex — 1:2"))
-        XCTAssertTrue(doc.contains("- ResearchKit ↔ mindbus — 87 shared concepts"))
-        for h in ["## COLLABORATION SHAPE", "## WEEKEND SELF", "## LEVERAGE BY PROJECT", "## KNOWLEDGE FLOWS"] {
+        for h in ["## COLLABORATION SHAPE", "## WEEKEND SELF", "## LEVERAGE BY PROJECT"] {
             XCTAssertLessThan(doc.range(of: h)!.lowerBound, doc.range(of: "## OVERVIEW")!.lowerBound,
                               "\(h) 应在惊喜区")
         }
@@ -719,7 +668,7 @@ final class MindsSurpriseTests: XCTestCase {
         XCTAssertTrue(doc.contains("8 conversations have outlived Claude Code's 30-day window — here, they stay"))
         // SANCTUARY 是惊喜区第一节(守护宣言开场)
         XCTAssertLessThan(doc.range(of: "## SANCTUARY")!.lowerBound,
-                          doc.range(of: "## ON THIS DAY")!.lowerBound)
+                          doc.range(of: "## THIS MONTH")!.lowerBound)
     }
 
     func testRenderSanctuaryOmitsOutlivedWhenZero() {
@@ -817,18 +766,6 @@ final class MindsSurpriseTests: XCTestCase {
         XCTAssertEqual(f.bornInBFirst, 0)
     }
 
-    func testRenderKnowledgeFlowArrow() {
-        var s = MindsBuilder.SurpriseData()
-        s.knowledgeFlows = [
-            ConversationIndex.KnowledgeFlow(projectA: "ResearchKit", projectB: "mindbus",
-                                            sharedEntities: 87, bornInAFirst: 52, bornInBFirst: 20),
-            ConversationIndex.KnowledgeFlow(projectA: "Spider", projectB: "TrendRadar",
-                                            sharedEntities: 47, bornInAFirst: 20, bornInBFirst: 21),
-        ]
-        let doc = render(s)
-        XCTAssertTrue(doc.contains("ResearchKit → mindbus — 87 shared concepts, 52 born in ResearchKit first"), doc)
-        XCTAssertTrue(doc.contains("Spider ↔ TrendRadar — 47 shared concepts"), "接近平衡不标方向")
-    }
 
     func testMonthlyOccurrencesBucketsOldToNew() {
         let now = Date(timeIntervalSince1970: 1_755_000_000)

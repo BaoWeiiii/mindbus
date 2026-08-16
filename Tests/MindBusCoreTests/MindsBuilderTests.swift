@@ -263,11 +263,11 @@ final class MindsBuilderTests: XCTestCase {
         let text = MindsBuilder.renderDocument(overview: overview, projects: [], vocabulary: [], refs: [],
                                                builtAt: date(2026, 8, 10))
 
-        let headings = ["## OVERVIEW", "## PROJECT RHYTHM", "## TOP ENTITIES", "## VOCABULARY", "## AGENT USAGE"]
+        let headings = ["## OVERVIEW", "## PROJECT RHYTHM", "## VOCABULARY"]
         let positions = try! headings.map { heading -> String.Index in
             try XCTUnwrap(text.range(of: heading)?.lowerBound)
         }
-        XCTAssertEqual(positions, positions.sorted(), "六节标题必须按固定顺序出现")
+        XCTAssertEqual(positions, positions.sorted(), "统计区标题必须按固定顺序出现")
         XCTAssertFalse(text.contains("WEAK SPOTS"), "renderDocument 不含 WEAK SPOTS——那一节走独立的 renderWeakSpots")
     }
 
@@ -318,15 +318,6 @@ final class MindsBuilderTests: XCTestCase {
         XCTAssertTrue(text.contains("## PROJECT RHYTHM\nTop 0 projects by conversation count. (mechanical, 0 projects)\n(none yet)"))
     }
 
-    func testRenderDocumentTopEntitiesRendersWithCounts() {
-        let overview = emptyOverview(topEntities: [
-            .init(text: "NodeNext", kind: "identifier", conversationCount: 42),
-            .init(text: "src/index.ts", kind: "path", conversationCount: 39),
-        ])
-        let text = MindsBuilder.renderDocument(overview: overview, projects: [], vocabulary: [], refs: [],
-                                               builtAt: date(2026, 8, 10))
-        XCTAssertTrue(text.contains("NodeNext (42) · src/index.ts (39)"))
-    }
 
     /// VOCABULARY 带「词 (N)」计数（2026-08-12 反转旧骨架的「不带计数」决定）：
     /// 「counted, not generated」的可信度要落到每个词上——用户看到「第一性原理 (25)」
@@ -339,26 +330,7 @@ final class MindsBuilderTests: XCTestCase {
     }
 
     /// 总次数覆盖全部引用（哪怕超过 5 条），但 Top 列表只列前 5——两个数字不该混淆。
-    func testRenderDocumentAgentUsageShowsTotalsAndTop5Only() {
-        let refs: [(id: String, count: Int, last: Date)] = (1...7).map {
-            (id: "conv-\($0)", count: 8 - $0, last: date(2026, 8, $0))
-        }
-        let text = MindsBuilder.renderDocument(overview: emptyOverview(), projects: [], vocabulary: [], refs: refs,
-                                               builtAt: date(2026, 8, 10))
-        let totalRefs = refs.reduce(0) { $0 + $1.count }
-        XCTAssertTrue(text.contains("pulled back by agents \(totalRefs) times"))
-        XCTAssertTrue(text.contains("conv-1"), "第 1 名必须在 Top 5 里")
-        XCTAssertTrue(text.contains("conv-5"), "第 5 名必须在 Top 5 里")
-        XCTAssertFalse(text.contains("conv-6"), "第 6 名不该出现——Top 列表只列前 5")
-        XCTAssertFalse(text.contains("conv-7"), "第 7 名不该出现")
-    }
 
-    func testRenderDocumentAgentUsageEmptyShowsPlaceholder() {
-        let text = MindsBuilder.renderDocument(overview: emptyOverview(), projects: [], vocabulary: [], refs: [],
-                                               builtAt: date(2026, 8, 10))
-        XCTAssertTrue(text.contains("pulled back by agents 0 times"))
-        XCTAssertTrue(text.contains("(none yet)"))
-    }
 
     // MARK: - renderWeakSpots：三态渲染 + 固定分隔标记
 
@@ -503,9 +475,9 @@ final class MindsBuilderTests: XCTestCase {
         MindsBuilder.build(from: index)
         let content = try String(contentsOf: MindsBuilder.defaultMindsURL, encoding: .utf8)
 
-        // 六节 + WEAK SPOTS 顺序
-        let headings = ["## OVERVIEW", "## PROJECT RHYTHM", "## TOP ENTITIES", "## VOCABULARY",
-                        "## AGENT USAGE", MindsBuilder.weakSpotsMarker, "## WEAK SPOTS"]
+        // 统计区 + WEAK SPOTS 顺序(2026-08-16 收敛:TOP ENTITIES/AGENT USAGE 已砍)
+        let headings = ["## OVERVIEW", "## PROJECT RHYTHM", "## VOCABULARY",
+                        MindsBuilder.weakSpotsMarker, "## WEAK SPOTS"]
         let positions = try headings.map { try XCTUnwrap(content.range(of: $0)?.lowerBound) }
         XCTAssertEqual(positions, positions.sorted())
 
@@ -518,14 +490,6 @@ final class MindsBuilderTests: XCTestCase {
             "- /p/alpha — 2 conversations, active 2026-05-01 → 2026-05-10, last touched 2026-05-10"))
         XCTAssertTrue(content.contains(
             "- /p/beta — 1 conversations, active 2026-06-01 → 2026-06-01, last touched 2026-06-01"))
-
-        // TOP ENTITIES
-        XCTAssertTrue(content.contains("AlphaWidget (2)"))
-        XCTAssertTrue(content.contains("BetaThing (1)"))
-
-        // AGENT USAGE
-        XCTAssertTrue(content.contains("old conversations pulled back by agents 4 times"))
-        XCTAssertTrue(content.contains("conversation_id=\"c1\" — 3 times"))
 
         // WEAK SPOTS：没写过 enriched.jsonl，四个空位都是空态
         XCTAssertEqual(content.components(separatedBy: "(empty — fill via minds_enrich)").count - 1, 4)
@@ -542,9 +506,7 @@ final class MindsBuilderTests: XCTestCase {
 
         XCTAssertTrue(content.contains("0 conversations across 0 tools. (mechanical, 0 conversations)"))
         XCTAssertTrue(content.contains("Top 0 projects by conversation count."))
-        XCTAssertTrue(content.contains("Top 0 entities by conversation frequency."))
         XCTAssertTrue(content.contains("Your lexicon, counted in your own messages"))
-        XCTAssertTrue(content.contains("old conversations pulled back by agents 0 times"))
         XCTAssertTrue(content.contains("## WEAK SPOTS"))
         XCTAssertEqual(content.components(separatedBy: "(empty — fill via minds_enrich)").count - 1, 4)
     }
