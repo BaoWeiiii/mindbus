@@ -9,13 +9,19 @@ struct ConversationBrowserView: View {
         // 自绘三栏（替代 NavigationSplitView）：侧栏平贴无浮动卡（参考 mac 原生 chat app），
         // 色差 + 1px 细线分栏，折叠动画自管，列宽固定不漂。
         HStack(spacing: 0) {
-            if !store.sidebarCollapsed {
-                BrowserSidebarView()
-                    .frame(width: 220)
-                    .background(DSLight.sf)   // 比主区深一级：背景层级差分隔（设计系统主推）
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-                Rectangle().fill(DSLight.rule).frame(width: 1)
-            }
+            // 折叠 = 宽度动画,不是移除+transition(2026-08-16 修):移除式条件视图
+            // 的 move transition 在兄弟分支(Minds 大视图)切换重布局时会残留位移,
+            // 整列侧栏被冻在左移中间帧——文字裁头、logo 消失。视图恒在、只动宽度,
+            // 没有插入/移除就没有 transition 可残留;clipped 让收窄时内容贴右滑出,
+            // 观感与原 move(edge: .leading) 一致。
+            BrowserSidebarView()
+                .frame(width: 220)
+                .background(DSLight.sf)   // 比主区深一级：背景层级差分隔（设计系统主推）
+                .frame(width: store.sidebarCollapsed ? 0 : 220, alignment: .trailing)
+                .clipped()
+                .opacity(store.sidebarCollapsed ? 0 : 1)
+            Rectangle().fill(DSLight.rule)
+                .frame(width: store.sidebarCollapsed ? 0 : 1)
 
             if store.favoritesSelected {
                 FavoritesRootView(store: store)
