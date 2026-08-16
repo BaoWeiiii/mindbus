@@ -145,6 +145,9 @@ public enum MindsBuilder {
         surprise.delegationVerbs = delegationVerbs(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 10)
         surprise.researchDestinations = researchDestinations(corpus: corpus)
+        surprise.pinnedWords = pinnedWordStats(
+            words: PinnedWordsStore.shared.all,
+            corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd, startAt: $0.startAt) })
         surprise.repeatedBriefings = repeatedBriefings(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID, startAt: $0.startAt) }, limit: 5)
         // 四批:结构与关系维度
@@ -300,6 +303,7 @@ public enum MindsBuilder {
         // 2026-08-13 语料深读挖掘:提问形状(认知光谱)/项目出生句(创世叙事)
         var questionShape: [(kind: String, count: Int)] = []
         var delegationVerbs: [(verb: String, lines: Int, conversations: Int)] = []
+        var pinnedWords: [PinnedWordStat] = []
         var researchDestinations: [(dest: String, count: Int)] = []
         var firstWords: [(project: String, quote: String, convID: String, at: Date)] = []
         var shape: ConversationIndex.CollaborationShape?
@@ -673,6 +677,45 @@ public enum MindsBuilder {
         }
     }
 
+    /// 关注词的三维追踪(用户三特征:多次说 × 跨项目说 × 隔一段时间说)。
+    /// 词由你点选(PinnedWordsStore),统计由机器长期记账——人给语义,机器给统计。
+    public struct PinnedWordStat: Equatable {
+        public let word: String
+        public let times: Int          // 说过多少次
+        public let projects: Int       // 跨几个项目
+        public let months: Int         // 横跨几个月
+        public let spanDays: Int       // 首末相隔多少天
+    }
+
+    static func pinnedWordStats(words: [String],
+                                corpus: [(text: String, cwd: String, startAt: Date)])
+        -> [PinnedWordStat] {
+        let cal = Calendar.current
+        return words.compactMap { w in
+            var times = 0
+            var projects = Set<String>()
+            var dates: [Date] = []
+            for row in corpus {
+                let c = row.text.components(separatedBy: w).count - 1
+                guard c > 0 else { continue }
+                times += c
+                if !row.cwd.isEmpty { projects.insert(row.cwd) }
+                dates.append(row.startAt)
+            }
+            guard times > 0 else { return nil }
+            dates.sort()
+            let months = Set(dates.map { d -> String in
+                let c = cal.dateComponents([.year, .month], from: d)
+                return "\(c.year ?? 0)-\(c.month ?? 0)"
+            }).count
+            let span = dates.count > 1
+                ? Int(dates.last!.timeIntervalSince(dates.first!) / 86_400) : 0
+            return PinnedWordStat(word: w, times: times, projects: projects.count,
+                                  months: months, spanDays: span)
+        }
+        .sorted { $0.times > $1.times }
+    }
+
     // MARK: - 汉语语法位置过滤(2026-08-16 创造)
 
     /// 词在句子里的语法位置画像。
@@ -811,6 +854,7 @@ public enum MindsBuilder {
             renderWeekendSplit(surprise.weekendSplit),
             renderQuestionShape(surprise.questionShape),
             renderDelegation(verbs: surprise.delegationVerbs, research: surprise.researchDestinations),
+            renderPinnedWords(surprise.pinnedWords),
             renderRepeatedBriefings(surprise.repeatedBriefings),
             renderCatchphrases(phrases: surprise.catchphrases, politeness: surprise.politeness),
             renderLeverage(surprise.volume),
@@ -990,6 +1034,20 @@ public enum MindsBuilder {
                             "why": "you dig for reasons first",
                             "what": "you start from definitions"]
             lines.append("- \(verdicts[top.kind] ?? "")")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func renderPinnedWords(_ stats: [PinnedWordStat]) -> String {
+        var lines = ["## WORDS YOU WATCH",
+                     "Words you marked yourself — tracked over time. (mechanical, \(stats.count) words)"]
+        if stats.isEmpty {
+            lines.append("(none pinned yet — star a word in the vocabulary section)")
+        } else {
+            for s in stats {
+                lines.append("- \(s.word) — \(s.times)x across \(s.projects) projects, "
+                    + "\(s.months) months, spanning \(s.spanDays) days")
+            }
         }
         return lines.joined(separator: "\n")
     }

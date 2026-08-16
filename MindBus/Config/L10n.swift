@@ -262,6 +262,12 @@ struct Strings {
     let mindsSecOverview: String
     let mindsSecProjects: String
     let mindsSecEntities: String
+    let mindsSecPinned: String
+    let mindsPinnedHint: String
+    let mindsPinAction: String
+    let mindsUnpinAction: String
+    /// 次数/项目数/月份数/天数
+    let mPinnedMeta: (Int, Int, Int, Int) -> String
     let mindsSecVocabulary: String
     let mindsSecAgentUsage: String
     let mindsSecWeakSpots: String
@@ -627,6 +633,11 @@ struct Strings {
         mindsSecOverview: "概览",
         mindsSecProjects: "项目节奏",
         mindsSecEntities: "高频实体",
+        mindsSecPinned: "你关注的词",
+        mindsPinnedHint: "你自己标的,长期跟踪",
+        mindsPinAction: "关注这个词",
+        mindsUnpinAction: "取消关注",
+        mPinnedMeta: { "说过 \($0) 次,跨 \($1) 个项目,横跨 \($2) 个月,持续 \($3) 天" },
         mindsSecVocabulary: "你的常用词",
         mindsSecAgentUsage: "被 AI 引用过的对话",
         mindsSecWeakSpots: "数不出来的部分",
@@ -974,6 +985,11 @@ struct Strings {
         mindsSecOverview: "Overview",
         mindsSecProjects: "Project Rhythm",
         mindsSecEntities: "Top Entities",
+        mindsSecPinned: "Words You Watch",
+        mindsPinnedHint: "marked by you, tracked over time",
+        mindsPinAction: "Watch this word",
+        mindsUnpinAction: "Stop watching",
+        mPinnedMeta: { "\($0)x, \($1) projects, \($2) months, \($3) days" },
         mindsSecVocabulary: "Your Concept Map",
         mindsSecAgentUsage: "Referenced by Agents",
         mindsSecWeakSpots: "What Mechanics Cannot Know",
