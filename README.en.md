@@ -34,31 +34,35 @@ Browse and star your history anytime — and let any AI tool tap into it, retrie
 
 <img src="assets/screenshots/browser.png" alt="Conversation browser" width="840" />
 
-One box, two customers: **you**, and **your AI**. It cures five pains —
+One box, two customers: **you**, and **your AI**. Every pain it cures is a concrete one —
 
 ### For you
 
-**① Fear of loss.**
+**① "Gone before I even noticed."**
 Claude Code silently deletes all history after 30 days — official policy, with reports of deletion even after changing the setting. Everyone who lasts 30 days will one day find their records gone, unrecoverably.
 → **Kept for good**: every conversation gets a compressed local copy. The tool deletes its own; yours stays. The app shows how many conversations have outlived those 30 days — and how many were rescued by that copy.
 
-**② Hard to find.**
+**② "I know we talked about it. I just can't find it."**
 Three tools, three formats, three directories buried under `~/`. Finding last week's decision means digging one by one.
-→ **One window for everything**: search in Chinese or English straight to the message, filter by tool / project / time, star what matters, relay any selection into a new chat.
+→ **One window for everything**: search in Chinese or English straight to the message, filter by tool / project / time.
 
-**③ Invisible worth.**
-Hundreds of conversations, a million characters typed — and none of it feels like anything. Just logs on a disk.
-→ **Minds & reports**: a self-portrait counted from your own words — what you most often ask AI to do, your catchphrases, the briefings you keep repeating; stat cards on demand that show the weight of your months.
+**③ "I dare not close this window — let alone start a new chat."**
+This session holds a whole afternoon of context. Close it and it might be lost; start fresh and you re-explain everything. So the window stays open, forever, untouchable.
+→ **Close it freely**: conversations live in the box for good — browse back anytime, star what matters, or **relay** any selection into a new chat. Context follows you, not the window.
+
+**④ "I have no idea how many times I've said the same thing."**
+You have your own go-to phrases — they roll off your tongue; your briefings to AI repeat themselves too. These patterns are invisible to yourself.
+→ **Minds makes them visible**: counted from your own conversations — the verbs you delegate with, your catchphrases, the exact briefings you keep repeating (how many times, across how many sessions). That sentence you keep saying? Time to make it a template.
 
 <img src="assets/screenshots/minds.png" alt="Minds" width="700" />
 
 ### For your AI
 
-**④ Amnesia.**
-Every new session starts from zero: decisions made, dead ends explored, preferences agreed — all gone, and you explain again.
+**⑤ "Every session is a first encounter."**
+Each new chat starts from zero: decisions made, dead ends explored, preferences agreed — all gone, and you explain again.
 → **Built-in read-only MCP**: any connected AI can search this full history and read your profile — picking up where you left off instead of meeting you for the first time, every time.
 
-**⑤ Token burn.**
+**⑥ "One touch of history, a pile of tokens."**
 To give AI your history today, you either inject whole conversations (hundreds of thousands of tokens) or gamble on keyword search and pay for the misses.
 → **The [Memory Transit Protocol](docs/MEMORY-TRANSIT.md)**: hand the AI a 1.5K-token map first, let it decide whether and where, then drill down layer by layer — ~4K tokens end to end, any conversation reachable within three transfers. No direct route promised; arrival guaranteed.
 
