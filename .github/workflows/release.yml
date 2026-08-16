@@ -1,0 +1,75 @@
+name: Release
+
+# 打 tag（v*）自动构建 Universal DMG 并挂到对应 Release。
+# 发布产物在 GitHub runner 上构建有两个目的：
+# 1. 二进制里不携带任何本机路径（SPM Bundle.module 会把构建目录的绝对路径
+#    编译进 fallback 字符串——本机构建会泄漏 /Users/<name>/）
+# 2. 产物可复现：任何人可对照 CI 日志验证 DMG 来源
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-dmg:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          swift --version
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build universal DMG (unsigned)
+        run: ./scripts/build-release.sh --dmg
+
+      - name: Verify no personal paths in binary
+        run: |
+          if strings "dist/MindBus.app/Contents/MacOS/MindBus" | grep -E "^/Users/" | grep -v "^/Users/runner/" | grep -v "^/Users/dev/"; then
+            echo "::error::binary contains unexpected /Users/ paths"; exit 1
+          fi
+          echo "binary path check passed"
+
+      # Sparkle 更新包：zip + EdDSA 签名 + 单条目 appcast（永远只描述最新版）
+      - name: Package & sign Sparkle update
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Info.plist)"
+          ZIP="dist/MindBus-${VERSION}.zip"
+          ditto -c -k --keepParent dist/MindBus.app "$ZIP"
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > /tmp/ed.key
+          SIG_ATTRS="$(./.build/artifacts/sparkle/Sparkle/bin/sign_update -f /tmp/ed.key "$ZIP" | tr -d '\n')"
+          rm -f /tmp/ed.key
+          ./scripts/make-appcast.sh "$VERSION" "$BUILD" "$ZIP" "$SIG_ATTRS" > /tmp/appcast.xml
+          echo "appcast entry: $SIG_ATTRS"
+
+      - name: Upload DMG + zip to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "MindBus ${GITHUB_REF_NAME#v}" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/MindBus-*.dmg dist/MindBus-*.zip --clobber
+
+      # appcast 提交回 main（SUFeedURL 指向 main 分支的 raw 路径）。
+      # tag checkout 是 detached HEAD，切到 main 再放文件，避免把 tag 历史推上去。
+      - name: Publish appcast to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout -B main origin/main
+          cp /tmp/appcast.xml appcast.xml
+          git add appcast.xml
+          git diff --cached --quiet || { git commit -m "appcast: ${GITHUB_REF_NAME}"; git push origin main; }

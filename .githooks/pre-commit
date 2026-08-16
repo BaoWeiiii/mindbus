@@ -1,0 +1,18 @@
+#!/bin/sh
+# 第一道闸：提交前扫描暂存区。
+set -e
+HOOK_DIR=$(dirname "$0")
+GUARD_FLAG=$(mktemp -t mindbus_guard); export GUARD_FLAG
+. "$HOOK_DIR/_guard.sh"
+
+FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$FILES" ] && { rm -f "$GUARD_FLAG"; exit 0; }
+
+# shellcheck disable=SC2086
+guard_paths $FILES
+# shellcheck disable=SC2086
+guard_size $FILES
+# 内容扫描排除 .githooks/ 自身——规则定义文件必然包含这些模式（自指）
+git diff --cached --diff-filter=ACMR -- . ':(exclude).githooks/' | guard_content
+
+guard_report

@@ -1,0 +1,874 @@
+import XCTest
+@testable import MindBusCore
+
+/// Minds 惊喜区（2026-08-12 重构）：断点 / 反复回来 / 沉睡 / 本月 / 收藏 五节的
+/// 查询与渲染，以及 VOCABULARY 的 user 语料口径。
+/// 信息价值 = 意外度——这些测试锁住「什么算意外」的机械定义本身。
+final class MindsSurpriseTests: XCTestCase {
+    private var path: String!
+    private var index: ConversationIndex!
+
+    override func setUpWithError() throws {
+        path = NSTemporaryDirectory() + "surprise-\(UUID().uuidString).sqlite"
+        index = try ConversationIndex(path: path)
+    }
+    override func tearDown() {
+        index = nil
+        for s in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: path + s) }
+    }
+
+    private func lite(_ id: String, cwd: String = "/tmp/proj", start: Date, end: Date? = nil) -> ConversationLite {
+        ConversationLite(id: id, source: .claudeCode, startAt: start, endAt: end ?? start,
+                         cwd: cwd, gitBranch: nil, title: "t-\(id)", preview: "p-\(id)",
+                         messageCount: 1, fileURL: URL(fileURLWithPath: "/f/\(id)"))
+    }
+
+    private func seg(_ text: String) -> [Segmenter.Segment] {
+        [Segmenter.Segment(firstMessageIndex: 0, lastMessageIndex: 0, text: text)]
+    }
+
+    private func put(_ id: String, cwd: String = "/tmp/proj", start: Date, end: Date? = nil,
+                     text: String = "占位", entity: String = "", user: String = "",
+                     lastRole: String = "") throws {
+        try index.upsert([(lite: lite(id, cwd: cwd, start: start, end: end), segments: seg(text),
+                           mtime: 1, entityText: entity, userText: user, lastRole: lastRole)])
+    }
+
+    // MARK: - 断点（UNFINISHED THREADS）
+
+    func testUnfinishedThreadsOnlyMatchesUserLastRoleWithinWindow() throws {
+        let now = Date()
+        try put("cut", start: now.addingTimeInterval(-3_600), lastRole: "user")
+        try put("answered", start: now.addingTimeInterval(-3_600), lastRole: "assistant")
+        try put("ancient", start: now.addingTimeInterval(-20 * 86_400), lastRole: "user")
+        let hits = index.unfinishedThreads(since: now.addingTimeInterval(-14 * 86_400), limit: 5)
+        XCTAssertEqual(hits.map(\.id), ["cut"])
+        XCTAssertEqual(hits.first?.title, "t-cut")
+    }
+
+    func testUnfinishedThreadsSortsMostRecentFirst() throws {
+        let now = Date()
+        try put("older", start: now.addingTimeInterval(-7_200), lastRole: "user")
+        try put("newer", start: now.addingTimeInterval(-600), lastRole: "user")
+        XCTAssertEqual(index.unfinishedThreads(since: now.addingTimeInterval(-86_400), limit: 5)
+            .map(\.id), ["newer", "older"])
+    }
+
+    // MARK: - 反复回来（RECURRING QUESTIONS）
+
+    func testRecurringEntityNeedsCountAndSpan() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        // 「内存泄漏」3 会话跨 10 天：命中
+        try put("r1", start: base, entity: "排查 MemoryLeak 问题")
+        try put("r2", start: base.addingTimeInterval(5 * 86_400), entity: "又是 MemoryLeak")
+        try put("r3", start: base.addingTimeInterval(10 * 86_400), entity: "MemoryLeak 复发")
+        // 「闪退」3 会话但同一天：跨度不够,不算「反复回来」
+        try put("s1", start: base, entity: "CrashBug")
+        try put("s2", start: base.addingTimeInterval(3_600), entity: "CrashBug")
+        try put("s3", start: base.addingTimeInterval(7_200), entity: "CrashBug")
+        let hits = index.recurringEntities(minConversations: 3, minSpanDays: 7,
+                                           excludeTop: 0, limit: 5)
+        XCTAssertTrue(hits.contains { $0.text == "MemoryLeak" }, "跨 10 天的实体该命中: \(hits.map(\.text))")
+        XCTAssertFalse(hits.contains { $0.text == "CrashBug" }, "同日 3 次不算反复回来")
+    }
+
+    func testRecurringExcludesTopStaples() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        // 「主项目词」出现 4 会话(全库最高频)——excludeTop: 1 应把它排掉
+        for i in 0..<4 {
+            try put("t\(i)", start: base.addingTimeInterval(Double(i) * 4 * 86_400),
+                    entity: "MainStaple 出现")
+        }
+        // 「次要词」3 会话跨 8 天
+        for i in 0..<3 {
+            try put("m\(i)", start: base.addingTimeInterval(Double(i) * 4 * 86_400),
+                    entity: "MinorTopic 登场")
+        }
+        let hits = index.recurringEntities(minConversations: 3, minSpanDays: 7,
+                                           excludeTop: 1, limit: 5)
+        XCTAssertFalse(hits.contains { $0.text == "MainStaple" }, "Top-1 staple 该被排除")
+        XCTAssertTrue(hits.contains { $0.text == "MinorTopic" })
+    }
+
+    // MARK: - 本月新实体与工具份额
+
+    func testNewEntitiesSinceOnlyFirstSeenAfterCutoff() throws {
+        let cutoff = Date(timeIntervalSince1970: 1_700_000_000)
+        try put("old", start: cutoff.addingTimeInterval(-30 * 86_400), entity: "OldConcept")
+        try put("old2", start: cutoff.addingTimeInterval(5 * 86_400), entity: "OldConcept")   // 又出现≠新
+        try put("new", start: cutoff.addingTimeInterval(3 * 86_400), entity: "NewConcept")
+        let names = index.newEntities(since: cutoff, limit: 10).map(\.text)
+        XCTAssertTrue(names.contains("NewConcept"))
+        XCTAssertFalse(names.contains("OldConcept"), "月初前已出现过的实体不算本月新词")
+    }
+
+    func testSourceCountsRespectsWindow() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        try put("in1", start: base.addingTimeInterval(3_600))
+        try put("in2", start: base.addingTimeInterval(7_200))
+        try put("out", start: base.addingTimeInterval(-3_600))
+        let counts = index.sourceCounts(from: base, to: base.addingTimeInterval(86_400))
+        XCTAssertEqual(counts.first?.count, 2)
+    }
+
+    // MARK: - user 语料词频（VOCABULARY 新口径）
+
+    func testUserVocabularyCountsTimesSaidInUserCorpusOnly() throws {
+        // 隔离「数频次」与「学词」两个阶段（学词逻辑另有 PersonalLexiconTests 覆盖）：
+        // 词表直接注入,验证两件事——只数 user 语料(AI 说了你没说的不计),且是
+        // **说过次数**(tf,同一会话说两次算 2;df 口径只会给 1,这里就是判别点)。
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let aiHeavy = "第一性原理很重要,反复强调第一性原理"
+        try put("a", start: base, text: aiHeavy, user: "我按第一性原理来拆,再用第一性原理复核")
+        try put("b", start: base.addingTimeInterval(86_400), text: aiHeavy, user: "")   // AI 说了,你没说
+        try put("c", start: base.addingTimeInterval(2 * 86_400), text: aiHeavy, user: "换个话题聊聊天气")
+        let tf = MindsBuilder.userVocabularyFrequencies(index: index, lexicon: ["第一性原理"])
+        XCTAssertEqual(tf["第一性原理"], 2, "会话 a 里说了 2 次——按说过次数数,不是按会话数")
+    }
+
+    // MARK: - 词表双组(思维词/项目词)
+
+    func testVocabularyStatsCountsProjects() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        try put("a", cwd: "/p/alpha", start: base, user: "用第一性原理拆")
+        try put("b", cwd: "/p/beta", start: base.addingTimeInterval(3_600), user: "还是第一性原理")
+        try put("c", cwd: "/p/alpha", start: base.addingTimeInterval(7_200), user: "选题库整理一下")
+        let stats = MindsBuilder.userVocabularyStats(
+            lexicon: ["第一性原理", "选题库"],
+            corpus: index.userCorpusRows().map { (text: $0.text, cwd: $0.cwd) })
+        let fp = stats.first { $0.word == "第一性原理" }
+        XCTAssertEqual(fp?.tf, 2)
+        XCTAssertEqual(fp?.projects, 2, "跨 alpha/beta 两个项目")
+        XCTAssertEqual(fp?.df, 2, "出现在 2 场会话(df 按会话去重)")
+        XCTAssertEqual(stats.first { $0.word == "选题库" }?.projects, 1)
+    }
+
+    func testRenderVocabularyMindWordsFirstAndStopwordsOut() {
+        // 146 场会话语境:df 47% 的「需要」是口头语(第一性判据——无主题性),
+        // 不进任何词表组(它的领地是 CATCHPHRASES);df 10% 的「第一性原理」
+        // 跨 12 项目=思维词置顶。字数不设限:df 才是本质,不是字数。
+        let stats = [
+            MindsBuilder.VocabWord(word: "所有事件类型", tf: 120, projects: 1, df: 4),
+            MindsBuilder.VocabWord(word: "第一性原理", tf: 39, projects: 12, df: 14),
+            MindsBuilder.VocabWord(word: "上下文", tf: 67, projects: 11, df: 16),
+            MindsBuilder.VocabWord(word: "需要", tf: 919, projects: 39, df: 68),
+            // 次级泛词:df 压线(20%)+跨项目高,但 2 字基础词——构词法先验拦截
+            MindsBuilder.VocabWord(word: "能力", tf: 294, projects: 26, df: 30),
+        ]
+        let doc = MindsBuilder.renderVocabulary(stats: stats, totalConversations: 146)
+        XCTAssertTrue(doc.contains("- mind: 第一性原理 (39×/12p) · 上下文 (67×/11p)"),
+                      "思维词按跨项目数排: \(doc)")
+        XCTAssertTrue(doc.contains("所有事件类型 (120)"), "单项目词留在 work 组")
+        XCTAssertFalse(doc.contains("需要"), "口头语(df 47%)不进任何组")
+        XCTAssertFalse(doc.contains("能力 (294×"), "次级泛词(2 字)不进思维词组")
+        XCTAssertTrue(doc.contains("- work: 能力 (294)"), "但按 df<25% 留在 work 组")
+        XCTAssertLessThan(doc.range(of: "- mind:")!.lowerBound,
+                          doc.range(of: "- work:")!.lowerBound, "思维词组置顶")
+    }
+
+    // MARK: - 语料纯度(v15:系统注入剔除)
+
+    func testUserTextExcludesSystemInjected() {
+        let msgs = [
+            Message(id: "m1", role: .user, timestamp: Date(), blocks: [.text("帮我改这个函数")]),
+            Message(id: "m2", role: .user, timestamp: Date(),
+                    blocks: [.text("Stop hook feedback: [合法的覆盖所有事件类型]: The condition")]),
+            Message(id: "m3", role: .user, timestamp: Date(),
+                    blocks: [.text("This session is being continued from a previous conversation")]),
+        ]
+        let t = Segmenter.userText(of: msgs)
+        XCTAssertTrue(t.contains("帮我改这个函数"))
+        XCTAssertFalse(t.contains("Stop hook"), "hook 反馈不是你说的话")
+        XCTAssertFalse(t.contains("continued"), "会话续传标记不是你说的话")
+    }
+
+    func testUserTextFlattensMultilineMessages() {
+        let msgs = [
+            Message(id: "m1", role: .user, timestamp: Date(),
+                    blocks: [.text("修一下这个:\nimport Foundation\nRun: swift test")]),
+            Message(id: "m2", role: .user, timestamp: Date(), blocks: [.text("继续")]),
+        ]
+        XCTAssertEqual(Segmenter.userText(of: msgs),
+                       "修一下这个: import Foundation Run: swift test\n继续",
+                       "消息内部换行必须压平——否则粘贴代码的行会被口头禅当成整条短消息(Run:/import ×21 现场)")
+    }
+
+    func testUserTextStripsCodexFileMentionHeader() {
+        let msgs = [
+            Message(id: "m1", role: .user, timestamp: Date(), blocks: [.text(
+                "# Files mentioned by the user:\n## 规划.mov: /var/folders/x/规划.mov\n" +
+                "## My request for Codex: 录音是我对项目的规划。请调研。")]),
+            Message(id: "m2", role: .user, timestamp: Date(), blocks: [.text(
+                "# Files mentioned by the user:\n## a.png: /var/folders/y/a.png")]),
+        ]
+        let t = Segmenter.userText(of: msgs)
+        XCTAssertEqual(t, "录音是我对项目的规划。请调研。",
+                       "标记后才是用户的话;纯文件清单消息整条丢弃")
+    }
+
+    func testLastMeaningfulRoleSkipsInjection() {
+        let msgs = [
+            Message(id: "m1", role: .user, timestamp: Date(), blocks: [.text("问题来了")]),
+            Message(id: "m2", role: .assistant, timestamp: Date(), blocks: [.text("答完了")]),
+            Message(id: "m3", role: .user, timestamp: Date(),
+                    blocks: [.text("Stop hook feedback: blocked")]),
+        ]
+        XCTAssertEqual(Segmenter.lastMeaningfulRole(of: msgs), "assistant",
+                       "hook 以 user 收尾不该伪造「你问了没人答」")
+    }
+
+    // MARK: - 提问形状 / 项目出生句
+
+    func testQuestionShapeCountsByKind() {
+        let corpus = ["这个方案是否可行\n怎么优化性能\n为什么会内存泄漏\n要不要重构\n如何部署"]
+        let shape = MindsBuilder.questionShape(corpus: corpus)
+        let d = Dictionary(uniqueKeysWithValues: shape.map { ($0.kind, $0.count) })
+        XCTAssertEqual(d["confirm"], 2, "是否+要不要")
+        XCTAssertEqual(d["how"], 2, "怎么+如何")
+        XCTAssertEqual(d["why"], 1)
+        XCTAssertEqual(d["what"], 0)
+    }
+
+    func testFirstMeaningfulLineSkipsNoiseAndInjection() {
+        let text = """
+        1. 编号粘贴行不算
+        {"json": "行不算"}
+        目前的项目状态是什么
+        后面这行不该被取到
+        """
+        XCTAssertEqual(MindsBuilder.firstMeaningfulLine(of: text), "目前的项目状态是什么")
+    }
+
+    func testFirstMeaningfulLineClipsLongPasteAtSentenceEnd() {
+        let paste = String(repeating: "长", count: 400)
+        XCTAssertEqual(MindsBuilder.firstMeaningfulLine(of: "下面是迁移到新项目的完整上下文。\(paste)"),
+                       "下面是迁移到新项目的完整上下文",
+                       "「一句人话+巨型粘贴」的创世消息取首句,不整条跳过")
+        XCTAssertNil(MindsBuilder.firstMeaningfulLine(of: paste),
+                     "前 300 字无句读=纯粘贴,跳过")
+    }
+
+    func testProjectFirstCorpusReturnsEarliest() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        try put("late", cwd: "/p/alpha", start: base.addingTimeInterval(86_400), user: "后来的话")
+        try put("first", cwd: "/p/alpha", start: base, user: "阿尔法项目从这里开始")
+        let rows = index.projectFirstCorpus(limit: 5)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.convID, "first", "取项目最早会话")
+        XCTAssertTrue(rows.first?.text.contains("从这里开始") == true)
+    }
+
+    func testRenderQuestionShapeAndFirstWords() {
+        var s = MindsBuilder.SurpriseData()
+        s.questionShape = [("confirm", 286), ("how", 206), ("why", 94), ("what", 89)]
+        s.firstWords = [(project: "mindbus", quote: "目前的项目状态是什么",
+                         convID: "c1", at: Date(timeIntervalSince1970: 1_754_000_000))]
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("- should-we 286 · how-to 206 · why 94 · what-is 89"), doc)
+        XCTAssertTrue(doc.contains("you ask AI to judge, more than to explain"), "主导型结论")
+        XCTAssertTrue(doc.contains("## FIRST WORDS"))
+        XCTAssertTrue(doc.contains("mindbus — \"目前的项目状态是什么\""))
+    }
+
+    // MARK: - 委托光谱
+
+    func testDelegationVerbsCountsLinesAndConversations() {
+        let corpus = [
+            (text: "帮我设计一个方案\n再验证一下结果", convID: "c1"),
+            (text: "设计要重新来\n" + String(repeating: "长", count: 200) + "设计", convID: "c2"),
+        ]
+        let verbs = MindsBuilder.delegationVerbs(corpus: corpus, limit: 8)
+        let d = Dictionary(uniqueKeysWithValues: verbs.map { ($0.verb, ($0.lines, $0.conversations)) })
+        XCTAssertEqual(d["设计"]?.0, 2, "超长行(≥150 字)是粘贴不是指令,不计")
+        XCTAssertEqual(d["设计"]?.1, 2, "两场会话都出现")
+        XCTAssertEqual(d["验证"]?.0, 1)
+        XCTAssertEqual(d["验证"]?.1, 1)
+    }
+
+    func testResearchDestinationsFindsGithub() {
+        let corpus = ["你需要调研一下,看 GitHub 有没有类似的最佳实践\n去调研竞品的做法\n看看 github 上的实现",
+                      "调研最新的行业趋势"]
+        let dests = MindsBuilder.researchDestinations(corpus: corpus)
+        let d = Dictionary(uniqueKeysWithValues: dests.map { ($0.dest, $0.count) })
+        XCTAssertEqual(d["github"], 1, "大小写不敏感;第三行没有「调研」不计")
+        XCTAssertEqual(d["竞品"], 1)
+        XCTAssertEqual(d["最新"], 1)
+        XCTAssertEqual(d["行业"], 1)
+    }
+
+    func testRenderDelegation() {
+        var s = MindsBuilder.SurpriseData()
+        s.delegationVerbs = [(verb: "设计", lines: 215, conversations: 36),
+                             (verb: "调研", lines: 64, conversations: 22)]
+        s.researchDestinations = [(dest: "github", count: 12), (dest: "产品", count: 9)]
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("## DELEGATION"), doc)
+        XCTAssertTrue(doc.contains("设计 215×/36c · 调研 64×/22c"), doc)
+        XCTAssertTrue(doc.contains("research destination #1: github (12"), "调研目的地亮点行")
+    }
+
+    // MARK: - 渲染（纯函数,注入数据）
+
+    private func render(_ surprise: MindsBuilder.SurpriseData) -> String {
+        MindsBuilder.renderDocument(
+            overview: ConversationIndex.MapOverview(conversationCount: 0, earliest: nil, latest: nil,
+                                                    bySource: [], byProject: [], byMonth: [], topEntities: []),
+            projects: [], vocabulary: [], refs: [], surprise: surprise,
+            builtAt: Date(timeIntervalSince1970: 1_700_000_000))
+    }
+
+    func testRenderSurpriseSectionsAppearBeforeStats() {
+        let doc = render(MindsBuilder.SurpriseData())
+        for header in ["## UNFINISHED THREADS", "## RECURRING QUESTIONS", "## DORMANT PROJECTS",
+                       "## THIS MONTH"] {
+            XCTAssertTrue(doc.contains(header), "缺 \(header)")
+            XCTAssertLessThan(doc.range(of: header)!.lowerBound,
+                              doc.range(of: "## OVERVIEW")!.lowerBound,
+                              "\(header) 必须排在统计区之前")
+        }
+        XCTAssertTrue(doc.contains("the raw counts your AI consumes"), "统计区要有分隔说明")
+    }
+
+    func testRenderUnfinishedListsThreadWithProjectTail() {
+        var s = MindsBuilder.SurpriseData()
+        s.unfinished = [ConversationIndex.UnfinishedThread(
+            id: "c9", title: "液态玻璃怎么调", preview: "p", cwd: "/Users/dev/mindbus",
+            endAt: Date(timeIntervalSince1970: 1_700_000_000))]
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("液态玻璃怎么调"))
+        XCTAssertTrue(doc.contains("mindbus"), "项目尾名要可见")
+        XCTAssertTrue(doc.contains("id: c9"), "要带会话 id 供定位")
+    }
+
+    func testRenderThisMonthShowsDelta() {
+        var s = MindsBuilder.SurpriseData()
+        s.monthCurrent = [.init(key: "claudeCode", count: 12)]
+        s.monthPrevious = [.init(key: "claudeCode", count: 20)]
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("12 conversations so far (-8 vs last month)"), doc)
+    }
+
+    // MARK: - 二批：作息 / 杠杆 / 马拉松 / 不再说的词
+
+    func testHourQuarterHistogramBucketsLocalHours() throws {
+        // 用本机时区构造「今天 21:30」与「今天 02:10」各一条,断言落在 20-24 与 00-04 桶
+        let cal = Calendar.current
+        let evening = cal.date(bySettingHour: 21, minute: 30, second: 0, of: Date())!
+        let night = cal.date(bySettingHour: 2, minute: 10, second: 0, of: Date())!
+        try put("e", start: evening)
+        try put("n", start: night)
+        let buckets = index.hourQuarterHistogram()
+        XCTAssertEqual(buckets.count, 6)
+        XCTAssertEqual(buckets[5], 1, "21:30 → 20-24 桶")
+        XCTAssertEqual(buckets[0], 1, "02:10 → 00-04 桶")
+        XCTAssertEqual(buckets.reduce(0, +), 2)
+    }
+
+    func testBusiestDayPicksTheDenseDay() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        for i in 0..<3 { try put("d\(i)", start: base.addingTimeInterval(Double(i) * 600)) }
+        try put("lone", start: base.addingTimeInterval(5 * 86_400))
+        let b = index.busiestDay()
+        XCTAssertEqual(b?.count, 3)
+    }
+
+    func testProjectSwitchingCountsDistinctCwdPerDay() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        try put("a1", cwd: "/p/alpha", start: base)
+        try put("a2", cwd: "/p/beta", start: base.addingTimeInterval(3_600))
+        try put("a3", cwd: "/p/alpha", start: base.addingTimeInterval(7_200))   // 同项目重复不加
+        try put("b1", cwd: "/p/alpha", start: base.addingTimeInterval(3 * 86_400))
+        let s = index.projectSwitching()
+        XCTAssertEqual(s.peak?.count, 2, "第一天 alpha+beta 两个项目")
+        XCTAssertEqual(s.avgPerDay, 1.5, accuracy: 0.01, "(2+1)/2 天")
+    }
+
+    func testCorpusVolumeSumsUserVsTotal() throws {
+        try put("a", start: Date(), text: "十个字十个字十个字十", user: "五个字五个")
+        let v = index.corpusVolume()
+        XCTAssertEqual(v.userChars, 5)
+        XCTAssertEqual(v.totalChars, 10)
+    }
+
+    func testMarathonsOrderedByMessageCount() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let big = ConversationLite(id: "big", source: .claudeCode, startAt: base,
+                                   endAt: base.addingTimeInterval(90 * 3_600), cwd: "/p", gitBranch: nil,
+                                   title: "马拉松", preview: "p", messageCount: 500,
+                                   fileURL: URL(fileURLWithPath: "/f/big"))
+        try index.upsert([(lite: big, segments: seg("t"), mtime: 1, entityText: "",
+                           userText: "", lastRole: "")])
+        try put("small", start: base)
+        let m = index.marathons(limit: 2)
+        XCTAssertEqual(m.first?.id, "big")
+        XCTAssertEqual(m.first?.messageCount, 500)
+        XCTAssertEqual(m.first?.spanHours ?? 0, 90, accuracy: 0.01)
+    }
+
+    func testFadedWordsNeedsVolumeAndSilence() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000 + 200 * 86_400)
+        let old = Date(timeIntervalSince1970: 1_700_000_000)
+        let fresh = now.addingTimeInterval(-10 * 86_400)
+        // 「协变量」说 15 次都在 200 天前 → faded;「上下文」老 15 次+近期 1 次 → 还活着;
+        // 「偶尔词」只说 3 次 → 不够分量
+        let oldText = Array(repeating: "协变量", count: 15).joined(separator: ",")
+            + "," + Array(repeating: "上下文", count: 15).joined(separator: ",")
+            + ",偶尔词,偶尔词,偶尔词"
+        let corpus = [(text: oldText, startAt: old), (text: "上下文还在说", startAt: fresh)]
+        let faded = MindsBuilder.fadedWords(corpus: corpus,
+                                            lexicon: ["协变量", "上下文", "偶尔词"],
+                                            now: now, limit: 5)
+        XCTAssertEqual(faded.map(\.word), ["协变量"])
+        XCTAssertEqual(faded.first?.totalCount, 15)
+        XCTAssertEqual(faded.first?.silentDays, 200)
+    }
+
+    func testRenderSecondBatchSections() {
+        var s = MindsBuilder.SurpriseData()
+        s.hourQuarters = [1, 0, 0, 2, 3, 6]
+        s.busiestDay = (day: "2026-05-15", count: 6)
+        s.switching = (avgPerDay: 1.7, peak: (day: "2026-08-05", count: 5))
+        s.volume = (userChars: 1_308_411, totalChars: 15_620_688)
+        s.marathons = [ConversationIndex.Marathon(id: "m1", title: "继续", preview: "p",
+                                                  cwd: "/p/StrategyGame", messageCount: 5497,
+                                                  spanHours: 1542.9)]
+        s.fadedWords = [MindsBuilder.FadedWord(word: "协变量", totalCount: 38, silentDays: 92)]
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("most conversations start 20-24 — 50% (6 of 12)"), doc)
+        XCTAssertTrue(doc.contains("busiest day: 2026-05-15 — 6 conversations (50% of everything, in one day)"))
+        XCTAssertTrue(doc.contains("you juggle 1.7 projects per active day — peak 5 on 2026-08-05"))
+        XCTAssertTrue(doc.contains("you typed 1.3M characters; the conversations hold 15.6M — leverage 1:11"))
+        XCTAssertTrue(doc.contains("- 继续 — 5497 messages over 64 days, StrategyGame (id: m1)"))
+        XCTAssertTrue(doc.contains("- 协变量 — said 38 times, silent 92 days"))
+        // 新四节都在统计区之前
+        for header in ["## WORK RHYTHM", "## LEVERAGE", "## MARATHONS", "## FADED WORDS"] {
+            XCTAssertLessThan(doc.range(of: header)!.lowerBound,
+                              doc.range(of: "## OVERVIEW")!.lowerBound, "\(header) 应在惊喜区")
+        }
+    }
+
+    // MARK: - 三批：那年今日 / 口头禅 / 独特性 / 活跃天数
+
+    func testOnThisDayMatchesMonthDayExcludingRecent() throws {
+        let now = Date(timeIntervalSince1970: 1_755_000_000)
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = .current; f.dateFormat = "MM-dd"
+        let md = f.string(from: now)
+        // 365 天前(同日号)与 30 天整前(约同日号,看月长)与 10 天前(豁免期内)
+        try put("old", start: now.addingTimeInterval(-365 * 86_400))
+        try put("recent", start: now.addingTimeInterval(-10 * 86_400))
+        let hits = index.onThisDay(monthDay: md, minAgeDays: 30, now: now, limit: 5)
+        XCTAssertTrue(hits.map(\.id).contains("old"), "同日号的老会话命中(日号口径,跨月即可)")
+        XCTAssertFalse(hits.map(\.id).contains("recent"), "近 30 天的不算重逢")
+    }
+
+    func testLatestNightPicksLatestClockBeforeSix() throws {
+        let cal = Calendar.current
+        let base = cal.date(bySettingHour: 2, minute: 10, second: 0, of: Date())!
+        let later = cal.date(bySettingHour: 4, minute: 47, second: 0, of: Date().addingTimeInterval(-86_400))!
+        let daytime = cal.date(bySettingHour: 15, minute: 0, second: 0, of: Date())!
+        try put("night1", start: base)
+        try put("night2", start: later)
+        try put("day", start: daytime)
+        let hit = index.latestNightConversation()
+        XCTAssertEqual(hit?.thread.id, "night2", "凌晨 4:47 比 2:10 更「晚」;白天的不算")
+        XCTAssertEqual(hit?.clock, "04:47")
+    }
+
+    func testOneOffTopicsOnlySingleConversationOldEntities() throws {
+        let now = Date(timeIntervalSince1970: 1_755_000_000)
+        try put("a", start: now.addingTimeInterval(-100 * 86_400), entity: "GhostTopic")
+        try put("b1", start: now.addingTimeInterval(-100 * 86_400), entity: "TwiceTopic")
+        try put("b2", start: now.addingTimeInterval(-99 * 86_400), entity: "TwiceTopic")
+        try put("c", start: now.addingTimeInterval(-5 * 86_400), entity: "FreshTopic")
+        let hits = index.oneOffTopics(minAgeDays: 90, now: now, limit: 10).map(\.text)
+        XCTAssertTrue(hits.contains("GhostTopic"), "只出现一次且够老:命中")
+        XCTAssertFalse(hits.contains("TwiceTopic"), "两个会话都有:不是一次性")
+        XCTAssertFalse(hits.contains("FreshTopic"), "太新:还不算「再没回来」")
+    }
+
+    func testCatchphrasesCountsShortLinesOnly() {
+        let corpus = [
+            "继续\n把这个改一下,顺便看看那个很长很长的需求描述\n继续\n好的\n继续",
+            "继续\n好的\n好的",
+        ]
+        let phrases = MindsBuilder.catchphrases(corpus: corpus, limit: 5)
+        XCTAssertEqual(phrases.first?.phrase, "继续")
+        XCTAssertEqual(phrases.first?.count, 4)
+        XCTAssertTrue(phrases.contains { $0.phrase == "好的" && $0.count == 3 })
+        XCTAssertFalse(phrases.contains { $0.phrase.count > 8 }, "长消息不算口头禅")
+    }
+
+    func testPolitenessCountsMarkerLines() {
+        let corpus = ["帮我改这个\n谢谢,很好\nplease fix this\n没有礼貌词的行"]
+        let p = MindsBuilder.politeness(corpus: corpus)
+        XCTAssertTrue(p.contains { $0.word == "帮我" && $0.count == 1 })
+        XCTAssertTrue(p.contains { $0.word == "谢谢" && $0.count == 1 })
+        XCTAssertTrue(p.contains { $0.word == "please" && $0.count == 1 })
+    }
+
+    func testActiveDaysRunAndGap() {
+        let daily = [("2026-08-01", 3), ("2026-08-02", 1), ("2026-08-03", 2),
+                     ("2026-08-10", 1), ("2026-08-11", 4)]
+        let a = MindsBuilder.activeDays(daily: daily.map { (day: $0.0, count: $0.1) }, window: 365)
+        XCTAssertEqual(a.active, 5)
+        XCTAssertEqual(a.longestRun, 3, "8/1-8/3 连续 3 天")
+        XCTAssertEqual(a.longestGap, 6, "8/3 到 8/10 之间隔 6 天")
+    }
+
+    func testDailyCountsGroupsByLocalDay() throws {
+        let now = Date()
+        try put("d1", start: now.addingTimeInterval(-3_600))
+        try put("d2", start: now.addingTimeInterval(-7_200))
+        let daily = index.dailyCounts(days: 30, now: now)
+        XCTAssertEqual(daily.reduce(0) { $0 + $1.count }, 2)
+    }
+
+    func testRenderThirdBatchSections() {
+        var s = MindsBuilder.SurpriseData()
+        s.onThisDay = [ConversationIndex.UnfinishedThread(
+            id: "o1", title: "三个月前的选题", preview: "p", cwd: "/p/TrendRadar",
+            endAt: Date(timeIntervalSince1970: 1_747_000_000))]
+        s.catchphrases = [(phrase: "继续", count: 47), (phrase: "好的", count: 23)]
+        s.politeness = [(word: "帮我", count: 89)]
+        s.latestNight = (ConversationIndex.UnfinishedThread(
+            id: "n1", title: "深夜排错", preview: "p", cwd: "/p",
+            endAt: Date(timeIntervalSince1970: 1_747_000_000)), "03:47")
+        s.oneOffTopics = [(text: "LevelDB", at: Date(timeIntervalSince1970: 1_740_000_000))]
+        s.rareWords = [(word: "协程池", count: 2)]
+        s.activeDays = MindsBuilder.ActiveDays(active: 98, window: 365, longestRun: 12, longestGap: 9)
+        s.hourQuarters = [0, 0, 0, 0, 0, 4]
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("## ON THIS DAY"))
+        XCTAssertTrue(doc.contains("三个月前的选题 — TrendRadar"))
+        XCTAssertTrue(doc.contains("- 继续 ×47 · 好的 ×23"))
+        XCTAssertTrue(doc.contains("politeness & delegation: 帮我 ×89"))
+        XCTAssertTrue(doc.contains("deepest night:"))
+        XCTAssertTrue(doc.contains("at 03:47"))
+        XCTAssertTrue(doc.contains("asked once, never again: LevelDB"))
+        XCTAssertTrue(doc.contains("your rare words: 协程池 ×2"))
+        XCTAssertTrue(doc.contains("active 98 of the last 365 days — longest run 12, longest break 9"))
+        // ON THIS DAY 排最前(重逢感是当日情绪入口)
+        XCTAssertLessThan(doc.range(of: "## ON THIS DAY")!.lowerBound,
+                          doc.range(of: "## UNFINISHED THREADS")!.lowerBound)
+    }
+
+    // MARK: - B 批:个人史百分位 / 去年同月
+
+    func testWeekPercentileAgainstOwnHistory() {
+        let weekly = [("2026-W01", 5), ("2026-W02", 10), ("2026-W03", 3), ("2026-W04", 8),
+                      ("2026-W05", 12), ("2026-W06", 20)]
+            .map { (week: $0.0, count: $0.1) }
+        let wp = MindsBuilder.weekPercentile(weekly: weekly, currentWeek: "2026-W06")
+        XCTAssertEqual(wp?.thisWeek, 20)
+        XCTAssertEqual(wp?.percentile, 100, "历史 5 周全部低于 20 → P100")
+        XCTAssertEqual(wp?.median, 8, "历史 [3,5,8,10,12] 中位 8")
+    }
+
+    func testWeekPercentileNeedsEnoughHistory() {
+        let weekly = [("2026-W01", 5), ("2026-W02", 10), ("2026-W03", 3)]
+            .map { (week: $0.0, count: $0.1) }
+        XCTAssertNil(MindsBuilder.weekPercentile(weekly: weekly, currentWeek: "2026-W03"),
+                     "历史周不足 4 个,分位数没有意义")
+    }
+
+    func testRenderWeekPercentileAndYoYLines() {
+        var s = MindsBuilder.SurpriseData()
+        s.hourQuarters = [0, 0, 0, 0, 0, 4]
+        s.weekPercentile = (thisWeek: 23, percentile: 92, median: 11)
+        s.monthCurrent = [.init(key: "claudeCode", count: 22)]
+        s.lastYearSameMonth = 9
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("this week so far: 23 conversations — P92 of your own history (median 11)"), doc)
+        XCTAssertTrue(doc.contains("same month last year: 9 conversations"))
+    }
+
+    func testMonthTotalQuery() throws {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = .current; f.dateFormat = "yyyy-MM"
+        let now = Date()
+        try put("m1", start: now)
+        try put("m2", start: now.addingTimeInterval(-60))
+        XCTAssertEqual(index.monthTotal(yearMonth: f.string(from: now)), 2)
+        XCTAssertEqual(index.monthTotal(yearMonth: "1999-01"), 0)
+    }
+
+    // MARK: - 四批:协作形状 / 周末人格 / 项目杠杆榜 / 知识流动
+
+    func testCollaborationShapeBucketsTurnsAndDurations() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        // 2 轮短会话(90 秒)与 17 轮马拉松(3 小时)
+        try put("quick", start: base, end: base.addingTimeInterval(90),
+                user: "第一句\n第二句")
+        try put("deep", start: base.addingTimeInterval(86_400),
+                end: base.addingTimeInterval(86_400 + 3 * 3_600),
+                user: (1...17).map { "指令\($0)" }.joined(separator: "\n"))
+        let sh = index.collaborationShape()
+        XCTAssertEqual(sh.turnBands, [1, 0, 0, 1], "2 轮→桶 0;17 轮→桶 3")
+        XCTAssertEqual(sh.durationBands, [1, 0, 0, 1], "90 秒→<2min;3 小时→2h+")
+        XCTAssertGreaterThan(sh.avgCharsPerMessage, 0)
+    }
+
+    func testWeekendSplitSeparatesByLocalWeekday() throws {
+        // 用本机时区构造:找最近的周六与周三
+        let cal = Calendar.current
+        var day = Date()
+        while cal.component(.weekday, from: day) != 7 { day = day.addingTimeInterval(-86_400) }   // 周六
+        var wed = Date()
+        while cal.component(.weekday, from: wed) != 4 { wed = wed.addingTimeInterval(-86_400) }   // 周三
+        try put("s1", cwd: "/p/side", start: day)
+        try put("s2", cwd: "/p/side", start: day.addingTimeInterval(-7 * 86_400))
+        try put("w1", cwd: "/p/work", start: wed)
+        try put("w2", cwd: "/p/work", start: wed.addingTimeInterval(-7 * 86_400))
+        let split = index.weekendSplit(minCount: 2)
+        XCTAssertEqual(split.weekend.map(\.key), ["side"])
+        XCTAssertEqual(split.weekday.map(\.key), ["work"])
+    }
+
+    func testProjectLeverageComputesPerProjectRatio() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        for i in 0..<5 {
+            try put("p\(i)", cwd: "/p/lever", start: base.addingTimeInterval(Double(i) * 3_600),
+                    text: String(repeating: "全", count: 100), user: String(repeating: "我", count: 10))
+        }
+        let rows = index.projectLeverage(minConversations: 5, limit: 5)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.name, "lever")
+        XCTAssertEqual(rows.first?.ratio, 10, "500 总字 / 50 你的字 = 1:10")
+    }
+
+    func testKnowledgeFlowsCountsSharedEntities() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        // alpha 与 beta 共享 SharedConcept;gamma 无共享
+        try put("a", cwd: "/p/alpha", start: base, entity: "SharedConcept AlphaOnly")
+        try put("b", cwd: "/p/beta", start: base.addingTimeInterval(3_600), entity: "SharedConcept BetaOnly")
+        try put("g", cwd: "/p/gamma", start: base.addingTimeInterval(7_200), entity: "GammaOnly")
+        let flows = index.knowledgeFlows(minShared: 1, limit: 5)
+        XCTAssertEqual(flows.count, 1)
+        XCTAssertEqual(flows.first?.sharedEntities, 1)
+        XCTAssertEqual(Set([flows.first?.projectA, flows.first?.projectB]), Set(["alpha", "beta"]))
+    }
+
+    func testRenderFourthBatchSections() {
+        var s = MindsBuilder.SurpriseData()
+        s.shape = ConversationIndex.CollaborationShape(
+            turnBands: [7, 9, 16, 113], durationBands: [34, 46, 17, 48], avgCharsPerMessage: 38)
+        s.weekendSplit = (weekday: [.init(key: "StrategyGame", count: 54), .init(key: "Codex", count: 7)],
+                          weekend: [.init(key: "mindbus", count: 3)])
+        s.projectLeverage = [
+            ConversationIndex.ProjectLeverage(name: "homelab", userChars: 3_730, totalChars: 170_637, conversationCount: 5),
+            ConversationIndex.ProjectLeverage(name: "Codex", userChars: 70_255, totalChars: 148_600, conversationCount: 7),
+        ]
+        s.knowledgeFlows = [ConversationIndex.KnowledgeFlow(projectA: "ResearchKit", projectB: "mindbus", sharedEntities: 87)]
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("77% of conversations run 16+ of your turns"),
+                      "113/145 整数除法 = 77%")
+        XCTAssertTrue(doc.contains("23% under 2 min, 33% over 2 h"))
+        XCTAssertTrue(doc.contains("your average message: 38 chars"))
+        XCTAssertTrue(doc.contains("- weekend: mindbus 3"))
+        XCTAssertTrue(doc.contains("- weekdays: StrategyGame 54 · Codex 7"))
+        XCTAssertTrue(doc.contains("- homelab — 1:45"))
+        XCTAssertTrue(doc.contains("- Codex — 1:2"))
+        XCTAssertTrue(doc.contains("- ResearchKit ↔ mindbus — 87 shared concepts"))
+        for h in ["## COLLABORATION SHAPE", "## WEEKEND SELF", "## LEVERAGE BY PROJECT", "## KNOWLEDGE FLOWS"] {
+            XCTAssertLessThan(doc.range(of: h)!.lowerBound, doc.range(of: "## OVERVIEW")!.lowerBound,
+                              "\(h) 应在惊喜区")
+        }
+    }
+
+    // MARK: - 五批:守护状态(价值感)
+
+    func testSanctuaryStatsCountsOutlivedClaudeCode() throws {
+        let now = Date()
+        // claudeCode 40 天前(越线)与 10 天前(未越线);codex 40 天前不算(政策不同)
+        let old = ConversationLite(id: "cc-old", source: .claudeCode,
+                                   startAt: now.addingTimeInterval(-40 * 86_400),
+                                   endAt: now.addingTimeInterval(-40 * 86_400), cwd: "/p",
+                                   gitBranch: nil, preview: "p", messageCount: 1,
+                                   fileURL: URL(fileURLWithPath: "/f/cc-old"))
+        let fresh = ConversationLite(id: "cc-new", source: .claudeCode,
+                                     startAt: now.addingTimeInterval(-10 * 86_400),
+                                     endAt: now.addingTimeInterval(-10 * 86_400), cwd: "/p",
+                                     gitBranch: nil, preview: "p", messageCount: 1,
+                                     fileURL: URL(fileURLWithPath: "/f/cc-new"))
+        try index.upsert([(lite: old, segments: seg("t"), mtime: 1, entityText: "", userText: "", lastRole: ""),
+                          (lite: fresh, segments: seg("t"), mtime: 1, entityText: "", userText: "", lastRole: "")])
+        try put("cx", start: now.addingTimeInterval(-40 * 86_400))   // codex(put 默认 claudeCode?查 helper)
+        let st = index.sanctuaryStats(now: now)
+        XCTAssertEqual(st.conversationCount, 3)
+        XCTAssertNotNil(st.earliest)
+    }
+
+    func testBookEquivalent() {
+        XCTAssertEqual(MindsBuilder.bookEquivalent(15_980_000), 53)
+        XCTAssertEqual(MindsBuilder.bookEquivalent(100_000), 0)
+    }
+
+    func testRenderSanctuarySection() {
+        var s = MindsBuilder.SurpriseData()
+        s.sanctuary = ConversationIndex.SanctuaryStats(
+            conversationCount: 145,
+            earliest: Date(timeIntervalSince1970: 1_700_000_000 - 110 * 86_400),
+            latestActivity: Date(timeIntervalSince1970: 1_700_000_000),
+            outlivedClaudeCode: 8)
+        s.vaultFiles = 149
+        s.vaultBytes = 317 * 1_048_576
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("## SANCTUARY"))
+        XCTAssertTrue(doc.contains("145 conversations · 149 archived copies (317 MB) · day 111 of your library"), doc)
+        XCTAssertTrue(doc.contains("8 conversations have outlived Claude Code's 30-day window — here, they stay"))
+        // SANCTUARY 是惊喜区第一节(守护宣言开场)
+        XCTAssertLessThan(doc.range(of: "## SANCTUARY")!.lowerBound,
+                          doc.range(of: "## ON THIS DAY")!.lowerBound)
+    }
+
+    func testRenderSanctuaryOmitsOutlivedWhenZero() {
+        var s = MindsBuilder.SurpriseData()
+        s.sanctuary = ConversationIndex.SanctuaryStats(
+            conversationCount: 3, earliest: Date(timeIntervalSince1970: 1_699_000_000),
+            latestActivity: Date(timeIntervalSince1970: 1_700_000_000), outlivedClaudeCode: 0)
+        let doc = render(s)
+        XCTAssertFalse(doc.contains("outlived"), "没有越线会话就不吹——0 不渲染")
+    }
+
+    func testHighestMilestone() {
+        XCTAssertEqual(MindsBuilder.highestMilestone(145, in: MindsBuilder.conversationMilestones), 100)
+        XCTAssertEqual(MindsBuilder.highestMilestone(99, in: MindsBuilder.conversationMilestones), nil)
+        XCTAssertEqual(MindsBuilder.highestMilestone(16_100_000, in: MindsBuilder.characterMilestones), 10_000_000)
+    }
+
+    func testRenderSanctuaryMilestoneLine() {
+        var s = MindsBuilder.SurpriseData()
+        s.sanctuary = ConversationIndex.SanctuaryStats(
+            conversationCount: 145, earliest: Date(timeIntervalSince1970: 1_690_000_000),
+            latestActivity: Date(timeIntervalSince1970: 1_700_000_000), outlivedClaudeCode: 0)
+        s.volume = (userChars: 1_300_000, totalChars: 16_100_000)
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("milestones passed: 100 conversations · 10.0M characters"), doc)
+    }
+
+    // MARK: - 观察项 A:反复交代的话
+
+    func testRepeatedBriefingsClustersSimilarCrossConversation() {
+        let brief = "你是资深审查员,正在审查 Task N 的代码质量,请只看规格符合性"
+        let corpus: [(text: String, convID: String)] = [
+            (text: brief.replacingOccurrences(of: "N", with: "3"), convID: "a"),
+            (text: brief.replacingOccurrences(of: "N", with: "4"), convID: "b"),
+            (text: brief.replacingOccurrences(of: "N", with: "5"), convID: "c"),
+            (text: "完全无关的一句话,聊聊今天天气怎么样吧", convID: "d"),
+        ]
+        let groups = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
+        XCTAssertEqual(groups.count, 1, "三条同模板该聚成一组,无关句不进: \(groups)")
+        XCTAssertEqual(groups.first?.times, 3)
+        XCTAssertEqual(groups.first?.conversations, 3)
+    }
+
+    func testRepeatedBriefingsFiltersNoiseAndSameConversation() {
+        let corpus: [(text: String, convID: String)] = [
+            // 编号行与 JSON 键值是粘贴残留,不算「你讲的话」
+            (text: "1. 地形倍率:road 1、plain 1、mountain 1.35", convID: "a"),
+            (text: "2. 地形倍率:road 1、plain 1、mountain 1.35", convID: "b"),
+            (text: "3. 地形倍率:road 1、plain 1、mountain 1.35", convID: "c"),
+            // 同一会话内的三遍重复:times 够但 conversations=1,不算「反复交代」
+            (text: "帮我把这个模块重构一下注意保持接口\n帮我把这个模块重构一下注意保持接口\n帮我把这个模块重构一下注意保持接口", convID: "x"),
+        ]
+        XCTAssertTrue(MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5).isEmpty)
+    }
+
+    func testRenderRepeatedBriefings() {
+        var s = MindsBuilder.SurpriseData()
+        s.repeatedBriefings = [MindsBuilder.RepeatedBriefing(
+            sample: "你是 Senior Code Reviewer,正在审查 Task 4 的代码质量", times: 6, conversations: 4)]
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("## REPEATED BRIEFINGS"))
+        XCTAssertTrue(doc.contains("said 6× across 4 conversations"))
+        XCTAssertTrue(doc.contains("minds_enrich"), "节说明要引导宿主模型走 enrich 管道")
+    }
+
+    // MARK: - 屏蔽机制
+
+    func testMutedResurfaceStoreRoundTrip() {
+        let url = URL(fileURLWithPath: NSTemporaryDirectory() + "muted-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = MutedResurfaceStore(fileURL: url)
+        XCTAssertFalse(store.isMuted("c1"))
+        store.mute("c1")
+        XCTAssertTrue(store.isMuted("c1"))
+        // 重新加载(持久化验证)
+        let reloaded = MutedResurfaceStore(fileURL: url)
+        XCTAssertTrue(reloaded.isMuted("c1"))
+        reloaded.unmute("c1")
+        XCTAssertFalse(reloaded.isMuted("c1"))
+    }
+
+    // MARK: - 补全:知识流动方向 / FADED 月度序列
+
+    func testKnowledgeFlowDirectionByFirstSeen() throws {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        // SharedConcept 先出现在 alpha(早 5 天),后出现在 beta → 方向 alpha→beta
+        try put("a1", cwd: "/p/alpha", start: base, entity: "SharedConcept")
+        try put("b1", cwd: "/p/beta", start: base.addingTimeInterval(5 * 86_400), entity: "SharedConcept")
+        let flows = index.knowledgeFlows(minShared: 1, limit: 5)
+        XCTAssertEqual(flows.count, 1)
+        let f = flows[0]
+        // cwd 字典序 alpha<beta → projectA=alpha
+        XCTAssertEqual(f.projectA, "alpha")
+        XCTAssertEqual(f.bornInAFirst, 1, "实体先现于 alpha")
+        XCTAssertEqual(f.bornInBFirst, 0)
+    }
+
+    func testRenderKnowledgeFlowArrow() {
+        var s = MindsBuilder.SurpriseData()
+        s.knowledgeFlows = [
+            ConversationIndex.KnowledgeFlow(projectA: "ResearchKit", projectB: "mindbus",
+                                            sharedEntities: 87, bornInAFirst: 52, bornInBFirst: 20),
+            ConversationIndex.KnowledgeFlow(projectA: "Spider", projectB: "TrendRadar",
+                                            sharedEntities: 47, bornInAFirst: 20, bornInBFirst: 21),
+        ]
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("ResearchKit → mindbus — 87 shared concepts, 52 born in ResearchKit first"), doc)
+        XCTAssertTrue(doc.contains("Spider ↔ TrendRadar — 47 shared concepts"), "接近平衡不标方向")
+    }
+
+    func testMonthlyOccurrencesBucketsOldToNew() {
+        let now = Date(timeIntervalSince1970: 1_755_000_000)
+        let cal = Calendar.current
+        let m0 = MindsBuilder.monthStart(of: now)                                   // 本月
+        let m3 = cal.date(byAdding: .month, value: -3, to: m0)!                     // 三个月前
+        let corpus: [(text: String, startAt: Date)] = [
+            (text: "协变量很重要,协变量决定一切", startAt: m3.addingTimeInterval(3_600)),
+            (text: "再提一次协变量", startAt: m0.addingTimeInterval(3_600)),
+        ]
+        let series = MindsBuilder.monthlyOccurrences(corpus: corpus, word: "协变量",
+                                                     monthsBack: 12, now: now)
+        XCTAssertEqual(series.count, 12)
+        XCTAssertEqual(series[11], 1, "本月 1 次(末位=最新)")
+        XCTAssertEqual(series[8], 2, "三个月前 2 次(同文本内两次都数)")
+        XCTAssertEqual(series.reduce(0, +), 3)
+    }
+
+    // MARK: - 救回可见化
+
+    func testComputeRescuedOnlyMissingWithArchive() {
+        let rows = [(id: "gone", path: "/f/gone"), (id: "alive", path: "/f/alive"),
+                    (id: "noarch", path: "/f/noarch"), (id: "browser", path: "browser-x/1.jsonl#3")]
+        let rescued = ConversationStore.computeRescued(
+            rows: rows,
+            exists: { $0 == "/f/alive" },
+            hasArchive: { $0 == "/f/gone" })
+        XCTAssertEqual(rescued, ["gone"], "只有「源没了且有归档」算救回;伪路径/无归档/还活着都不算")
+    }
+
+    func testRenderSanctuaryRescuedLineFirst() {
+        var s = MindsBuilder.SurpriseData()
+        s.sanctuary = ConversationIndex.SanctuaryStats(
+            conversationCount: 145, earliest: Date(timeIntervalSince1970: 1_690_000_000),
+            latestActivity: Date(timeIntervalSince1970: 1_700_000_000), outlivedClaudeCode: 8)
+        s.rescuedCount = 3
+        let doc = render(s)
+        XCTAssertTrue(doc.contains("**3 conversations rescued** — deleted by their tool, alive here"), doc)
+        XCTAssertLessThan(doc.range(of: "rescued")!.lowerBound,
+                          doc.range(of: "outlived")!.lowerBound, "救回行排在越线行之前——最强证明置首")
+    }
+
+}
