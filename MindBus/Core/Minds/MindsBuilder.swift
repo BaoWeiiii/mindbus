@@ -101,8 +101,11 @@ public enum MindsBuilder {
         let displayLexicon = index.loadLexicon().union(
             PersonalLexicon.build(corpus: corpusRows.map(\.text),
                                   thresholds: displayLexiconThresholds))
+        // 语法位置过滤:把「类似/更好/复杂/情况」这类汉语通用词剔掉,留你的实词
+        let grammar = grammarProfiles(lexicon: displayLexicon, corpus: corpusRows.map(\.text))
         let vocabStats = userVocabularyStats(lexicon: displayLexicon,
                                              corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) })
+            .filter { isContentWord(grammar[$0.word] ?? GrammarProfile()) }
         let corpus = corpusRows.map(\.text)
         vocabFreqs = userVocabularyFrequencies(index: index, corpus: corpus)
         let vocabulary = rankVocabulary(frequencies: vocabFreqs, limit: 20)
@@ -668,6 +671,69 @@ public enum MindsBuilder {
         public init(word: String, tf: Int, projects: Int, df: Int = 0) {
             self.word = word; self.tf = tf; self.projects = projects; self.df = df
         }
+    }
+
+    // MARK: - 汉语语法位置过滤(2026-08-16 创造)
+
+    /// 词在句子里的语法位置画像。
+    public struct GrammarProfile {
+        public var count = 0        // 词元出现次数
+        public var degree = 0       // 前面是程度副词(很/非常/比较…)
+        public var deictic = 0      // 前面是指示词(这个/那种…)
+        public var preDe = 0        // 前面是「的」(领属:你的架构)
+        public var postDe = 0       // 后面是「的」(修饰:类似的)
+        public init() {}
+    }
+
+    /// 程度副词:能修饰形容词,不能修饰名词——「很复杂」通,「很架构」不通。
+    static let degreeAdverbs: Set<String> = ["很", "非常", "比较", "更", "太", "最",
+                                             "特别", "挺", "相当", "越来越", "有点", "有些"]
+    /// 指示词:需要它才能确定所指的是泛指名词——「这个情况」「那种意思」。
+    static let deicticWords: Set<String> = ["这个", "那个", "某个", "某种", "这种", "那种",
+                                            "每个", "几个", "哪个", "这些", "那些", "什么"]
+
+    /// 一次分词遍历收齐所有词的语法位置统计(与词频统计同量级,无额外扫描成本)。
+    static func grammarProfiles(lexicon: Set<String>, corpus: [String]) -> [String: GrammarProfile] {
+        guard !lexicon.isEmpty else { return [:] }
+        var out: [String: GrammarProfile] = [:]
+        for text in corpus {
+            let tokens = PersonalLexicon.segment(text, lexicon: lexicon)
+                .split(separator: " ").map(String.init)
+            for (i, tok) in tokens.enumerated() where lexicon.contains(tok) {
+                var p = out[tok] ?? GrammarProfile()
+                p.count += 1
+                let prev1 = i > 0 ? tokens[i - 1] : ""
+                // 「这个」这类双字指示词可能被切成两个词元,拼回来再判
+                let prev2 = i > 1 ? tokens[i - 2] + tokens[i - 1] : ""
+                let next1 = i + 1 < tokens.count ? tokens[i + 1] : ""
+                if degreeAdverbs.contains(prev1) || degreeAdverbs.contains(prev2) { p.degree += 1 }
+                if deicticWords.contains(prev1) || deicticWords.contains(prev2) { p.deictic += 1 }
+                if prev1 == "的" { p.preDe += 1 }
+                if next1 == "的" { p.postDe += 1 }
+                out[tok] = p
+            }
+        }
+        return out
+    }
+
+    /// 「这是你的词,还是汉语的词」——三条判定性语法规则,零外部词表、零 LLM。
+    ///
+    /// 为什么不用统计:12 种统计算法全部失效(TF-IDF / 残差 IDF(Church&Gale) /
+    /// 项目分布熵 / 基尼系数 / 卡方 / 离散指数 / 共现广度 / 跨项目·跨月排序…),
+    /// 最好的 AUC 0.85 但 top30 命中 0——因为「有个性的词」在词频光谱的**中间带**,
+    /// 任何单调排序只捞两个极端。根因:「有个性」不是统计属性,是**语法属性**。
+    ///
+    /// 三条规则(真机验证:正例保留 7/8,负例排除 9/14,97 个通用词被剔除):
+    /// ① 能被程度副词修饰 = 形容词(复杂 .36 · 清晰 .22 · 简单 .13;你的词全 0.00)
+    /// ② 常需指示词才确定所指 = 泛指名词(意思 .41 · 情况 .09)
+    /// ③ 总以「X 的」出现却少被「的 X」领属 = 修饰语(类似 .45 · 更好 .47 · 相关 .25)
+    static func isContentWord(_ p: GrammarProfile) -> Bool {
+        guard p.count >= 5 else { return true }   // 样本太少不下判断:宁放过不误杀
+        let n = Double(p.count)
+        if Double(p.degree) / n >= 0.05 { return false }
+        if Double(p.deictic) / n >= 0.09 { return false }
+        if Double(p.postDe) / n >= 0.22 && Double(p.preDe) / n < 0.10 { return false }
+        return true
     }
 
     static func userVocabularyStats(lexicon: Set<String>,

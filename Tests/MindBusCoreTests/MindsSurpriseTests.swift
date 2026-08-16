@@ -275,6 +275,36 @@ final class MindsSurpriseTests: XCTestCase {
 
 
 
+    // MARK: - 汉语语法位置过滤
+
+    func testGrammarFilterDropsAdjectivesAndKeepsContentWords() {
+        let lex: Set<String> = ["复杂", "第一性原理", "架构", "情况", "类似", "可视化"]
+        let corpus = [
+            // 形容词:能被程度副词修饰(很复杂 / 比较复杂 / 太复杂)
+            "这段逻辑很复杂,比较复杂的部分在这里,实在太复杂了,复杂到没法维护,复杂度高",
+            // 泛指名词:总要指示词才确定所指
+            "这个情况怎么办,那种情况不一样,这个情况要分开看,某种情况下会失败,这个情况再说",
+            // 修饰语:总以「X 的」出现
+            "类似的做法有很多,类似的方案我见过,类似的问题反复出现,类似的思路,类似的结构",
+            // 你的实词:既不被程度副词修饰,也不靠指示词,也不总跟「的」
+            "按照第一性原理拆解,用第一性原理想一遍,第一性原理要求回到本质,第一性原理很重要,第一性原理",
+            "整个架构要重来,架构上有问题,先定架构再动手,你的架构不清晰,架构评审",
+        ]
+        let g = MindsBuilder.grammarProfiles(lexicon: lex, corpus: corpus)
+        XCTAssertFalse(MindsBuilder.isContentWord(g["复杂"] ?? .init()), "「很复杂」→ 形容词,不是你的词")
+        XCTAssertFalse(MindsBuilder.isContentWord(g["情况"] ?? .init()), "「这个情况」→ 泛指名词")
+        XCTAssertFalse(MindsBuilder.isContentWord(g["类似"] ?? .init()), "「类似的」→ 修饰语")
+        XCTAssertTrue(MindsBuilder.isContentWord(g["第一性原理"] ?? .init()), "你的词该留下")
+        XCTAssertTrue(MindsBuilder.isContentWord(g["架构"] ?? .init()), "你的词该留下")
+    }
+
+    func testGrammarFilterKeepsRareWordsUnjudged() {
+        // 样本不足 5 次:宁放过不误杀(统计不稳,不下判断)
+        var p = MindsBuilder.GrammarProfile()
+        p.count = 3; p.degree = 3
+        XCTAssertTrue(MindsBuilder.isContentWord(p), "样本太少时不判定")
+    }
+
     // MARK: - 委托光谱
 
     func testDelegationVerbsCountsLinesAndConversations() {
