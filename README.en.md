@@ -34,7 +34,11 @@ Browse and star your history anytime — and let any AI tool tap into it, retrie
 
 <img src="assets/screenshots/browser.png" alt="Conversation browser" width="840" />
 
-**The problem it solves**: you run Claude Code in a terminal, Agent mode in Claude desktop, and Codex on the side. Three tools, three log formats, three directories buried under `~/` — finding last week's decision means digging through them one by one, while every new AI session starts from zero.
+**The problems it solves**, in order of pain:
+
+1. **Your conversations are being deleted on a timer.** Claude Code silently cleans up all history after 30 days — official policy. Every user who lasts 30 days **will** one day find their records gone. Not "might happen" — scheduled to happen, and unrecoverable by the time you notice.
+2. **What survives is hard to find.** Three tools, three log formats, three directories buried under `~/` — finding last week's decision means digging one by one.
+3. **AI forgets everything, every session.** Each new chat starts from zero: decisions made, dead ends explored, preferences agreed — you explain it all again.
 
 The box serves both sides:
 
