@@ -107,6 +107,7 @@ struct MindsView: View {
                 projectLeverageSection
 
                 groupLabel(l10n.s.mindsGroupLanguage)
+                phrasesSection
                 repeatedBriefingsSection
                 pair(catchphrasesSection, fadedSection)
 
@@ -1171,6 +1172,25 @@ struct MindsView: View {
         .buttonStyle(.plain)
     }
 
+    /// 反复说的短语:词与句之间的中间层——思维口令与固定问法。
+    private var phrasesSection: some View {
+        let line = sectionLines("PHRASES YOU REPEAT").first { $0.hasPrefix("- ") }
+        let chips = line.map { chipsFrom(String($0.dropFirst(2))) } ?? []
+        return Group {
+            if !chips.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    sectionTitle("Phrases You Repeat", l10n.s.mindsSecPhrases,
+                                 hint: l10n.s.mindsPhrasesHint)
+                    FlowLayout(spacing: 8) {
+                        ForEach(Array(chips.enumerated()), id: \.element.word) { i, c in
+                            vocabChip(c, mind: i < 6)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private var vocabularySection: some View {
         // 一组(2026-08-16):"- 架构 (115×/15p) · 复用 (31×/9p) · …"
         // 按说得多排序,不分类型——前 6 个金实底(说得最多的一眼可见),其余淡底。
@@ -1203,8 +1223,6 @@ struct MindsView: View {
 
     /// mind 词金实底(身份词,一眼可见——用户三次找「第一性原理」的答案);
     /// work 词淡底(项目词)。meta:「39×·12p」→ 中文「39 次 · 12 个项目」。
-    @State private var pinnedRev = 0        // 关注状态变更触发重绘
-
     private func vocabChip(_ c: (word: String, meta: String), mind: Bool) -> some View {
         Button {
             store.searchQuery = c.word
@@ -1224,16 +1242,6 @@ struct MindsView: View {
             .background(mind ? AnyShapeStyle(DSLight.gold) : AnyShapeStyle(DSLight.sf), in: Capsule())
         }
         .buttonStyle(.plain)
-        // 右键关注:人给语义,机器长期记账(13 轮算法实验证明这类判断只有你能做)
-        .contextMenu {
-            let pinned = PinnedWordsStore.shared.isPinned(c.word)
-            Button(pinned ? l10n.s.mindsUnpinAction : l10n.s.mindsPinAction,
-                   systemImage: pinned ? "eye.slash" : "eye") {
-                PinnedWordsStore.shared.toggle(c.word)
-                pinnedRev += 1
-                store.refresh(minInterval: 0)   // 触发重扫 → minds.md 重建带上新关注词
-            }
-        }
     }
 
     private func vocabMeta(_ meta: String) -> String {

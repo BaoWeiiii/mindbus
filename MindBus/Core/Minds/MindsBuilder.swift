@@ -145,15 +145,8 @@ public enum MindsBuilder {
         surprise.delegationVerbs = delegationVerbs(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 10)
         surprise.researchDestinations = researchDestinations(corpus: corpus)
-        surprise.pinnedWords = pinnedWordStats(
-            words: PinnedWordsStore.shared.all,
-            corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd, startAt: $0.startAt) })
-        surprise.repeatedBriefings = repeatedBriefings(
-            corpus: corpusRows.map { (text: $0.text, convID: $0.convID, startAt: $0.startAt) }, limit: 5)
-        // 四批:结构与关系维度
-        surprise.shape = index.collaborationShape()
-        surprise.weekendSplit = index.weekendSplit(minCount: 2)
-        surprise.projectLeverage = index.projectLeverage(minConversations: 5, limit: 5)
+        surprise.phrases = repeatedPhrases(
+            corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) }, limit: 24)
 
         let mechanical = renderDocument(overview: overview, projects: projects,
                                         vocabulary: vocabulary, vocabStats: vocabStats,
@@ -303,7 +296,7 @@ public enum MindsBuilder {
         // 2026-08-13 语料深读挖掘:提问形状(认知光谱)/项目出生句(创世叙事)
         var questionShape: [(kind: String, count: Int)] = []
         var delegationVerbs: [(verb: String, lines: Int, conversations: Int)] = []
-        var pinnedWords: [PinnedWordStat] = []
+        var phrases: [(phrase: String, times: Int, projects: Int)] = []
         var researchDestinations: [(dest: String, count: Int)] = []
         var firstWords: [(project: String, quote: String, convID: String, at: Date)] = []
         var shape: ConversationIndex.CollaborationShape?
@@ -677,43 +670,70 @@ public enum MindsBuilder {
         }
     }
 
-    /// 关注词的三维追踪(用户三特征:多次说 × 跨项目说 × 隔一段时间说)。
-    /// 词由你点选(PinnedWordsStore),统计由机器长期记账——人给语义,机器给统计。
-    public struct PinnedWordStat: Equatable {
-        public let word: String
-        public let times: Int          // 说过多少次
-        public let projects: Int       // 跨几个项目
-        public let months: Int         // 横跨几个月
-        public let spanDays: Int       // 首末相隔多少天
-    }
+    // MARK: - 反复说的短语(2026-08-16 从真实模式反推的算法)
 
-    static func pinnedWordStats(words: [String],
-                                corpus: [(text: String, cwd: String, startAt: Date)])
-        -> [PinnedWordStat] {
-        let cal = Calendar.current
-        return words.compactMap { w in
-            var times = 0
-            var projects = Set<String>()
-            var dates: [Date] = []
-            for row in corpus {
-                let c = row.text.components(separatedBy: w).count - 1
-                guard c > 0 else { continue }
-                times += c
-                if !row.cwd.isEmpty { projects.insert(row.cwd) }
-                dates.append(row.startAt)
-            }
-            guard times > 0 else { return nil }
-            dates.sort()
-            let months = Set(dates.map { d -> String in
-                let c = cal.dateComponents([.year, .month], from: d)
-                return "\(c.year ?? 0)-\(c.month ?? 0)"
-            }).count
-            let span = dates.count > 1
-                ? Int(dates.last!.timeIntervalSince(dates.first!) / 86_400) : 0
-            return PinnedWordStat(word: w, times: times, projects: projects.count,
-                                  months: months, spanDays: span)
+    /// 短语首尾禁用字:结构助词/量词/连词。汉语最封闭的一类,不是语义黑名单。
+    /// 依据:真实短语不会以它们开头或结尾——「的 skill」「个 skill」「skill 的」
+    /// 是切碎的残片,「第一性原理」「是什么意思」才是完整单元。
+    static let phraseEdgeStops: Set<Character> = ["的", "了", "着", "过", "地", "得",
+                                                  "个", "些", "把", "被", "和", "与",
+                                                  "或", "就", "都", "也", "还", "很", "更", "再"]
+
+    /// 跨项目高频短语:比词长、比句短的中间层——你的思维口令(「从第一性原理思考」)、
+    /// 固定问法(「是什么意思」「是不是需要」)、审美红线(「AI 味」)全在这一层。
+    ///
+    /// 算法是从真实数据反推出来的(用户 2026-08-16 定的方法:先人工找出该被发现的
+    /// 模式,再倒推什么规则能自动发现它们)。四条规则:
+    /// ① 4-12 字 n-gram,按标点切片段内提取(不跨句)
+    /// ② 边界完整:不切断英文单词(「kill 的」这类残片出局)
+    /// ③ 首尾不是结构助词/量词(「的 skill」出局)
+    /// ④ 频次 ≥6 且跨 ≥3 个项目——跨项目才是「跟着你走」而非项目内容
+    /// 最后去子串(同频时保留最长的),按跨项目数 × 频次排序。
+    static func repeatedPhrases(corpus: [(text: String, cwd: String)],
+                                limit: Int) -> [(phrase: String, times: Int, projects: Int)] {
+        var count: [String: Int] = [:]
+        var projects: [String: Set<String>] = [:]
+        let seps = CharacterSet(charactersIn: "。！？\n;；，,、：:!?")
+        func isAlnumASCII(_ c: Character) -> Bool {
+            c.isASCII && (c.isLetter || c.isNumber)
         }
-        .sorted { $0.times > $1.times }
+        for (text, cwd) in corpus {
+            for piece in text.components(separatedBy: seps) {
+                let seg = piece.trimmingCharacters(in: .whitespaces)
+                guard (4...60).contains(seg.count),
+                      seg.contains(where: { ("\u{4E00}"..."\u{9FFF}").contains($0) }) else { continue }
+                let a = Array(seg)
+                for L in 4...12 where a.count >= L {
+                    for i in 0...(a.count - L) {
+                        if isAlnumASCII(a[i]), i > 0, isAlnumASCII(a[i - 1]) { continue }
+                        let j = i + L - 1
+                        if isAlnumASCII(a[j]), j + 1 < a.count, isAlnumASCII(a[j + 1]) { continue }
+                        let g = String(a[i...j]).trimmingCharacters(in: .whitespaces)
+                        guard g.count >= 4, let f = g.first, let l = g.last,
+                              !phraseEdgeStops.contains(f), !phraseEdgeStops.contains(l),
+                              g.contains(where: { ("\u{4E00}"..."\u{9FFF}").contains($0) }),
+                              // 只排阿拉伯数字:Swift 的 isNumber 对中文数字「一」也为真,
+                              // 用它会把「第一性原理」整条毙掉(2026-08-16 实测踩中)
+                              !g.contains(where: { $0.isASCII && $0.isNumber }) else { continue }
+                        count[g, default: 0] += 1
+                        projects[g, default: []].insert(cwd)
+                    }
+                }
+            }
+        }
+        // 频次 + 跨项目双门槛,再去子串(长的优先;同频的短子串是碎片)
+        let cands = count.compactMap { (g, c) -> (String, Int, Int)? in
+            let p = projects[g]?.count ?? 0
+            return (c >= 6 && p >= 3) ? (g, c, p) : nil
+        }.sorted { $0.0.count > $1.0.count }
+        var kept: [(phrase: String, times: Int, projects: Int)] = []
+        for (g, c, p) in cands {
+            if kept.contains(where: { $0.phrase.contains(g) && c <= $0.times + 1 }) { continue }
+            kept.append((phrase: g, times: c, projects: p))
+        }
+        return kept.sorted {
+            $0.projects != $1.projects ? $0.projects > $1.projects : $0.times > $1.times
+        }.prefix(limit).map { $0 }
     }
 
     // MARK: - 汉语语法位置过滤(2026-08-16 创造)
@@ -854,7 +874,7 @@ public enum MindsBuilder {
             renderWeekendSplit(surprise.weekendSplit),
             renderQuestionShape(surprise.questionShape),
             renderDelegation(verbs: surprise.delegationVerbs, research: surprise.researchDestinations),
-            renderPinnedWords(surprise.pinnedWords),
+            renderPhrases(surprise.phrases),
             renderRepeatedBriefings(surprise.repeatedBriefings),
             renderCatchphrases(phrases: surprise.catchphrases, politeness: surprise.politeness),
             renderLeverage(surprise.volume),
@@ -1038,16 +1058,15 @@ public enum MindsBuilder {
         return lines.joined(separator: "\n")
     }
 
-    private static func renderPinnedWords(_ stats: [PinnedWordStat]) -> String {
-        var lines = ["## WORDS YOU WATCH",
-                     "Words you marked yourself — tracked over time. (mechanical, \(stats.count) words)"]
-        if stats.isEmpty {
-            lines.append("(none pinned yet — star a word in the vocabulary section)")
+    private static func renderPhrases(_ ps: [(phrase: String, times: Int, projects: Int)]) -> String {
+        var lines = ["## PHRASES YOU REPEAT",
+                     "Turns of phrase you carry across projects — your thinking commands and stock questions. "
+                        + "(mechanical, \(ps.count) phrases)"]
+        if ps.isEmpty {
+            lines.append("(none yet)")
         } else {
-            for s in stats {
-                lines.append("- \(s.word) — \(s.times)x across \(s.projects) projects, "
-                    + "\(s.months) months, spanning \(s.spanDays) days")
-            }
+            lines.append("- " + ps.map { "\($0.phrase) (\($0.times)×/\($0.projects)p)" }
+                .joined(separator: " · "))
         }
         return lines.joined(separator: "\n")
     }

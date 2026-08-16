@@ -275,6 +275,39 @@ final class MindsSurpriseTests: XCTestCase {
 
 
 
+    // MARK: - 反复说的短语(从真实模式反推的算法)
+
+    func testRepeatedPhrasesFindsCrossProjectPatterns() {
+        // 三个项目各说三遍「从第一性原理思考」——跨项目 = 跟着人走
+        var corpus: [(text: String, cwd: String)] = []
+        for p in ["/a", "/b", "/c"] {
+            for _ in 0..<3 {
+                corpus.append((text: "从第一性原理思考,这个方案是什么意思", cwd: p))
+            }
+        }
+        let out = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 10)
+        let ps = out.map(\.phrase)
+        XCTAssertTrue(ps.contains { $0.contains("第一性原理思考") }, "跨项目高频短语该被找到: \(ps)")
+        XCTAssertTrue(ps.contains { $0.contains("是什么意思") }, "固定问法同样该被找到: \(ps)")
+    }
+
+    func testRepeatedPhrasesRejectsFragments() {
+        // 「的 skill」这类以结构助词开头的碎片必须出局(边界规则)
+        var corpus: [(text: String, cwd: String)] = []
+        for p in ["/a", "/b", "/c"] {
+            for _ in 0..<3 { corpus.append((text: "这个 skill 的写法要改", cwd: p)) }
+        }
+        let ps = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 20).map(\.phrase)
+        XCTAssertFalse(ps.contains { $0.hasPrefix("的") || $0.hasSuffix("的") },
+                       "结构助词不能做短语首尾: \(ps)")
+    }
+
+    func testRepeatedPhrasesNeedsMultipleProjects() {
+        // 只在一个项目里反复说 = 项目内容,不是「带着走的说法」
+        let corpus = (0..<10).map { _ in (text: "把这个报表导出成表格", cwd: "/only") }
+        XCTAssertTrue(MindsBuilder.repeatedPhrases(corpus: corpus, limit: 10).isEmpty)
+    }
+
     // MARK: - 汉语语法位置过滤
 
     func testGrammarFilterDropsAdjectivesAndKeepsContentWords() {
