@@ -8,7 +8,6 @@
 
 模型是租的，对话是你的。
 
-无需联网 · 无需账号 · 源码可查
 
 [![简体中文](https://img.shields.io/badge/简体中文-current-A68450?style=flat-square)](#)
 [![English](https://img.shields.io/badge/English-switch-DDB992?style=flat-square&logo=googletranslate&logoColor=white)](README.en.md)
