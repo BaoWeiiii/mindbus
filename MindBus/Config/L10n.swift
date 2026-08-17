@@ -235,6 +235,8 @@ struct Strings {
     let mindsEmptyRhythm: String
     let mindsEmptyGeneric: String
     /// 图表 tooltip
+    /// 单位「天」——读数表里单位单独成列，不跟数字捆在一个字符串里
+    let mUnitDay: String
     let mHeatLegendLess: String
     let mHeatLegendMore: String
     let mHeatTipConversations: (Int) -> String
@@ -635,6 +637,7 @@ struct Strings {
         mindsLanguageHint: "你反复说的话，跨项目带着走的说法，你未必察觉",
         mindsEmptyRhythm: "继续使用一段时间后，这里会出现你的工作节律。",
         mindsEmptyGeneric: "当前还没有足够数据计算这一项。",
+        mUnitDay: "天",
         mHeatLegendLess: "少",
         mHeatLegendMore: "多",
         mHeatTipConversations: { "\($0) 场对话" },
@@ -1010,6 +1013,7 @@ struct Strings {
         mindsLanguageHint: "phrases you carry from project to project, probably without noticing",
         mindsEmptyRhythm: "Keep using it for a while — your work rhythm will show up here.",
         mindsEmptyGeneric: "Not enough data for this one yet.",
+        mUnitDay: "d",
         mHeatLegendLess: "less",
         mHeatLegendMore: "more",
         mHeatTipConversations: { "\($0) conversations" },

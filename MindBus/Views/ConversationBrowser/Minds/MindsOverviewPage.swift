@@ -169,14 +169,14 @@ struct MindsActivityMap: View {
                             Rectangle().fill(MindsUI.border.opacity(0.8))
                                 .frame(width: 1)
                                 .padding(.vertical, 2)
-                            VStack(alignment: .trailing, spacing: 14) {
+                            VStack(alignment: .leading, spacing: 16) {
                                 stat(l10n.s.mHeatActiveDays, "\(a.active)")
-                                stat(l10n.s.mHeatLongestRun, l10n.s.mSpanDays(a.longestRun))
-                                stat(l10n.s.mHeatLongestGap, l10n.s.mSpanDays(a.longestGap))
+                                stat(l10n.s.mHeatLongestRun, "\(a.longestRun)", unit: l10n.s.mUnitDay)
+                                stat(l10n.s.mHeatLongestGap, "\(a.longestGap)", unit: l10n.s.mUnitDay)
                             }
                             .fixedSize()
-                            // 让第一格与格子阵首行齐平:热力图顶上还压着一行月份刻度
-                            .padding(.top, MindsHeatmap.axisHeight)
+                            // 三行读数对一张七行的格子阵,竖向居中比顶对齐平衡
+                            .frame(maxHeight: .infinity, alignment: .center)
                         }
                     }
                     .mindsCard()
@@ -199,17 +199,27 @@ struct MindsActivityMap: View {
         }
     }
 
-    /// 数字明显高于 Label——这三格是「读数」，不是说明文字
-    private func stat(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+    /// 一行读数：标签 | 数字 | 单位，三列各自对齐。
+    ///
+    /// 之前是「标签 + 整块右对齐的值」，值里混着「49」和「7 天」，
+    /// 个位数因此错开——数字列必须右对齐、单位列必须左对齐，才叫一张读数表。
+    /// 单位也不能和数字一样大：单位是注解，不是数据。
+    private func stat(_ label: String, _ value: String, unit: String = "") -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
             Text(label)
                 .font(.system(size: 12))
                 .foregroundStyle(MindsUI.textSecondary)
+                .frame(width: 62, alignment: .leading)
             Text(value)
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(MindsUI.textPrimary)
                 .mindsTabularNumbers()
-                .frame(minWidth: 44, alignment: .trailing)
+                .frame(width: 34, alignment: .trailing)
+            Text(unit)
+                .font(.system(size: 12))
+                .foregroundStyle(MindsUI.textSecondary)
+                .frame(width: 20, alignment: .leading)
+                .padding(.leading, 3)
         }
     }
 }
