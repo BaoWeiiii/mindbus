@@ -76,8 +76,12 @@ struct MindsSummaryMetrics: View {
         st.earliest.map { max(1, Int(Date().timeIntervalSince($0) / 86_400) + 1) } ?? 1
     }
 
+    /// 分隔线两侧必须等距。此前只有前一格尾部有 Spacer、线到下一个图标是 0，
+    /// 线就贴在图标上了（真机可见）。留白给线自己带，不靠邻居的 Spacer 凑。
     private var divider: some View {
-        Rectangle().fill(MindsUI.border.opacity(0.7)).frame(width: 1, height: 46)
+        Rectangle().fill(MindsUI.border.opacity(0.7))
+            .frame(width: 1, height: 46)
+            .padding(.horizontal, 22)
     }
 
     private func metric(icon: String, value: String, label: String, delta: String?) -> some View {
@@ -110,7 +114,7 @@ struct MindsSummaryMetrics: View {
                     }
                 }
             }
-            Spacer(minLength: 16)
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
