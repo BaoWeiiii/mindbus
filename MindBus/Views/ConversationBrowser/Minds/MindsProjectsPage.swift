@@ -9,7 +9,6 @@ struct MindsProjectsPage: View {
         VStack(alignment: .leading, spacing: MindsUI.moduleGap) {
             MindsMarathons(ctx: ctx)
             MindsProjectRhythm(ctx: ctx)
-            MindsCommonWords(ctx: ctx)
         }
     }
 }
@@ -236,31 +235,5 @@ private struct MindsProjectTimeline: View {
         }
         .padding(.leading, 16).padding(.bottom, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-// MARK: - 你的常用词
-
-struct MindsCommonWords: View {
-    let ctx: MindsContext
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        let chips = ctx.doc.chipRow("VOCABULARY")
-        return Group {
-            if !chips.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    MindsSectionHeader(title: l10n.s.mindsSecVocabulary,
-                                       hint: l10n.s.mindsVocabularyHint)
-                    FlowLayout(spacing: 8) {
-                        ForEach(Array(chips.enumerated()), id: \.element.word) { i, c in
-                            MindsTagChip(word: c.word, meta: ctx.vocabMeta(c.meta),
-                                         emphasis: i < 3) { ctx.search(c.word) }
-                        }
-                    }
-                    .mindsCard()
-                }
-            }
-        }
     }
 }

@@ -23,6 +23,9 @@ struct MindsAIPage: View {
             } right: {
                 MindsFadedWords(ctx: ctx)
             }
+            // 常用词原本在 03。它和上面三节（反复说的话 / 口头禅 / 不再说的词）
+            // 是同一类东西——你的用语，放在语言这一堆的末尾。
+            MindsCommonWords(ctx: ctx)
         }
     }
 }
@@ -380,5 +383,31 @@ private struct MindsFadedRow: View {
             .frame(maxHeight: .infinity, alignment: .center)
         }
         .frame(width: 60, height: 20)
+    }
+}
+
+// MARK: - 你的常用词
+
+struct MindsCommonWords: View {
+    let ctx: MindsContext
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let chips = ctx.doc.chipRow("VOCABULARY")
+        return Group {
+            if !chips.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    MindsSectionHeader(title: l10n.s.mindsSecVocabulary,
+                                       hint: l10n.s.mindsVocabularyHint)
+                    FlowLayout(spacing: 8) {
+                        ForEach(Array(chips.enumerated()), id: \.element.word) { i, c in
+                            MindsTagChip(word: c.word, meta: ctx.vocabMeta(c.meta),
+                                         emphasis: i < 3) { ctx.search(c.word) }
+                        }
+                    }
+                    .mindsCard()
+                }
+            }
+        }
     }
 }
