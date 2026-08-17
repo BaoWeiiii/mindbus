@@ -57,6 +57,19 @@ enum MindsUI {
     static let singleColumnBelow: CGFloat = 760
 }
 
+/// 「图标对齐大数字的视觉中心」。
+///
+/// 默认的 `.center` 会让图标去对齐「数字 + 标签」整块的中心，看上去比数字低半行；
+/// `.firstTextBaseline` 又会落到数字底边。这两种都不是设计要的——要的是图标中心
+/// 与数字中心齐平，所以自定义一条对齐轴，由数字那一行自己声明位置。
+enum MindsMetricCenter: AlignmentID {
+    static func defaultValue(in d: ViewDimensions) -> CGFloat { d[VerticalAlignment.center] }
+}
+
+extension VerticalAlignment {
+    static let mindsMetricCenter = VerticalAlignment(MindsMetricCenter.self)
+}
+
 // MARK: - 卡片
 
 /// 统一卡片：白底 + 1px 描边 + 14 圆角 + 极弱阴影。
@@ -135,17 +148,18 @@ struct MindsInsightRow: View {
     var detail: String?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .mindsMetricCenter, spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .light))
                 .foregroundStyle(MindsUI.accent)
                 .frame(width: 16, height: 16)
-                .padding(.top, 1)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 13))
                     .foregroundStyle(MindsUI.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
+                    // 图标对齐主句中心；副句换行时图标也不会跟着往下跑
+                    .alignmentGuide(.mindsMetricCenter) { $0[VerticalAlignment.center] }
                 if let detail, !detail.isEmpty {
                     Text(detail)
                         .font(.system(size: 12))
@@ -333,7 +347,10 @@ struct MindsEmptyNote: View {
 
 /// 双栏：窄到放不下时自动落成单栏，绝不让页面横向滚动。
 struct MindsTwoColumn<A: View, B: View>: View {
-    var ratio: CGFloat = 0.5
+    /// 落成单栏后两块之间的距离。默认按「两张卡片」给模块间距；
+    /// 卡片**内部**的双栏（例如工作节律的洞察 + 柱图）要传小值，
+    /// 否则同一张卡里会裂出一条和卡间一样宽的沟。
+    var stackedSpacing: CGFloat = MindsUI.moduleGap
     @ViewBuilder var left: () -> A
     @ViewBuilder var right: () -> B
 
@@ -344,7 +361,7 @@ struct MindsTwoColumn<A: View, B: View>: View {
                 right().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .frame(minWidth: MindsUI.singleColumnBelow)
-            VStack(alignment: .leading, spacing: MindsUI.cardGap) {
+            VStack(alignment: .leading, spacing: stackedSpacing) {
                 left()
                 right()
             }

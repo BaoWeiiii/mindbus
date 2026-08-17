@@ -81,30 +81,36 @@ struct MindsSummaryMetrics: View {
     }
 
     private func metric(icon: String, value: String, label: String, delta: String?) -> some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .mindsMetricCenter, spacing: 14) {
             Image(systemName: icon)
                 .font(.system(size: 18, weight: .light))
                 .foregroundStyle(MindsUI.accent)
                 .frame(width: 22)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(value)
                     .font(.system(size: 30, weight: .semibold))
                     .kerning(-0.6)
                     .foregroundStyle(MindsUI.textPrimary)
                     .mindsTabularNumbers()
-                HStack(spacing: 8) {
+                    // 图标对齐这一行的中心，不是整块的中心
+                    .alignmentGuide(.mindsMetricCenter) { $0[VerticalAlignment.center] }
+                HStack(spacing: 10) {
                     Text(label)
                         .font(.system(size: 12))
                         .foregroundStyle(MindsUI.textSecondary)
                     if let delta {
+                        // 环比是另一个量，与指标名之间要有可见的断口，
+                        // 否则「场对话 比上月 -3」读起来像一句话
                         Text(delta)
                             .font(.system(size: 11))
                             .foregroundStyle(MindsUI.textTertiary)
                             .mindsTabularNumbers()
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(MindsUI.surfaceSoft, in: Capsule())
                     }
                 }
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 16)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -129,12 +135,17 @@ struct MindsActivityMap: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .layoutPriority(3)
                         if let a = ctx.viz.activeDays, a.active > 0 {
+                            Rectangle().fill(MindsUI.border.opacity(0.8))
+                                .frame(width: 1)
+                                .padding(.vertical, 2)
                             VStack(alignment: .trailing, spacing: 14) {
                                 stat(l10n.s.mHeatActiveDays, "\(a.active)")
                                 stat(l10n.s.mHeatLongestRun, l10n.s.mSpanDays(a.longestRun))
                                 stat(l10n.s.mHeatLongestGap, l10n.s.mSpanDays(a.longestGap))
                             }
                             .fixedSize()
+                            // 让第一格与格子阵首行齐平:热力图顶上还压着一行月份刻度
+                            .padding(.top, MindsHeatmap.axisHeight)
                         }
                     }
                     .mindsCard()
@@ -184,6 +195,8 @@ struct MindsHeatmap: View {
 
     private static let cell: CGFloat = 17
     private static let gap: CGFloat = 3
+    /// 月份刻度行的高度(含与格子的间距)——右侧统计块靠它对齐到首行格子
+    static let axisHeight: CGFloat = 18
 
     var body: some View {
         let layout = MindsHeatmapLayout(daily: daily, now: Date())
@@ -286,7 +299,7 @@ struct MindsWorkRhythm: View {
                 if insights.isEmpty {
                     MindsEmptyNote(text: l10n.s.mindsEmptyRhythm)
                 } else {
-                    MindsTwoColumn {
+                    MindsTwoColumn(stackedSpacing: 14) {
                         VStack(alignment: .leading, spacing: 16) {
                             ForEach(Array(insights.enumerated()), id: \.offset) { _, item in
                                 MindsInsightRow(icon: item.icon, title: item.title, detail: item.detail)
@@ -348,12 +361,15 @@ struct MindsHourBars: View {
         let maxV = max(hours.max() ?? 1, 1)
         let total = max(hours.reduce(0, +), 1)
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .bottom, spacing: 3) {
+            HStack(alignment: .bottom, spacing: 5) {
                 ForEach(Array(hours.enumerated()), id: \.offset) { h, v in
                     bar(hour: h, value: v, maxV: maxV, total: total)
                 }
             }
-            .frame(height: 92)
+            .frame(height: 76)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(MindsUI.border).frame(height: 1)
+            }
             HStack(spacing: 0) {
                 ForEach([0, 6, 12, 18], id: \.self) { h in
                     Text(String(format: "%02d", h))
@@ -374,7 +390,9 @@ struct MindsHourBars: View {
             Spacer(minLength: 0)
             RoundedRectangle(cornerRadius: 2)
                 .fill(peak ? MindsUI.accent : MindsUI.chartMuted)
-                .frame(height: max(2, 92 * CGFloat(v) / CGFloat(maxV)))
+                // 上限 14:宽窗口下 24 根柱平分会长到 22pt 宽,那是色块不是柱子
+                .frame(maxWidth: 14)
+                .frame(height: max(2, 76 * CGFloat(v) / CGFloat(maxV)))
                 .opacity(hovered == nil || hovered == h ? 1 : 0.55)
         }
         .frame(maxWidth: .infinity)
@@ -406,7 +424,7 @@ struct MindsMonthlyTrend: View {
                 if cur == 0 {
                     MindsEmptyNote(text: l10n.s.mindsEmptyGeneric)
                 } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
                         Text("\(cur)")
                             .font(.system(size: 28, weight: .semibold)).kerning(-0.5)
                             .foregroundStyle(MindsUI.textPrimary)
@@ -417,10 +435,18 @@ struct MindsMonthlyTrend: View {
                             Text(l10n.s.mMonthDelta(cur - ctx.viz.lastMonth))
                                 .font(.system(size: 11)).foregroundStyle(MindsUI.textTertiary)
                                 .mindsTabularNumbers()
+                                .padding(.horizontal, 6).padding(.vertical, 1)
+                                .background(MindsUI.surfaceSoft, in: Capsule())
+                                .padding(.leading, 4)
                         }
                     }
                     let flow = ctx.viz.monthlyFlow
-                    if flow.count >= 2 { MindsMonthlyArea(months: flow) }
+                    if flow.count >= 2 {
+                        VStack(spacing: 5) {
+                            MindsMonthlyArea(months: flow)
+                            MindsMonthAxis(months: flow)
+                        }
+                    }
                     footnotes
                 }
             }
@@ -489,8 +515,31 @@ struct MindsMonthlyArea: View {
                 }
             }
         }
+        .chartXAxis(.hidden)
         .chartYAxis(.hidden)
+        // 两端贴边:连续轴默认各留一段内缩,曲线会浮在图区中间
+        .chartXScale(range: .plotDimension(startPadding: 0, endPadding: 0))
         .frame(height: 92).frame(maxWidth: .infinity)
+    }
+}
+
+/// 月份刻度自绘。Swift Charts 的末端刻度会被绘图区裁掉，而给绘图区留尾距又会让
+/// 面积图的右缘悬空——两头不讨好。标签自己排还顺带和 24 小时柱、周末柱统一成
+/// 同一套做法（图归图、轴归轴）。
+struct MindsMonthAxis: View {
+    let months: [(month: String, count: Int)]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(months.enumerated()), id: \.offset) { i, m in
+                Text(String(m.month.suffix(2)))
+                    .font(BrandFont.mono(9))
+                    .foregroundStyle(MindsUI.textTertiary)
+                    .frame(maxWidth: .infinity,
+                           alignment: i == 0 ? .leading
+                                     : (i == months.count - 1 ? .trailing : .center))
+            }
+        }
     }
 }
 
@@ -537,7 +586,7 @@ struct MindsWeekendPattern: View {
                         Spacer(minLength: 0)
                         RoundedRectangle(cornerRadius: 3)
                             .fill(i >= 5 ? MindsUI.accent : MindsUI.chartMuted)
-                            .frame(maxWidth: 34)
+                            .frame(maxWidth: 46)
                             .frame(height: max(3, 72 * CGFloat(v) / CGFloat(maxV)))
                     }
                     .frame(maxWidth: .infinity)
