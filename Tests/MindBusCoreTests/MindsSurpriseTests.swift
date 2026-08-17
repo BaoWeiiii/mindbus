@@ -483,7 +483,7 @@ final class MindsSurpriseTests: XCTestCase {
     func testRenderSecondBatchSections() {
         var s = MindsBuilder.SurpriseData()
         s.hourQuarters = [1, 0, 0, 2, 3, 6]
-        s.busiestDay = (day: "2026-05-15", count: 6)
+        s.busiestDay = (day: "2026-05-15", count: 6, messages: 420)
         s.switching = (avgPerDay: 1.7, peak: (day: "2026-08-05", count: 5))
         s.volume = (userChars: 1_308_411, totalChars: 15_620_688)
         s.marathons = [ConversationIndex.Marathon(id: "m1", title: "继续", preview: "p",
@@ -492,7 +492,8 @@ final class MindsSurpriseTests: XCTestCase {
         s.fadedWords = [MindsBuilder.FadedWord(word: "协变量", totalCount: 38, silentDays: 92)]
         let doc = render(s)
         XCTAssertTrue(doc.contains("most conversations start 20-24 — 50% (6 of 12)"), doc)
-        XCTAssertTrue(doc.contains("busiest day: 2026-05-15 — 6 conversations (50% of everything, in one day)"))
+        XCTAssertTrue(doc.contains("busiest day: 2026-05-15 — 6 conversations, 420 messages "
+                                   + "(50% of your conversations, in one day)"), doc)
         XCTAssertTrue(doc.contains("you juggle 1.7 projects per active day — peak 5 on 2026-08-05"))
         XCTAssertTrue(doc.contains("you typed 1.3M characters; the conversations hold 15.6M — leverage 1:11"))
         XCTAssertTrue(doc.contains("- 继续 — 5497 messages over 64 days, StrategyGame (id: m1)"))

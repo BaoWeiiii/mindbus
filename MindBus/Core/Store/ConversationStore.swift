@@ -298,7 +298,9 @@ public final class ConversationStore: ObservableObject {
         index?.sanctuaryStats(now: Date())
     }
     public nonisolated func vizVault() -> (files: Int, bytes: Int64) { MindsBuilder.vaultFootprint() }
-    public nonisolated func vizBusiest() -> (day: String, count: Int)? { index?.busiestDay() }
+    public nonisolated func vizBusiest() -> (day: String, count: Int, messages: Int)? {
+        index?.busiestDay()
+    }
     public nonisolated func vizSwitching() -> (avgPerDay: Double, peak: (day: String, count: Int)?) {
         index?.projectSwitching() ?? (0, nil)
     }

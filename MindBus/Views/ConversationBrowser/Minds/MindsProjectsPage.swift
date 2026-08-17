@@ -102,7 +102,8 @@ struct MindsProjectRhythm: View {
 
     var body: some View {
         let rows = ctx.bullets("PROJECT RHYTHM").compactMap(ctx.parseProject)
-        let maxCount = rows.map(\.count).max() ?? 1
+        // 条形按消息数:场数不代表投入(2026-08-18 用户定案)
+        let maxMessages = rows.map(\.messages).max() ?? 1
         return Group {
             if !rows.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
@@ -111,7 +112,7 @@ struct MindsProjectRhythm: View {
                         header
                         ForEach(rows.prefix(8), id: \.path) { row in
                             VStack(spacing: 0) {
-                                MindsProjectRow(row: row, maxCount: maxCount,
+                                MindsProjectRow(row: row, maxMessages: maxMessages,
                                                 expanded: expanded == row.path,
                                                 activeLabel: l10n.s.mindsActiveNow,
                                                 recent: ctx.relativeDay(row.lastTouched)) {
@@ -148,7 +149,7 @@ struct MindsProjectRhythm: View {
 
 private struct MindsProjectRow: View {
     let row: MindsContext.ProjectRow
-    let maxCount: Int
+    let maxMessages: Int
     let expanded: Bool
     let activeLabel: String
     let recent: String
@@ -171,7 +172,7 @@ private struct MindsProjectRow: View {
                     ZStack(alignment: .leading) {
                         Capsule().fill(MindsUI.chartTrack)
                         Capsule().fill(MindsUI.accent)
-                            .frame(width: max(5, geo.size.width * CGFloat(row.count) / CGFloat(max(maxCount, 1))))
+                            .frame(width: max(5, geo.size.width * CGFloat(row.messages) / CGFloat(max(maxMessages, 1))))
                     }
                     .frame(height: 6)
                     .frame(maxHeight: .infinity, alignment: .center)

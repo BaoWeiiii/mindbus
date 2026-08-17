@@ -395,7 +395,8 @@ struct MindsWorkRhythm: View {
         if let b = ctx.viz.busiest, total > 0 {
             out.append(Insight(icon: "flame",
                                title: l10n.s.mRhythmBusiestTitle(b.day),
-                               detail: l10n.s.mRhythmBusiestDetail(b.count, b.count * 100 / max(total, 1))))
+                               detail: l10n.s.mRhythmBusiestDetail(b.count, b.messages,
+                                                                  b.count * 100 / max(total, 1))))
         }
         if let peak = ctx.viz.switching.peak, ctx.viz.switching.avgPerDay > 0 {
             out.append(Insight(icon: "arrow.triangle.swap",

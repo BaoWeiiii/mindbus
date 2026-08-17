@@ -17,7 +17,7 @@ struct MindsViz {
     var sanctuary: ConversationIndex.SanctuaryStats?
     var vault: (files: Int, bytes: Int64) = (0, 0)
     var rescuedCount: Int = 0
-    var busiest: (day: String, count: Int)?
+    var busiest: (day: String, count: Int, messages: Int)?
     var switching: (avgPerDay: Double, peak: (day: String, count: Int)?) = (0, nil)
     var activeDays: MindsBuilder.ActiveDays?
     var weekPercentile: (thisWeek: Int, percentile: Int, median: Int)?

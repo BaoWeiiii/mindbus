@@ -281,3 +281,38 @@ final class MindsDocumentTests: XCTestCase {
         XCTAssertFalse(d.hasAny(["DORMANT PROJECTS"]))
     }
 }
+
+// MARK: - 2026-08-18 修的四项
+
+/// 这一组对着「Minds 发现的内容符不符合预期」那轮审计写的。
+/// 四项各自有具体的真机证据，注释里记了，别当成假想用例删掉。
+extension MindsDocumentTests {
+
+    /// 条形要按消息数画：真机上 Atlas 54 场共 6027 条，Beacon 4 场却有 7914 条，
+    /// 只按场数排会让条长与实际投入成反比。
+    func testProjectRowCarriesMessageCount() {
+        let line = "- /x/Atlas — 54 conversations, 6027 messages, "
+            + "active 2026-05-15 → 2026-05-15, last touched 2026-07-18"
+        let row = MindsDocument(markdown: "").project(line)
+        XCTAssertEqual(row?.count, 54)
+        XCTAssertEqual(row?.messages, 6027)
+    }
+
+    /// 旧文档没有 `N messages` 那一段，读端给 0，界面据此回退到场数——不能崩也不能乱。
+    func testProjectRowMessagesIsZeroOnLegacyLine() {
+        let legacy = "- /x/a — 12 conversations, active 2026-08-01 → 2026-08-15, "
+            + "last touched 2026-08-15"
+        let row = MindsDocument(markdown: "").project(legacy)
+        XCTAssertEqual(row?.count, 12)
+        XCTAssertEqual(row?.messages, 0)
+    }
+
+    /// 「conversations」和「messages」两个数字都在行里，不能互相串位
+    func testProjectRowDoesNotConfuseCountWithMessages() {
+        let line = "- /x/a — 3 conversations, 999 messages, "
+            + "active 2026-08-01 → 2026-08-02, last touched 2026-08-02"
+        let row = MindsDocument(markdown: "").project(line)
+        XCTAssertEqual(row?.count, 3)
+        XCTAssertEqual(row?.messages, 999)
+    }
+}

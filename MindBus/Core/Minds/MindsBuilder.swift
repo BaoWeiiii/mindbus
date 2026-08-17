@@ -59,7 +59,8 @@ public enum MindsBuilder {
     public static func build(from index: ConversationIndex, to url: URL = defaultMindsURL) {
         let now = Date()
         let overview = index.mapOverview()
-        let allProjects = projectRhythms(index: index, projects: overview.byProject)
+        let allProjects = projectRhythms(index: index,
+                                         projects: overview.byProject.filter { isRealProject($0.key) })
         let projects = Array(allProjects.prefix(10))
         // VOCABULARY 从 v14 起按 user 语料数 tf——「你的高频词」必须是你说过的
         // vocabFreqs 在语料拉取之后算(共享同一份,不再独立拉)
@@ -90,6 +91,13 @@ public enum MindsBuilder {
         surprise.switching = index.projectSwitching()
         surprise.volume = index.corpusVolume()
         surprise.marathons = index.marathons(limit: 3)
+        // 下面三项此前从没被赋值(定义了、渲染函数也写好了,就是没人调):
+        // projectLeverage 空 → 项目表的「杠杆」列永久隐藏;
+        // shape/weekendSplit 空 → 界面靠直查 store 还有内容,但 MCP 交给 AI 的
+        // md 里这两节是空的,等于「用户看到的」和「AI 拿到的」不是同一份。
+        surprise.projectLeverage = index.projectLeverage(minConversations: 2, limit: 5)
+        surprise.shape = index.collaborationShape()
+        surprise.weekendSplit = index.weekendSplit(minCount: 2)
         // 语料单次拉取(内存优化):三个消费者共享同一份,map 派生零拷贝
         let corpusRows = index.userCorpusRows()
         surprise.fadedWords = fadedWords(corpus: corpusRows.map { (text: $0.text, startAt: $0.startAt) },
@@ -268,7 +276,7 @@ public enum MindsBuilder {
         var newEntities: [ConversationIndex.EntityStat] = []
         // 2026-08-12 二批（继续按意外度挖掘）：作息指纹 / 杠杆率 / 马拉松 / 不再说的词
         var hourQuarters: [Int] = []                                  // 6 桶 × 4 小时
-        var busiestDay: (day: String, count: Int)?
+        var busiestDay: (day: String, count: Int, messages: Int)?
         var switching: (avgPerDay: Double, peak: (day: String, count: Int)?) = (0, nil)
         var volume: (userChars: Int, totalChars: Int) = (0, 0)
         var marathons: [ConversationIndex.Marathon] = []
@@ -682,6 +690,14 @@ public enum MindsBuilder {
                                                   "个", "些", "把", "被", "和", "与",
                                                   "或", "就", "都", "也", "还", "很", "更", "再"]
 
+    /// 短语首尾不允许出现的标点。含全角/半角括号、引号、书名号与常见标点——
+    /// 判据不是「这个符号不好」，而是「一句话不会以标点开头或结尾」。
+    static func isPhraseEdgePunctuation(_ c: Character) -> Bool {
+        if c.isLetter || c.isNumber { return false }
+        if c == " " { return false }   // 已在 trim 阶段处理，保留判断的单一职责
+        return c.isPunctuation || c.isSymbol
+    }
+
     /// 跨项目高频短语:比词长、比句短的中间层——你的思维口令(「从第一性原理思考」)、
     /// 固定问法(「是什么意思」「是不是需要」)、审美红线(「AI 味」)全在这一层。
     ///
@@ -714,6 +730,10 @@ public enum MindsBuilder {
                         let g = String(a[i...j]).trimmingCharacters(in: .whitespaces)
                         guard g.count >= 4, let f = g.first, let l = g.last,
                               !phraseEdgeStops.contains(f), !phraseEdgeStops.contains(l),
+                              // 首尾不能是标点/括号:真机上「】改成【」跨 9 个项目 45 次,
+                              // 统计完全成立,但那是「把【A】改成【B】」这个书写习惯的
+                              // 括号残片,显示出来是一串符号,不是一句话
+                              !isPhraseEdgePunctuation(f), !isPhraseEdgePunctuation(l),
                               g.contains(where: { ("\u{4E00}"..."\u{9FFF}").contains($0) }),
                               // 只排阿拉伯数字:Swift 的 isNumber 对中文数字「一」也为真,
                               // 用它会把「第一性原理」整条毙掉(2026-08-16 实测踩中)
@@ -940,7 +960,7 @@ public enum MindsBuilder {
     private static let quarterNames = ["00-04", "04-08", "08-12", "12-16", "16-20", "20-24"]
 
     private static func renderWorkRhythm(quarters: [Int],
-                                         busiest: (day: String, count: Int)?,
+                                         busiest: (day: String, count: Int, messages: Int)?,
                                          switching: (avgPerDay: Double, peak: (day: String, count: Int)?),
                                          activeDays: ActiveDays = ActiveDays(active: 0, window: 0, longestRun: 0, longestGap: 0),
                                          weekPercentile: (thisWeek: Int, percentile: Int, median: Int)? = nil) -> String {
@@ -957,7 +977,8 @@ public enum MindsBuilder {
         }
         if let b = busiest {
             let share = b.count * 100 / max(total, 1)
-            lines.append("- busiest day: \(b.day) — \(b.count) conversations (\(share)% of everything, in one day)")
+            lines.append("- busiest day: \(b.day) — \(b.count) conversations, \(b.messages) messages "
+                        + "(\(share)% of your conversations, in one day)")
         }
         if let peak = switching.peak, switching.avgPerDay > 0 {
             lines.append(String(format: "- you juggle %.1f projects per active day — peak %d on %@",
@@ -1258,7 +1279,7 @@ public enum MindsBuilder {
             lines.append("(none yet)")
         } else {
             for p in projects {
-                lines.append("- \(p.cwd) — \(p.count) conversations, "
+                lines.append("- \(p.cwd) — \(p.count) conversations, \(p.messages) messages, "
                             + "active \(day(p.activeStart)) → \(day(p.activeEnd)), "
                             + "last touched \(day(p.lastTouched))")
             }
@@ -1315,6 +1336,12 @@ public enum MindsBuilder {
     struct ProjectRhythm: Equatable {
         let cwd: String
         let count: Int
+        /// 项目下所有会话的消息总数。
+        ///
+        /// 场数不能单独代表投入：真机上 Atlas 54 场共 6027 条消息（一下午的
+        /// 一问一答），Beacon 4 场却有 7914 条。只按场数画条形，条长与
+        /// 实际投入成反比（2026-08-18 用户定案：条形按消息数，场数留作副信息）。
+        let messages: Int
         let activeStart: Date
         let activeEnd: Date
         let lastTouched: Date
@@ -1334,6 +1361,22 @@ public enum MindsBuilder {
     /// 任务简报明确指了这条路径，且项目数至多 10 个、每个项目的会话数在个人库量级下
     /// 是几十到几百条，走 Swift 端 `min`/`max` 比新写一条 `GROUP BY cwd` 聚合 SQL
     /// 更省一次 schema 决策，性能差异在这个量级下可忽略。
+    /// 家目录本身、以及工具自己的缓存目录，都不是「项目」。
+    ///
+    /// 真机上家目录本身（6 场）排进了项目榜第 5、
+    /// `~/.claude/plugins/cache/.../skill-creator`（4 场共 12 条消息）也在候选池里——
+    /// 前者是在家目录随手起的会话，后者是插件缓存，两者都不是用户心里的「项目」。
+    static func isRealProject(_ cwd: String) -> Bool {
+        guard !cwd.isEmpty else { return false }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        // 家目录本身（末尾斜杠算同一个）
+        let normalized = cwd.hasSuffix("/") ? String(cwd.dropLast()) : cwd
+        if normalized == home { return false }
+        // 工具自己的目录：点开头的段（.claude/.codex/.cache…）出现在任何一层就排除
+        let tail = normalized.hasPrefix(home) ? String(normalized.dropFirst(home.count)) : normalized
+        return !tail.split(separator: "/").contains { $0.hasPrefix(".") }
+    }
+
     static func projectRhythms(index: ConversationIndex,
                                projects: [ConversationIndex.FacetCount]) -> [ProjectRhythm] {
         projects.compactMap { fc in
@@ -1341,6 +1384,7 @@ public enum MindsBuilder {
             let metas = index.metadata(forIDs: ids)
             guard !metas.isEmpty else { return nil }
             return ProjectRhythm(cwd: fc.key, count: metas.count,
+                                 messages: metas.reduce(0) { $0 + $1.messageCount },
                                  activeStart: metas.map(\.startAt).min()!,
                                  activeEnd: metas.map(\.startAt).max()!,
                                  lastTouched: metas.map(\.endAt).max()!)

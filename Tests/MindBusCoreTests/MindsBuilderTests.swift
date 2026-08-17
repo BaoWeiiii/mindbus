@@ -302,14 +302,14 @@ final class MindsBuilderTests: XCTestCase {
 
     func testRenderDocumentProjectRhythmRendersEachProject() {
         let projects = [
-            MindsBuilder.ProjectRhythm(cwd: "/p/alpha", count: 54,
+            MindsBuilder.ProjectRhythm(cwd: "/p/alpha", count: 54, messages: 6027,
                                        activeStart: date(2026, 5, 2), activeEnd: date(2026, 8, 9),
                                        lastTouched: date(2026, 8, 10)),
         ]
         let text = MindsBuilder.renderDocument(overview: emptyOverview(), projects: projects, vocabulary: [],
                                                refs: [], builtAt: date(2026, 8, 10))
         XCTAssertTrue(text.contains(
-            "- /p/alpha — 54 conversations, active 2026-05-02 → 2026-08-09, last touched 2026-08-10"))
+            "- /p/alpha — 54 conversations, 6027 messages, active 2026-05-02 → 2026-08-09, last touched 2026-08-10"))
     }
 
     func testRenderDocumentProjectRhythmEmptyShowsPlaceholder() {
@@ -488,9 +488,9 @@ final class MindsBuilderTests: XCTestCase {
 
         // PROJECT RHYTHM
         XCTAssertTrue(content.contains(
-            "- /p/alpha — 2 conversations, active 2026-05-01 → 2026-05-10, last touched 2026-05-10"))
+            "- /p/alpha — 2 conversations, 2 messages, active 2026-05-01 → 2026-05-10, last touched 2026-05-10"))
         XCTAssertTrue(content.contains(
-            "- /p/beta — 1 conversations, active 2026-06-01 → 2026-06-01, last touched 2026-06-01"))
+            "- /p/beta — 1 conversations, 1 messages, active 2026-06-01 → 2026-06-01, last touched 2026-06-01"))
 
         // WEAK SPOTS：没写过 enriched.jsonl，四个空位都是空态
         XCTAssertEqual(content.components(separatedBy: "(empty — fill via minds_enrich)").count - 1, 4)
@@ -568,5 +568,48 @@ final class MindsBuilderTests: XCTestCase {
         let content = try String(contentsOf: MindsBuilder.defaultMindsURL, encoding: .utf8)
         for cwd in included { XCTAssertTrue(content.contains(cwd), "\(cwd) 应在前 10 之内") }
         for cwd in excluded { XCTAssertFalse(content.contains(cwd), "\(cwd) 应被前 10 截断排除") }
+    }
+}
+
+// MARK: - 「什么算项目」必须处处一致（2026-08-18）
+
+extension MindsBuilderTests {
+
+    /// 修「家目录被当成项目」时踩到的：项目节奏过滤了，项目杠杆与周末人格没过滤，
+    /// 于是「项目榜里没有家目录、杠杆榜第一名却是 home」。
+    /// 这一条锁住三处用同一个判据。
+    func testProjectFilterAppliesToLeverageAndWeekendToo() throws {
+        let index = try makeIndex()
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        // 项目杠杆要 join user_corpus，所以这里必须用带 userText 的那个重载——
+        // `upsertConversation` 助手走的是 userText 为空的四元组版本，杠杆查不到东西
+        func put(_ id: String, cwd: String, day: Int) throws {
+            let at = date(2026, 8, day)
+            let lite = ConversationLite(id: id, source: .codex, startAt: at, endAt: at,
+                                       cwd: cwd, gitBranch: nil, preview: "p", messageCount: 2,
+                                       fileURL: URL(fileURLWithPath: "/tmp/pf-\(id).jsonl"))
+            let text = "这一场里用户说的话 \(id)"
+            try index.upsert([(lite: lite,
+                               segments: [Segmenter.Segment(firstMessageIndex: 0,
+                                                            lastMessageIndex: 0, text: text)],
+                               mtime: 1, entityText: text, userText: text, lastRole: "user")])
+        }
+        try put("h1", cwd: home, day: 3)
+        try put("h2", cwd: home, day: 4)
+        try put("c1", cwd: home + "/.claude/plugins/cache/x", day: 5)
+        try put("c2", cwd: home + "/.claude/plugins/cache/x", day: 6)
+        try put("p1", cwd: home + "/dev/mindbus", day: 7)
+        try put("p2", cwd: home + "/dev/mindbus", day: 8)
+
+        let leverage = index.projectLeverage(minConversations: 2, limit: 10).map(\.name)
+        XCTAssertTrue(leverage.contains("mindbus"), "前提：真项目要能算出杠杆，\(leverage)")
+        XCTAssertFalse(leverage.contains("home"), "家目录不该进项目杠杆榜：\(leverage)")
+        XCTAssertFalse(leverage.contains("x"), "插件缓存不该进项目杠杆榜：\(leverage)")
+
+        let split = index.weekendSplit(minCount: 1)
+        let keys = (split.weekday + split.weekend).map(\.key)
+        XCTAssertTrue(keys.contains("mindbus"), keys.description)
+        XCTAssertFalse(keys.contains("home"), "家目录不该进周末人格：\(keys)")
+        XCTAssertFalse(keys.contains("x"), "插件缓存不该进周末人格：\(keys)")
     }
 }

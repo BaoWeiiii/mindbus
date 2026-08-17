@@ -1792,18 +1792,24 @@ public final class ConversationIndex: @unchecked Sendable {
     }
 
     /// 开场对话最多的一天（本机时区日期字符串 + 场数）。空库 nil。
-    public func busiestDay(from: Date = .distantPast, to: Date = .distantFuture) -> (day: String, count: Int)? {
-        var out: (String, Int)?
+    /// 会话数最多的一天。同时给出那天的消息总数——
+    /// 只报场数会误导：真机上「最忙一天 58 场」里有 54 场是一下午的 1-6 条微会话，
+    /// 那天 6027 条消息，比另一个只有 12 场的项目还少（2026-08-18 实测）。
+    public func busiestDay(from: Date = .distantPast,
+                           to: Date = .distantFuture) -> (day: String, count: Int, messages: Int)? {
+        var out: (String, Int, Int)?
         try? queue.sync {
             try db.query("""
-            SELECT date(start_at, 'unixepoch', 'localtime') AS d, COUNT(*) AS c
+            SELECT date(start_at, 'unixepoch', 'localtime') AS d, COUNT(*) AS c,
+                   COALESCE(SUM(message_count), 0) AS m
             FROM conversations WHERE start_at >= ? AND start_at < ?
             GROUP BY d ORDER BY c DESC, d LIMIT 1;
             """, bind: { st in
                 sqlite3_bind_double(st, 1, from.timeIntervalSince1970)
                 sqlite3_bind_double(st, 2, to.timeIntervalSince1970)
             }, row: { st in
-                out = (SQLiteDB.text(st, 0), Int(sqlite3_column_int(st, 1)))
+                out = (SQLiteDB.text(st, 0), Int(sqlite3_column_int(st, 1)),
+                       Int(sqlite3_column_int(st, 2)))
             })
         }
         return out
@@ -2103,7 +2109,11 @@ public final class ConversationIndex: @unchecked Sendable {
             FROM conversations WHERE cwd != ''
             GROUP BY wk, cwd HAVING c >= ? ORDER BY c DESC;
             """, bind: { sqlite3_bind_int($0, 1, Int32(clamping: minCount)) }, row: { st in
-                let tail = MindsBuilder.friendlyProjectTail((SQLiteDB.text(st, 1) as NSString).lastPathComponent)
+                let cwd = SQLiteDB.text(st, 1)
+                // 家目录/工具缓存不是项目——政策在 MindsBuilder,这里只照着问。
+                // 漏了这道过滤会出现「项目节奏里没有家目录、周末人格里却有 home」
+                guard MindsBuilder.isRealProject(cwd) else { return }
+                let tail = MindsBuilder.friendlyProjectTail((cwd as NSString).lastPathComponent)
                 let fc = FacetCount(key: tail, count: Int(sqlite3_column_int(st, 2)))
                 if sqlite3_column_int(st, 0) == 1 { we.append(fc) } else { wd.append(fc) }
             })
@@ -2141,8 +2151,10 @@ public final class ConversationIndex: @unchecked Sendable {
                 sqlite3_bind_int(st, 1, Int32(clamping: minConversations))
                 sqlite3_bind_int(st, 2, Int32(clamping: limit))
             }, row: { st in
+                let cwd = SQLiteDB.text(st, 0)
+                guard MindsBuilder.isRealProject(cwd) else { return }
                 out.append(ProjectLeverage(
-                    name: MindsBuilder.friendlyProjectTail((SQLiteDB.text(st, 0) as NSString).lastPathComponent),
+                    name: MindsBuilder.friendlyProjectTail((cwd as NSString).lastPathComponent),
                     userChars: Int(sqlite3_column_int64(st, 1)),
                     totalChars: Int(sqlite3_column_int64(st, 2)),
                     conversationCount: Int(sqlite3_column_int(st, 3))))

@@ -40,10 +40,10 @@ final class MindsRoundTripTests: XCTestCase {
 
     func testProjectRhythmRoundTrip() {
         let projects = [
-            MindsBuilder.ProjectRhythm(cwd: "/Users/me/dev/mindbus", count: 12,
+            MindsBuilder.ProjectRhythm(cwd: "/Users/me/dev/mindbus", count: 12, messages: 1200,
                                        activeStart: date(2026, 8, 1), activeEnd: date(2026, 8, 15),
                                        lastTouched: date(2026, 8, 15)),
-            MindsBuilder.ProjectRhythm(cwd: "/Users/me/dev/Codex", count: 7,
+            MindsBuilder.ProjectRhythm(cwd: "/Users/me/dev/Codex", count: 7, messages: 700,
                                        activeStart: date(2026, 5, 8), activeEnd: date(2026, 6, 9),
                                        lastTouched: date(2026, 6, 30)),
         ]
@@ -61,7 +61,7 @@ final class MindsRoundTripTests: XCTestCase {
 
     /// 路径里带空格 / 中文时不能把行切碎
     func testProjectPathWithSpacesAndCJK() {
-        let projects = [MindsBuilder.ProjectRhythm(cwd: "/Users/me/我的 项目", count: 3,
+        let projects = [MindsBuilder.ProjectRhythm(cwd: "/Users/me/我的 项目", count: 3, messages: 300,
                                                    activeStart: date(2026, 7, 1),
                                                    activeEnd: date(2026, 7, 2),
                                                    lastTouched: date(2026, 7, 2))]
@@ -148,7 +148,7 @@ final class MindsRoundTripTests: XCTestCase {
 
     func testDormantRoundTrip() {
         let doc = render {
-            $0.dormant = [MindsBuilder.ProjectRhythm(cwd: "/x/StrategyGame", count: 54,
+            $0.dormant = [MindsBuilder.ProjectRhythm(cwd: "/x/StrategyGame", count: 54, messages: 5400,
                                                      activeStart: date(2026, 5, 1),
                                                      activeEnd: date(2026, 5, 15),
                                                      lastTouched: date(2026, 7, 18))]
@@ -189,7 +189,7 @@ final class MindsRoundTripTests: XCTestCase {
 
     /// 界面按节名取数，节名漏一个就是一整块空白。这条锁住「界面用到的节都还在」。
     func testEverySectionTheUIReadsIsPresent() {
-        let projects = [MindsBuilder.ProjectRhythm(cwd: "/x/a", count: 1,
+        let projects = [MindsBuilder.ProjectRhythm(cwd: "/x/a", count: 1, messages: 100,
                                                    activeStart: date(2026, 8, 1),
                                                    activeEnd: date(2026, 8, 2),
                                                    lastTouched: date(2026, 8, 2))]
@@ -242,7 +242,7 @@ extension MindsRoundTripTests {
 
     func testDormantDetailExtraction() {
         let doc = render {
-            $0.dormant = [MindsBuilder.ProjectRhythm(cwd: "/x/StrategyGame", count: 54,
+            $0.dormant = [MindsBuilder.ProjectRhythm(cwd: "/x/StrategyGame", count: 54, messages: 5400,
                                                      activeStart: date(2026, 5, 1),
                                                      activeEnd: date(2026, 5, 15),
                                                      lastTouched: date(2026, 7, 18))]
@@ -311,5 +311,104 @@ extension MindsRoundTripTests {
                 return XCTFail("\(section) 的 meta「\(meta)」没被 chipMeta 认出来")
             }
         }
+    }
+}
+
+// MARK: - 2026-08-18 审计修的四项（写端 → 读端）
+
+extension MindsRoundTripTests {
+
+    /// ② 项目行必须带消息数，否则读端画不出按投入排的条形
+    func testProjectRhythmRoundTripsMessageCount() {
+        let projects = [
+            MindsBuilder.ProjectRhythm(cwd: "/x/Atlas", count: 54, messages: 6027,
+                                       activeStart: date(2026, 5, 15), activeEnd: date(2026, 5, 15),
+                                       lastTouched: date(2026, 7, 18)),
+            MindsBuilder.ProjectRhythm(cwd: "/x/Beacon", count: 4, messages: 7914,
+                                       activeStart: date(2026, 7, 20), activeEnd: date(2026, 7, 30),
+                                       lastTouched: date(2026, 7, 31)),
+        ]
+        let rows = render(projects: projects).projects()
+        XCTAssertEqual(rows.map(\.count), [54, 4])
+        XCTAssertEqual(rows.map(\.messages), [6027, 7914])
+        // 这正是当初的现象：场数最多的项目投入最少
+        XCTAssertTrue(rows[0].count > rows[1].count)
+        XCTAssertTrue(rows[0].messages < rows[1].messages)
+    }
+
+    /// ③ 家目录与工具缓存目录不是项目
+    func testHomeAndToolCachePathsAreNotProjects() {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        XCTAssertFalse(MindsBuilder.isRealProject(home), "家目录本身不是项目")
+        XCTAssertFalse(MindsBuilder.isRealProject(home + "/"), "末尾斜杠是同一个目录")
+        XCTAssertFalse(MindsBuilder.isRealProject(
+            home + "/.claude/plugins/cache/x/skills/skill-creator"), "插件缓存不是项目")
+        XCTAssertFalse(MindsBuilder.isRealProject(home + "/.codex/sessions"))
+        XCTAssertFalse(MindsBuilder.isRealProject(""))
+        XCTAssertTrue(MindsBuilder.isRealProject(home + "/dev/mindbus"))
+        XCTAssertTrue(MindsBuilder.isRealProject(home + "/Desktop/Project/Atlas"))
+        // 家目录之外的隐藏目录不归我们管（用户真把项目放那儿也是他的自由）
+        XCTAssertTrue(MindsBuilder.isRealProject("/opt/work/app"))
+    }
+
+    /// ④ 短语首尾不能是标点：「】改成【」跨 9 个项目 45 次，统计成立但显示是一串符号
+    func testBracketFragmentIsNotAPhrase() {
+        let corpus = (0..<9).map { i in
+            (text: String(repeating: "把【标题】改成【正文】。", count: 6), cwd: "/p/\(i)")
+        }
+        let phrases = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 20).map(\.phrase)
+        for p in phrases {
+            XCTAssertFalse(MindsBuilder.isPhraseEdgePunctuation(p.first!),
+                           "「\(p)」以标点开头")
+            XCTAssertFalse(MindsBuilder.isPhraseEdgePunctuation(p.last!),
+                           "「\(p)」以标点结尾")
+        }
+    }
+
+    func testPhraseEdgePunctuationClassifier() {
+        for c in "】【（）「」《》，。：、,.:;" {
+            XCTAssertTrue(MindsBuilder.isPhraseEdgePunctuation(c), "\(c) 应判为标点")
+        }
+        for c in "第一性原理skillAI7" {
+            XCTAssertFalse(MindsBuilder.isPhraseEdgePunctuation(c), "\(c) 不该判为标点")
+        }
+    }
+
+    /// ① 三个此前从没被赋值的字段:项目杠杆 / 协作形状 / 周末人格。
+    /// 它们空着时,项目表的「杠杆」列永久隐藏,而 MCP 交给 AI 的 md 缺两节——
+    /// 「用户看到的」和「AI 拿到的」不是同一份。
+    func testLeverageByProjectRendersWhenDataPresent() {
+        let doc = render {
+            $0.projectLeverage = [
+                .init(name: "homelab", userChars: 3_000, totalChars: 135_000, conversationCount: 5),
+            ]
+        }
+        let rows = doc.bullets("LEVERAGE BY PROJECT")
+        XCTAssertFalse(rows.isEmpty, "给了数据就必须渲出来——这一节此前永久为空")
+        XCTAssertTrue(rows[0].contains("1:45"), rows[0])
+    }
+
+    func testCollaborationShapeAndWeekendRenderWhenDataPresent() {
+        let doc = render {
+            $0.shape = .init(turnBands: [7, 9, 16, 113], durationBands: [34, 46, 17, 48],
+                             avgCharsPerMessage: 355)
+            $0.weekendSplit = (weekday: [.init(key: "Atlas", count: 54)],
+                               weekend: [.init(key: "mindbus", count: 4)])
+        }
+        XCTAssertFalse(doc.bullets("COLLABORATION SHAPE").isEmpty,
+                       "界面靠直查 store 有内容,但 md 空 = AI 拿不到这一节")
+        XCTAssertFalse(doc.bullets("WEEKEND SELF").isEmpty)
+    }
+
+    /// 「最忙一天」只报场数会误导:真机 58 场里 54 场是 1-6 条的微会话
+    func testBusiestDayLineCarriesMessageCount() {
+        let doc = render {
+            $0.hourQuarters = [1, 1, 1, 1, 1, 1]
+            $0.busiestDay = (day: "2026-05-15", count: 58, messages: 6027)
+        }
+        let line = doc.bullets("WORK RHYTHM").first { $0.contains("busiest day") }
+        XCTAssertNotNil(line)
+        XCTAssertTrue(line!.contains("58 conversations"), line!)
+        XCTAssertTrue(line!.contains("6027 messages"), line!)
     }
 }

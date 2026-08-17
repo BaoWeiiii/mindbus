@@ -53,6 +53,8 @@ struct MindsContext {
         let path: String
         let name: String
         let count: Int
+        /// 消息总数（条形按它画）；旧文档缺这一段时回退成场数
+        let messages: Int
         /// 「05-15 至 08-10」
         let span: String
         let lastTouched: Date?
@@ -68,6 +70,7 @@ struct MindsContext {
             span = "\(MindsDocument.dayString(s).dropFirst(5)) \(l10n.mSpanTo) \(MindsDocument.dayString(e).dropFirst(5))"
         }
         return ProjectRow(path: row.path, name: row.name, count: row.count,
+                          messages: row.messages > 0 ? row.messages : row.count,
                           span: span, lastTouched: row.lastTouched,
                           active: row.isActive(now: now))
     }

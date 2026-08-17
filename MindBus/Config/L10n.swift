@@ -213,7 +213,7 @@ struct Strings {
     let mRhythmPeakTitle: (String) -> String
     let mRhythmPeakDetail: (Int, Int, Int) -> String
     let mRhythmBusiestTitle: (String) -> String
-    let mRhythmBusiestDetail: (Int, Int) -> String
+    let mRhythmBusiestDetail: (Int, Int, Int) -> String
     let mRhythmJuggleTitle: (String) -> String
     let mRhythmJuggleDetail: (Int, String) -> String
     let mRhythmWeekTitle: (Int) -> String
@@ -621,7 +621,7 @@ struct Strings {
         mRhythmPeakTitle: { "开场高峰 \($0) 点" },
         mRhythmPeakDetail: { "\($0)% · \($1)/\($2) 场" },
         mRhythmBusiestTitle: { "最忙一天 \($0)" },
-        mRhythmBusiestDetail: { "\($0) 场 · 占全部 \($1)%" },
+        mRhythmBusiestDetail: { "\($0) 场 · \($1) 条消息 · 占全部 \($2)%" },
         mRhythmJuggleTitle: { "平均每个活跃日跨 \($0) 个项目" },
         mRhythmJuggleDetail: { "峰值 \($0) · \($1)" },
         mRhythmWeekTitle: { "本周至今 \($0) 场" },
@@ -997,7 +997,7 @@ struct Strings {
         mRhythmPeakTitle: { "most conversations start \($0)" },
         mRhythmPeakDetail: { "\($0)% (\($1) of \($2))" },
         mRhythmBusiestTitle: { "busiest day \($0)" },
-        mRhythmBusiestDetail: { "\($0) conversations (\($1)% of everything)" },
+        mRhythmBusiestDetail: { "\($0) conversations · \($1) messages · \($2)% of all" },
         mRhythmJuggleTitle: { "\($0) projects per active day" },
         mRhythmJuggleDetail: { "peak \($0) on \($1)" },
         mRhythmWeekTitle: { "\($0) so far this week" },
