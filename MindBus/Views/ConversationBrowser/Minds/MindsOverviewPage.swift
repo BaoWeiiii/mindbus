@@ -561,11 +561,6 @@ struct MindsMonthlyArea: View {
                 PointMark(x: .value("m", last), y: .value("c", months[last].count))
                     .foregroundStyle(MindsUI.accent)
                     .symbolSize(38)
-                    .annotation(position: .top, alignment: .trailing, spacing: 2) {
-                        Text("\(months[last].count)")
-                            .font(BrandFont.mono(10, weight: .medium))
-                            .foregroundStyle(MindsUI.accentStrong)
-                    }
             }
         }
         .chartXAxis {
@@ -582,7 +577,8 @@ struct MindsMonthlyArea: View {
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         // 两端贴边:连续轴默认各留一段内缩,曲线会浮在图区中间
-        .chartXScale(range: .plotDimension(startPadding: 0, endPadding: 0))
+        // 尾距 8:终点圆点正落在最后一列上,不留一点它会被绘图区裁掉一半
+        .chartXScale(range: .plotDimension(startPadding: 0, endPadding: MindsMonthAxis.trailingInset))
         .frame(height: 92).frame(maxWidth: .infinity)
     }
 }
@@ -593,17 +589,29 @@ struct MindsMonthlyArea: View {
 struct MindsMonthAxis: View {
     let months: [(month: String, count: Int)]
 
+    /// 与面积图的绘图区尾距保持一致，两边算的是同一根轴
+    static let trailingInset: CGFloat = 8
+
     var body: some View {
-        HStack(spacing: 0) {
+        GeometryReader { geo in
             ForEach(Array(months.enumerated()), id: \.offset) { i, m in
                 Text(String(m.month.suffix(2)))
                     .font(BrandFont.mono(9))
                     .foregroundStyle(MindsUI.textTertiary)
-                    .frame(maxWidth: .infinity,
-                           alignment: i == 0 ? .leading
-                                     : (i == months.count - 1 ? .trailing : .center))
+                    .position(x: x(i, in: geo.size.width), y: 6)
             }
         }
+        .frame(height: 12)
+    }
+
+    /// 数据点落在 i/(n-1) 处，刻度也必须落在那里。
+    /// 等分成 n 个格子再各自居中的话，中间几个刻度会整体偏移半格——
+    /// 真机上 05 明显偏在峰值右边。首尾夹一下，免得半个字被切掉。
+    private func x(_ i: Int, in width: CGFloat) -> CGFloat {
+        guard months.count > 1 else { return width / 2 }
+        let usable = max(width - Self.trailingInset, 1)
+        let raw = usable * CGFloat(i) / CGFloat(months.count - 1)
+        return min(max(raw, 9), width - 9)
     }
 }
 
@@ -653,7 +661,7 @@ struct MindsWeekendPattern: View {
                         RoundedRectangle(cornerRadius: 3)
                             .fill(i >= 5 ? MindsUI.accent : MindsUI.chartMuted)
                             .frame(maxWidth: 46)
-                            .frame(height: max(3, 72 * CGFloat(v) / CGFloat(maxV)))
+                            .frame(height: max(7, 72 * CGFloat(v) / CGFloat(maxV)))
                     }
                     .frame(maxWidth: .infinity)
                 }
