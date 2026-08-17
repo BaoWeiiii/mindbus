@@ -519,21 +519,22 @@ struct MindsMonthlyTrend: View {
     }
 
     @ViewBuilder
+    /// 走 `MindsInsightRow`，与「周末的你」的两条脚注同一形态。
+    /// 同一类内容（标签 + 项目计数列表）此前一处带金色图标并缩进、一处纯文字顶格，
+    /// 并排看像两个产品。
     private var footnotes: some View {
         let mo = ctx.viz.month
-        VStack(alignment: .leading, spacing: 5) {
+        return VStack(alignment: .leading, spacing: 10) {
             if !mo.cur.isEmpty {
-                let tools = l10n.s.mMonthTools(mo.cur.map { "\(ctx.sourceName($0.key)) \($0.count)" }
-                    .joined(separator: " · "))
-                Text(tools)
-                    .font(.system(size: 12)).foregroundStyle(MindsUI.textSecondary)
-                    .mindsTabularNumbers()
-                    .fixedSize(horizontal: false, vertical: true)
+                MindsInsightRow(
+                    icon: "square.grid.2x2",
+                    title: l10n.s.mMonthTools(mo.cur.map { "\(ctx.sourceName($0.key)) \($0.count)" }
+                        .joined(separator: " · ")))
             }
             if !mo.newEntities.isEmpty {
-                Text(l10n.s.mMonthFirstSeen(mo.newEntities.prefix(5).joined(separator: " · ")))
-                    .font(.system(size: 12)).foregroundStyle(MindsUI.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                MindsInsightRow(
+                    icon: "sparkle",
+                    title: l10n.s.mMonthFirstSeen(mo.newEntities.prefix(5).joined(separator: " · ")))
             }
         }
     }

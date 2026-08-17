@@ -401,6 +401,21 @@ struct MindsSkeletonGrid: View {
     }
 }
 
+/// 卡片底部那一句结论。四张卡各写各的时候，两处用了 secondary、两处用了 tertiary，
+/// 并排看深浅不一。抽成组件，样式只有一份。
+struct MindsCardFootnote: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 12))
+            .foregroundStyle(MindsUI.textSecondary)
+            .mindsTabularNumbers()
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 /// 数据不够时的说明。不显示一排 0——0 会被读成「我这个月一场没聊」。
 struct MindsEmptyNote: View {
     let text: String

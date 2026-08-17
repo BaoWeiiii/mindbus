@@ -48,8 +48,9 @@ struct MindsTaskRanking: View {
                         }
                         if let dest = ctx.doc.researchDestination() {
                             Spacer(minLength: 6)
-                            Text(String(format: l10n.s.mDelegResearch, dest.destination, "\(dest.count)"))
-                                .font(.system(size: 12)).foregroundStyle(MindsUI.textSecondary)
+                            MindsCardFootnote(
+                                text: String(format: l10n.s.mDelegResearch,
+                                             dest.destination, "\(dest.count)"))
                         }
                     }
                     .mindsCard()
@@ -86,7 +87,7 @@ struct MindsQuestionShape: View {
                         }
                         if let top = counts.first, let v = verdicts[top.kind] {
                             Spacer(minLength: 6)
-                            Text(v).font(.system(size: 12)).foregroundStyle(MindsUI.textSecondary)
+                            MindsCardFootnote(text: v)
                         }
                     }
                     .mindsCard()
@@ -242,9 +243,7 @@ struct MindsLeverage: View {
                         let ub = max(MindsBuilder.bookEquivalent(vol.userChars), 1)
                         let tb = MindsBuilder.bookEquivalent(vol.totalChars)
                         if tb >= 1 {
-                            Text(l10n.s.mLeverageBooks(ub, tb))
-                                .font(.system(size: 12)).foregroundStyle(MindsUI.textTertiary)
-                                .fixedSize(horizontal: false, vertical: true)
+                            MindsCardFootnote(text: l10n.s.mLeverageBooks(ub, tb))
                         }
                         Spacer(minLength: 0)
                     }
@@ -303,9 +302,7 @@ struct MindsCatchphrases: View {
                         }
                         Spacer(minLength: 6)
                         if let list = ctx.doc.politenessLine() {
-                            Text(l10n.s.mPoliteness(list))
-                                .font(.system(size: 12)).foregroundStyle(MindsUI.textTertiary)
-                                .fixedSize(horizontal: false, vertical: true)
+                            MindsCardFootnote(text: l10n.s.mPoliteness(list))
                         }
                     }
                     .mindsCard()
