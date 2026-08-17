@@ -2163,6 +2163,35 @@ public final class ConversationIndex: @unchecked Sendable {
         return out
     }
 
+    /// 跨项目的标识符实体（技术名词候选）。
+    ///
+    /// 存在理由：个人词表只挖中文——`PersonalLexicon` 遇到非 CJK 字符就断开 run，
+    /// 真机上「含拉丁字母的词」恒为 0 个。于是 GitHub 这类词在「常用词」里
+    /// 永远不会出现，哪怕用户自己说了 160 次、覆盖 33 场对话。
+    ///
+    /// 判据沿用 Minds 一直在用的那条：**跨项目才是「跟着你走的词」**。
+    /// 真机对照：GitHub 跨 28 个项目，而 NodeNext 说了 48 次却只跨 2 个项目
+    /// （那是某个项目内部的配置值，不是这个人的口头词）。
+    public func crossProjectIdentifiers(minProjects: Int, limit: Int) -> [(text: String, projects: Int)] {
+        var out: [(String, Int)] = []
+        try? queue.sync {
+            try db.query("""
+            SELECT e.text, COUNT(DISTINCT c.cwd) AS p
+            FROM entities e
+            JOIN conversation_entities ce ON ce.entity_rowid = e.rowid
+            JOIN conversations c ON c.rowid = ce.conv_rowid
+            WHERE e.kind = 'identifier' AND c.cwd != ''
+            GROUP BY e.rowid HAVING p >= ? ORDER BY p DESC LIMIT ?;
+            """, bind: { st in
+                sqlite3_bind_int(st, 1, Int32(clamping: minProjects))
+                sqlite3_bind_int(st, 2, Int32(clamping: limit))
+            }, row: { st in
+                out.append((SQLiteDB.text(st, 0), Int(sqlite3_column_int(st, 1))))
+            })
+        }
+        return out
+    }
+
     /// 知识流动:共享实体最多的项目对。你的项目不是孤岛——
     /// 真实库现场:ResearchKit↔mindbus 共享 87 个概念。
     public struct KnowledgeFlow: Equatable {

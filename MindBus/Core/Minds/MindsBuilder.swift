@@ -114,6 +114,10 @@ public enum MindsBuilder {
         let vocabStats = userVocabularyStats(lexicon: displayLexicon,
                                              corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) })
             .filter { isContentWord(grammar[$0.word] ?? GrammarProfile()) }
+            // 技术名词走单独一路(中文词表挖不到拉丁词,见 technicalTerms 注释)
+            + technicalTerms(candidates: index.crossProjectIdentifiers(minProjects: 3, limit: 60),
+                             corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) },
+                             excluding: projectTails, minTF: 15, minProjects: 3)
         let corpus = corpusRows.map(\.text)
         vocabFreqs = userVocabularyFrequencies(index: index, corpus: corpus)
         let vocabulary = rankVocabulary(frequencies: vocabFreqs, limit: 20)
@@ -842,6 +846,60 @@ public enum MindsBuilder {
                                   projects: projs[$0.key]?.count ?? 0, df: df[$0.key] ?? 0) }
     }
 
+    /// 技术名词也算「你的常用词」。
+    ///
+    /// 为什么要单开一条路：`userVocabularyStats` 只数个人词表里的词，而那份词表
+    /// 只挖中文（`PersonalLexicon` 碰到非 CJK 字符就断 run，真机上含拉丁字母的词
+    /// 恒为 0 个）。所以 GitHub 这类词在「常用词」里永远不会出现——真机上它
+    /// 被说了 160 次、覆盖 33 场、跨 28 个项目，却一次都没进过榜。
+    ///
+    /// 两道门槛都是 Minds 已经在用的判据，不是新发明的语义黑名单：
+    /// - **跨项目数**：跟着你走的词才算你的词。NodeNext 说了 48 次但只跨 2 个项目
+    ///   （某个项目内部的配置值），出局。
+    /// - **出现次数**：node_modules / apply_patch 跨 4-6 个项目但各只说过 5 次
+    ///   （粘报错时捎带进来的），出局。
+    ///
+    /// 大小写不敏感地计数；显示用实体系统给出的规范写法——用户既写 GitHub 也写
+    /// github，而实体抽取已经归一过一次，没必要在这里再判一遍「哪个写法算数」。
+    static func technicalTerms(candidates: [(text: String, projects: Int)],
+                               corpus: [(text: String, cwd: String)],
+                               excluding projectTails: Set<String>,
+                               minTF: Int, minProjects: Int) -> [VocabWord] {
+        let wanted = candidates.filter {
+            $0.projects >= minProjects && !projectTails.contains($0.text.lowercased())
+        }
+        guard !wanted.isEmpty else { return [] }
+
+        var tf: [String: Int] = [:]                 // 小写键
+        var df: [String: Int] = [:]
+        var projs: [String: Set<String>] = [:]
+        var canonical: [String: String] = [:]       // 小写键 → 实体的规范写法
+        for w in wanted { canonical[w.text.lowercased()] = w.text }
+        let keys = wanted.map { $0.text.lowercased() }
+
+        for (text, cwd) in corpus {
+            let lower = text.lowercased()
+            for key in keys {
+                var n = 0
+                var from = lower.startIndex
+                while let r = lower.range(of: key, range: from..<lower.endIndex) {
+                    n += 1
+                    from = r.upperBound
+                }
+                guard n > 0 else { continue }
+                tf[key, default: 0] += n
+                df[key, default: 0] += 1
+                if !cwd.isEmpty { projs[key, default: []].insert(cwd) }
+            }
+        }
+
+        return tf.compactMap { key, count in
+            guard count >= minTF else { return nil }
+            return VocabWord(word: canonical[key] ?? key, tf: count,
+                             projects: projs[key]?.count ?? 0, df: df[key] ?? 0)
+        }
+    }
+
     static func userVocabularyFrequencies(index: ConversationIndex,
                                           lexicon injected: Set<String>? = nil,
                                           corpus injectedCorpus: [String]? = nil) -> [String: Int] {
@@ -1308,7 +1366,16 @@ public enum MindsBuilder {
         // 不再判断词的「类型」——代码识别不了类型,按类型设门槛(要跨 5 个项目
         // 才算思维词)会把「宫本茂」「复用」「乔布斯」这类真信号挡在门外。
         // 口水词由 df 比例挡:需要 47% / 什么 40% 出局,复用 6% / 架构 10% 留下。
-        let topical = stats.filter { Double($0.df) / Double(n) < stopwordDFRatio && $0.word.count >= 2 }
+        // df 阈值只管纯中文词。它的经验依据全部来自中文双字词(定阈时的现场:
+        // 我们 23.3% · 设计 24.7% · 能力 20.7% · 用户 24.0% 全在 20-25%,
+        // 有个性的词全 ≤12%)。拿它去卡拉丁专名是张冠李戴——GitHub 覆盖 22% 会被
+        // 判成「口头语」,可专名不可能是虚词。技术名词自有更严的两道门槛
+        // (出现 ≥15 次且跨 ≥3 个项目,见 technicalTerms)。
+        let topical = stats.filter { w in
+            guard w.word.count >= 2 else { return false }
+            let hasLatin = w.word.contains { $0.isASCII && $0.isLetter }
+            return hasLatin || Double(w.df) / Double(n) < stopwordDFRatio
+        }
         let top = topical
             .sorted { $0.tf != $1.tf ? $0.tf > $1.tf : $0.word < $1.word }
             .prefix(16)

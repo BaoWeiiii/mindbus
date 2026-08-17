@@ -899,3 +899,76 @@ final class MindsSurpriseTests: XCTestCase {
     }
 
 }
+
+// MARK: - 技术名词也算常用词（2026-08-18）
+
+extension MindsSurpriseTests {
+
+    /// 真机现场：GitHub 说了 160 次、覆盖 33 场、跨 28 个项目，却从没进过「常用词」——
+    /// 因为个人词表只挖中文（`PersonalLexicon` 碰到非 CJK 就断 run，含拉丁字母的词恒为 0）。
+    func testTechnicalTermsAdmitsCrossProjectIdentifier() {
+        let corpus = (0..<5).map { i in
+            (text: String(repeating: "去 GitHub 调研一下。", count: 4), cwd: "/p/\(i)")
+        }
+        let terms = MindsBuilder.technicalTerms(
+            candidates: [(text: "GitHub", projects: 28)],
+            corpus: corpus, excluding: [], minTF: 15, minProjects: 3)
+        XCTAssertEqual(terms.count, 1)
+        XCTAssertEqual(terms[0].word, "GitHub", "显示用实体的规范写法")
+        XCTAssertEqual(terms[0].tf, 20)
+        XCTAssertEqual(terms[0].projects, 5)
+    }
+
+    /// 大小写不敏感地计数：用户既写 GitHub 也写 github，是同一个词
+    func testTechnicalTermsCountsCaseInsensitively() {
+        let corpus = [(text: "GitHub github GITHUB gIthUb", cwd: "/p/a"),
+                      (text: "github 上看看", cwd: "/p/b"),
+                      (text: "再去 GitHub", cwd: "/p/c")]
+        let terms = MindsBuilder.technicalTerms(
+            candidates: [(text: "GitHub", projects: 9)],
+            corpus: corpus, excluding: [], minTF: 6, minProjects: 3)
+        XCTAssertEqual(terms.first?.tf, 6)
+        XCTAssertEqual(terms.first?.df, 3)
+    }
+
+    /// 项目内部的标识符不算「你的词」：NodeNext 说了 48 次但只跨 2 个项目
+    func testTechnicalTermsRejectsSingleProjectIdentifier() {
+        let corpus = [(text: String(repeating: "NodeNext ", count: 48), cwd: "/p/only")]
+        let terms = MindsBuilder.technicalTerms(
+            candidates: [(text: "NodeNext", projects: 2)],
+            corpus: corpus, excluding: [], minTF: 15, minProjects: 3)
+        XCTAssertTrue(terms.isEmpty, "跨项目数不够就不算跟着你走的词")
+    }
+
+    /// 粘报错时捎带进来的：node_modules 跨 6 个项目但只说过 5 次
+    func testTechnicalTermsRejectsLowFrequencyNoise() {
+        let corpus = (0..<5).map { i in (text: "node_modules", cwd: "/p/\(i)") }
+        let terms = MindsBuilder.technicalTerms(
+            candidates: [(text: "node_modules", projects: 6)],
+            corpus: corpus, excluding: [], minTF: 15, minProjects: 3)
+        XCTAssertTrue(terms.isEmpty)
+    }
+
+    /// 项目自己的名字不算——「我反复聊 MindBus」零意外度（与 recurring 同一条理由）
+    func testTechnicalTermsExcludesProjectOwnName() {
+        let corpus = (0..<5).map { i in
+            (text: String(repeating: "MindBus ", count: 8), cwd: "/p/\(i)")
+        }
+        let terms = MindsBuilder.technicalTerms(
+            candidates: [(text: "MindBus", projects: 5)],
+            corpus: corpus, excluding: ["mindbus"], minTF: 15, minProjects: 3)
+        XCTAssertTrue(terms.isEmpty)
+    }
+
+    /// 口水词的 df 阈值只管中文：它的经验依据全来自中文双字词，
+    /// 拿去卡拉丁专名会把 GitHub（覆盖 22%）判成「口头语」
+    func testLatinTermsAreExemptFromChineseStopwordRatio() {
+        let n = 150
+        let cjkFiller = MindsBuilder.VocabWord(word: "我们", tf: 400, projects: 20, df: 35)   // 23%
+        let latinNoun = MindsBuilder.VocabWord(word: "GitHub", tf: 160, projects: 25, df: 33) // 22%
+        let doc = MindsBuilder.renderVocabulary(stats: [cjkFiller, latinNoun],
+                                                totalConversations: n)
+        XCTAssertTrue(doc.contains("GitHub"), "拉丁专名不该被中文口水词阈值毙掉：\(doc)")
+        XCTAssertFalse(doc.contains("我们"), "中文口水词仍要被挡住：\(doc)")
+    }
+}
