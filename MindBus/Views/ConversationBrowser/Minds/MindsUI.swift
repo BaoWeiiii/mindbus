@@ -420,6 +420,10 @@ struct MindsTwoColumn<A: View, B: View>: View {
     /// 卡片**内部**的双栏（例如工作节律的洞察 + 柱图）要传小值，
     /// 否则同一张卡里会裂出一条和卡间一样宽的沟。
     var stackedSpacing: CGFloat = MindsUI.moduleGap
+    /// 两半在**同一张卡内**时传 true：落成上下排列后给一条细线，
+    /// 否则文字与图之间那片空白分不清是留白还是没渲出来。
+    /// 卡片与卡片配对时不要开——那会在两张卡中间画一条不属于任何一张的线。
+    var stackedDivider: Bool = false
     @ViewBuilder var left: () -> A
     @ViewBuilder var right: () -> B
 
@@ -432,6 +436,9 @@ struct MindsTwoColumn<A: View, B: View>: View {
             .frame(minWidth: MindsUI.singleColumnBelow)
             VStack(alignment: .leading, spacing: stackedSpacing) {
                 left()
+                if stackedDivider {
+                    Rectangle().fill(MindsUI.border.opacity(0.7)).frame(height: 1)
+                }
                 right()
             }
         }

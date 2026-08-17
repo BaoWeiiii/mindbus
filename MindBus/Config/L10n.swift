@@ -686,7 +686,7 @@ struct Strings {
         mindsRaritiesHint: "最晚的深夜·只问过一次的话题·稀有词",
         mindsSecHeatmap: "活跃地图",
         mindsHeatmapHint: "近一年每天的对话量,点击查看当天",
-        mindsSecWorkRhythm: "工作节律",
+        mindsSecWorkRhythm: "工作节奏",
         mindsWorkRhythmHint: "几点开工、哪天最忙、同时推几个项目",
         mindsSecLeverage: "杠杆率",
         mindsLeverageHint: "你打的字换回了多少",

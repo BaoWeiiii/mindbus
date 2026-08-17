@@ -170,7 +170,7 @@ struct MindsActivityMap: View {
                                 .frame(width: 1)
                                 .padding(.vertical, 2)
                             VStack(alignment: .leading, spacing: 16) {
-                                stat(l10n.s.mHeatActiveDays, "\(a.active)")
+                                stat(l10n.s.mHeatActiveDays, "\(a.active)", unit: l10n.s.mUnitDay)
                                 stat(l10n.s.mHeatLongestRun, "\(a.longestRun)", unit: l10n.s.mUnitDay)
                                 stat(l10n.s.mHeatLongestGap, "\(a.longestGap)", unit: l10n.s.mUnitDay)
                             }
@@ -342,13 +342,8 @@ struct MindsWorkRhythm: View {
                 } else if insights.isEmpty {
                     MindsEmptyNote(text: l10n.s.mindsEmptyRhythm)
                 } else {
-                    MindsTwoColumn(stackedSpacing: 14) {
-                        VStack(alignment: .leading, spacing: 16) {
-                            ForEach(Array(insights.enumerated()), id: \.offset) { _, item in
-                                MindsInsightRow(icon: item.icon, title: item.title, detail: item.detail)
-                            }
-                            Spacer(minLength: 0)
-                        }
+                    MindsTwoColumn(stackedSpacing: 18, stackedDivider: true) {
+                        insightBlock
                     } right: {
                         MindsHourBars(hours: ctx.viz.hourly24, ctx: ctx)
                     }
@@ -356,6 +351,30 @@ struct MindsWorkRhythm: View {
             }
             .mindsCard()
         }
+    }
+
+    /// 洞察块：宽度够就两列两行，不够落回一列。
+    /// 卡片落成单栏时四条竖排会让右半边整片空白，而每条主句最长也就 210pt。
+    private var insightBlock: some View {
+        let items = insights
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 24) {
+                column(Array(items.prefix((items.count + 1) / 2)))
+                column(Array(items.dropFirst((items.count + 1) / 2)))
+            }
+            .frame(minWidth: 520)
+            column(items)
+        }
+    }
+
+    private func column(_ items: [Insight]) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                MindsInsightRow(icon: item.icon, title: item.title, detail: item.detail)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private struct Insight { let icon: String; let title: String; let detail: String }
