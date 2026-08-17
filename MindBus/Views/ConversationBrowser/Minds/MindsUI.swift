@@ -332,6 +332,75 @@ struct MindsTooltip: View {
     }
 }
 
+// MARK: - 骨架
+
+/// 骨架条。整页一个转圈会让人不知道在等什么，也会在数据到位时整页跳版；
+/// 每张卡各自占位、保持原结构，加载完只是内容换上去。
+struct MindsSkeletonBar: View {
+    var width: CGFloat?
+    var height: CGFloat = 12
+    /// 同一张卡里多条错开起拍，避免整片一起闪
+    var phase: Double = 0
+
+    @State private var dim = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: height / 3)
+            .fill(MindsUI.chartTrack)
+            .frame(width: width, height: height)
+            .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
+            .opacity(dim ? 0.45 : 1)
+            .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)
+                        .delay(phase), value: dim)
+            .onAppear { dim = true }
+    }
+}
+
+/// 卡片正文的骨架。形状要照着真实内容排——图文顺序反了的话，数据到位时
+/// 会看到内容"换了个位置"，比没有骨架还乱。
+struct MindsSkeletonBody: View {
+    var chartHeight: CGFloat?
+    var lines: Int = 3
+    /// 真实布局里图在文字上方就留 true；工作节律那种「先四条洞察、后柱图」传 false
+    var chartFirst: Bool = true
+
+    private static let widths: [CGFloat] = [230, 300, 190, 260]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if chartFirst { chart }
+            ForEach(0..<lines, id: \.self) { i in
+                MindsSkeletonBar(width: Self.widths[i % Self.widths.count],
+                                 height: 11, phase: Double(i) * 0.12)
+            }
+            if !chartFirst { chart }
+        }
+    }
+
+    @ViewBuilder
+    private var chart: some View {
+        if let chartHeight { MindsSkeletonBar(height: chartHeight) }
+    }
+}
+
+/// 格子阵骨架。热力图用一整块大矩形占位会像「渲染出错」，
+/// 拆成七行才认得出这是那张图。
+struct MindsSkeletonGrid: View {
+    var rows: Int = 7
+    var rowHeight: CGFloat = 17
+    var gap: CGFloat = 3
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: gap) {
+            MindsSkeletonBar(width: 180, height: 9)
+                .padding(.bottom, 2)
+            ForEach(0..<rows, id: \.self) { i in
+                MindsSkeletonBar(width: nil, height: rowHeight, phase: Double(i) * 0.08)
+            }
+        }
+    }
+}
+
 /// 数据不够时的说明。不显示一排 0——0 会被读成「我这个月一场没聊」。
 struct MindsEmptyNote: View {
     let text: String

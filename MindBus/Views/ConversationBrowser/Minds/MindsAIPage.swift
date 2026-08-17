@@ -105,7 +105,12 @@ struct MindsCollaborationPattern: View {
 
     var body: some View {
         Group {
-            if let sh = ctx.viz.shape, rows(sh).isEmpty == false {
+            if ctx.isLoading {
+                VStack(alignment: .leading, spacing: 0) {
+                    MindsSectionHeader(title: l10n.s.mindsSecShape, hint: l10n.s.mindsShapeHint)
+                    MindsSkeletonBody(chartHeight: 96, lines: 3).mindsCard()
+                }
+            } else if let sh = ctx.viz.shape, rows(sh).isEmpty == false {
                 VStack(alignment: .leading, spacing: 0) {
                     MindsSectionHeader(title: l10n.s.mindsSecShape, hint: l10n.s.mindsShapeHint)
                     VStack(alignment: .leading, spacing: 16) {
@@ -205,7 +210,12 @@ struct MindsLeverage: View {
         let vol = ctx.viz.volume
         let ratio = vol.userChars > 0 ? vol.totalChars / vol.userChars : 0
         return Group {
-            if ratio > 0 {
+            if ctx.isLoading {
+                VStack(alignment: .leading, spacing: 0) {
+                    MindsSectionHeader(title: l10n.s.mindsSecLeverage, hint: l10n.s.mindsLeverageHint)
+                    MindsSkeletonBody(chartHeight: 40, lines: 2).mindsCard()
+                }
+            } else if ratio > 0 {
                 VStack(alignment: .leading, spacing: 0) {
                     MindsSectionHeader(title: l10n.s.mindsSecLeverage, hint: l10n.s.mindsLeverageHint)
                     VStack(alignment: .leading, spacing: 14) {

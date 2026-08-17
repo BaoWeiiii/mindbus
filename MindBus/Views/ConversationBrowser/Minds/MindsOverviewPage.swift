@@ -30,7 +30,29 @@ struct MindsSummaryMetrics: View {
 
     var body: some View {
         Group {
-            if let st = ctx.viz.sanctuary, st.conversationCount > 0 {
+            if ctx.isLoading {
+                HStack(spacing: 0) {
+                    ForEach(0..<3, id: \.self) { i in
+                        HStack(spacing: 14) {
+                            MindsSkeletonBar(width: 22, height: 22, phase: Double(i) * 0.1)
+                            VStack(alignment: .leading, spacing: 7) {
+                                MindsSkeletonBar(width: 96, height: 24, phase: Double(i) * 0.1)
+                                MindsSkeletonBar(width: 56, height: 10, phase: Double(i) * 0.1)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if i < 2 { divider }
+                    }
+                }
+                .padding(MindsUI.cardPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(MindsUI.surface, in: RoundedRectangle(cornerRadius: MindsUI.cardRadius))
+                .overlay {
+                    RoundedRectangle(cornerRadius: MindsUI.cardRadius)
+                        .stroke(MindsUI.border, lineWidth: 1)
+                }
+            } else if let st = ctx.viz.sanctuary, st.conversationCount > 0 {
                 HStack(spacing: 0) {
                     metric(icon: "bubble.left.and.bubble.right",
                            value: "\(st.conversationCount)",
@@ -128,7 +150,12 @@ struct MindsActivityMap: View {
 
     var body: some View {
         Group {
-            if !ctx.viz.dailyHeat.isEmpty {
+            if ctx.isLoading {
+                VStack(alignment: .leading, spacing: 0) {
+                    MindsSectionHeader(title: l10n.s.mindsSecHeatmap, hint: l10n.s.mindsHeatmapHint)
+                    MindsSkeletonGrid().mindsCard()
+                }
+            } else if !ctx.viz.dailyHeat.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     MindsSectionHeader(title: l10n.s.mindsSecHeatmap, hint: l10n.s.mindsHeatmapHint)
                     HStack(alignment: .top, spacing: 20) {
@@ -300,7 +327,9 @@ struct MindsWorkRhythm: View {
         VStack(alignment: .leading, spacing: 0) {
             MindsSectionHeader(title: l10n.s.mindsSecWorkRhythm, hint: l10n.s.mindsWorkRhythmHint)
             Group {
-                if insights.isEmpty {
+                if ctx.isLoading {
+                    MindsSkeletonBody(chartHeight: 76, lines: 4, chartFirst: false)
+                } else if insights.isEmpty {
                     MindsEmptyNote(text: l10n.s.mindsEmptyRhythm)
                 } else {
                     MindsTwoColumn(stackedSpacing: 14) {
@@ -425,7 +454,9 @@ struct MindsMonthlyTrend: View {
         return VStack(alignment: .leading, spacing: 0) {
             MindsSectionHeader(title: l10n.s.mindsSecThisMonth, hint: l10n.s.mindsThisMonthHint)
             VStack(alignment: .leading, spacing: 10) {
-                if cur == 0 {
+                if ctx.isLoading {
+                    MindsSkeletonBody(chartHeight: 92, lines: 2)
+                } else if cur == 0 {
                     MindsEmptyNote(text: l10n.s.mindsEmptyGeneric)
                 } else {
                     HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -558,7 +589,9 @@ struct MindsWeekendPattern: View {
         return VStack(alignment: .leading, spacing: 0) {
             MindsSectionHeader(title: l10n.s.mindsSecWeekend, hint: l10n.s.mindsWeekendHint)
             VStack(alignment: .leading, spacing: 12) {
-                if split.weekday.isEmpty && split.weekend.isEmpty {
+                if ctx.isLoading {
+                    MindsSkeletonBody(chartHeight: 88, lines: 2)
+                } else if split.weekday.isEmpty && split.weekend.isEmpty {
                     MindsEmptyNote(text: l10n.s.mindsEmptyGeneric)
                 } else {
                     weekBars

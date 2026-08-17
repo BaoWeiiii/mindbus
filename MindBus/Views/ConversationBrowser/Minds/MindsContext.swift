@@ -10,12 +10,16 @@ import MindBusCore
 struct MindsContext {
     let store: ConversationStore
     let viz: MindsViz
+    /// 图表数据还在后台查。加载中与「数据不够」必须分开——
+    /// 混成一个状态时，刚打开 Minds 会被告知「还没有足够数据」，那是假话。
+    let isLoading: Bool
     /// 机械层 markdown（已剔除 WEAK SPOTS 之后的部分）
     let doc: MindsDocument
 
-    init(store: ConversationStore, md: String, viz: MindsViz) {
+    init(store: ConversationStore, md: String, viz: MindsViz, isLoading: Bool) {
         self.store = store
         self.viz = viz
+        self.isLoading = isLoading
         self.doc = MindsDocument(markdown: md)
     }
 

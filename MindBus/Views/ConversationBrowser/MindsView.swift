@@ -15,10 +15,12 @@ struct MindsView: View {
     @ObservedObject private var l10n = L10n.shared
 
     @State private var viz = MindsViz()
+    /// 后台取数是否还没回来——决定各卡片出骨架还是出内容
+    @State private var loadingViz = true
     @State private var page: MindsPage = .overview
 
     private var ctx: MindsContext {
-        MindsContext(store: store, md: minds.mechanicalMarkdown, viz: viz)
+        MindsContext(store: store, md: minds.mechanicalMarkdown, viz: viz, isLoading: loadingViz)
     }
 
     var body: some View {
@@ -45,6 +47,7 @@ struct MindsView: View {
                     MindsViz.build(store: s, fadedWords: fadedWords, rescuedCount: rescued)
                 }.value
                 viz = v
+                loadingViz = false
             }
         }
     }
