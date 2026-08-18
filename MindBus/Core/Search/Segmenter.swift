@@ -175,6 +175,17 @@ public enum Segmenter {
         "# In app browser:",
     ]
 
+    /// 只取文本块、丢掉工具调用块的口径。
+    ///
+    /// 检索口径（`plainTextForSearch`）会把工具调用也算进去——搜「哪次跑了
+    /// 这个命令」得搜得到。但「AI 汇报的首句」不能用它:真机上 12 条里程碑
+    /// 抽样有 4 条取到了 [tool: Bash] {"command":…} 这种 JSON,还带着本地路径。
+    public static func textBlocksOnly(of message: Message) -> String {
+        message.blocks.compactMap {
+            if case .text(let t) = $0 { return t } else { return nil }
+        }.joined(separator: "\n")
+    }
+
     /// 以 user 角色进场的系统产物：整条消息以已知系统模式开头，或全文由注入标记主导。
     /// 判定保守（前缀级）——宁放过存疑的，不误杀你的真话。
     public static func isSystemInjected(_ message: Message) -> Bool {

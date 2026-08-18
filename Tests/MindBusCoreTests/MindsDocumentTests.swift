@@ -316,3 +316,36 @@ extension MindsDocumentTests {
         XCTAssertEqual(row?.messages, 999)
     }
 }
+
+// MARK: - 你点头的时刻
+
+extension MindsDocumentTests {
+
+    /// 段落渲染 + 读端解析：一条里程碑 = 日期 + 你说的那句认可 + AI 汇报的首句。
+    func testMilestonesSectionRoundTrip() {
+        let stones = [
+            MindsMilestones.Milestone(headline: "风声扩展 P1 落地完毕：表 + 闸门全链路跑通",
+                                      approval: "继续",
+                                      at: Date(timeIntervalSince1970: 1_754_000_000)),
+            MindsMilestones.Milestone(headline: "上架合规全套上线", approval: "确认",
+                                      at: Date(timeIntervalSince1970: 1_754_100_000)),
+        ]
+        let md = MindsBuilder.renderMilestones(stones, total: 307)
+        XCTAssertTrue(md.contains("## MILESTONES"), md)
+        XCTAssertTrue(md.contains("307"), "总数要如实写出来: \(md)")
+
+        let doc = MindsDocument(markdown: md)
+        let parsed = doc.milestones
+        XCTAssertEqual(parsed.count, 2)
+        // 最近的排在最前
+        XCTAssertEqual(parsed.first?.approval, "确认")
+        XCTAssertEqual(parsed.last?.headline, "风声扩展 P1 落地完毕：表 + 闸门全链路跑通")
+    }
+
+    /// 没有素材时不能装作有——空段落要明说
+    func testMilestonesEmptyStatesSoHonestly() {
+        let md = MindsBuilder.renderMilestones([], total: 0)
+        XCTAssertTrue(md.contains("(none yet)"), md)
+        XCTAssertTrue(MindsDocument(markdown: md).milestones.isEmpty)
+    }
+}

@@ -28,6 +28,8 @@ public struct StreamingIndexer {
         /// 残骸/壳会话判定素材(判定本身在 loader:壳会话还要看文件 mtime)
         public let assistantCount: Int
         public let allAssistantsAPIError: Bool
+        /// 「你点头的时刻」的原始素材(与全量路径共用同一个累加器)
+        public let milestones: [MindsMilestones.Candidate]
     }
 
     private var segmenter = StreamingSegmenter()
@@ -40,6 +42,7 @@ public struct StreamingIndexer {
     private var lastRole = ""
     private var assistantCount = 0
     private var allAssistantsAPIError = true
+    private var milestones = MindsMilestones.CandidateAccumulator()
 
     public init() {}
 
@@ -56,6 +59,7 @@ public struct StreamingIndexer {
         entityParts.append(Segmenter.entityTextOfSingle(m))
         if let u = Segmenter.userTextOfSingle(m) { userParts.append(u) }
         if !Segmenter.isSystemInjected(m) { lastRole = m.role.rawValue }
+        milestones.consume(m, text: Segmenter.textBlocksOnly)
         if m.role == .assistant {
             assistantCount += 1
             let firstBlockText = m.blocks.first?.plainText ?? ""
@@ -72,7 +76,8 @@ public struct StreamingIndexer {
                 userText: userParts.joined(separator: "\n"),
                 lastMeaningfulRole: lastRole,
                 assistantCount: assistantCount,
-                allAssistantsAPIError: allAssistantsAPIError)
+                allAssistantsAPIError: allAssistantsAPIError,
+                milestones: milestones.finish())
     }
 }
 
@@ -85,14 +90,18 @@ public struct IndexRow {
     public let entityText: String
     public let userText: String
     public let lastRole: String
+    /// 「你点头的时刻」的原始素材。扫描时提取一次,判据全留在 Minds 构建层。
+    public let milestones: [MindsMilestones.Candidate]
 
     public init(lite: ConversationLite, segments: [Segmenter.Segment],
-                entityText: String, userText: String, lastRole: String) {
+                entityText: String, userText: String, lastRole: String,
+                milestones: [MindsMilestones.Candidate] = []) {
         self.lite = lite
         self.segments = segments
         self.entityText = entityText
         self.userText = userText
         self.lastRole = lastRole
+        self.milestones = milestones
     }
 
     public static func from(_ conv: Conversation, fileURL: URL) -> IndexRow {
@@ -100,6 +109,8 @@ public struct IndexRow {
                  segments: Segmenter.segments(of: conv.messages),
                  entityText: Segmenter.entityText(of: conv.messages),
                  userText: Segmenter.userText(of: conv.messages),
-                 lastRole: Segmenter.lastMeaningfulRole(of: conv.messages))
+                 lastRole: Segmenter.lastMeaningfulRole(of: conv.messages),
+                 milestones: MindsMilestones.candidates(messages: conv.messages,
+                                                        text: Segmenter.textBlocksOnly))
     }
 }

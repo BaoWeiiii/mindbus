@@ -168,6 +168,14 @@ public enum MindsBuilder {
         surprise.repeatedBriefings = repeatedBriefings(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID, startAt: $0.startAt) },
             limit: 5)
+        // 你点头的时刻:素材是扫描时攒的,判据在这里——认可词表要看过全部
+        // 对话才学得出来(单场里看不出「继续」说了 242 次)。
+        let candidates = index.milestoneCandidates()
+        let approvals = MindsMilestones.learnApprovals(candidates: candidates)
+        let stones = MindsMilestones.milestones(candidates: candidates, approvals: approvals)
+        surprise.milestones = stones
+        surprise.milestonesTotal = stones.count
+
         let pos = posProfile(corpus: corpusRows.map(\.text))
         surprise.phrases = repeatedPhrases(
             corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) }, limit: 24,
@@ -288,6 +296,9 @@ public enum MindsBuilder {
 
     /// 惊喜区的全部数据。测试直接构造这个结构驱动渲染，不用碰索引。
     struct SurpriseData {
+        /// 你点头放行过的成果(已按判据筛过),以及总条数
+        var milestones: [MindsMilestones.Milestone] = []
+        var milestonesTotal = 0
         var unfinished: [ConversationIndex.UnfinishedThread] = []
         var recurring: [ConversationIndex.RecurringEntity] = []
         var dormant: [ProjectRhythm] = []
@@ -1358,6 +1369,7 @@ public enum MindsBuilder {
             renderPhrases(surprise.phrases),
             renderPeople(surprise.citedPeople),
             renderRepeatedBriefings(surprise.repeatedBriefings),
+            renderMilestones(surprise.milestones, total: surprise.milestonesTotal),
             renderCatchphrases(phrases: surprise.catchphrases, politeness: surprise.politeness),
             renderLeverage(surprise.volume),
             renderProjectLeverage(surprise.projectLeverage),
@@ -1596,6 +1608,30 @@ public enum MindsBuilder {
             for b in briefings {
                 let span = b.spanDays >= 1 ? ", spanning \(b.spanDays) days" : ""
                 lines.append("- \(flattened(b.sample).prefix(60)) — said \(b.times)× across \(b.conversations) conversations\(span)")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// 一条里程碑要显示多少条。多了就成流水账——这一栏要的是「回头一看，
+    /// 原来这几件事是我点头放行的」，不是全量日志。
+    static let milestonesShown = 12
+
+    /// 「你点头的时刻」：你说「继续」之前，AI 那条汇报的首句。
+    ///
+    /// 为什么这一栏比「你爱说哪些词」值钱：它是**有内容的事件**——具体、
+    /// 可回溯、被你本人认可过。而且信号完全是机械的：认可词表从你自己的
+    /// 语料学出来，汇报首句是原文照抄，全程没有模型参与。
+    static func renderMilestones(_ stones: [MindsMilestones.Milestone],
+                                 total: Int) -> String {
+        var lines = ["## MILESTONES",
+                     "Work you signed off on — what the AI had just reported when you said OK. "
+                     + "(mechanical, \(total) of them)"]
+        if stones.isEmpty {
+            lines.append("(none yet)")
+        } else {
+            for m in stones.sorted(by: { $0.at > $1.at }).prefix(milestonesShown) {
+                lines.append("- \(day(m.at)) [\(m.approval)] \(m.headline)")
             }
         }
         return lines.joined(separator: "\n")

@@ -50,6 +50,84 @@ public enum MindsMilestones {
     /// 候选出现处有多大比例紧跟在一段长汇报之后。
     static let approvalMinAfterReportRatio = 0.7
 
+    /// 扫描时攒下的一条素材：一条**短** user 消息，配上它前面那条够长的
+    /// AI 汇报的首句（前面没有汇报就是 nil）。
+    ///
+    /// 这一层刻意**不做任何判断**——是不是认可、算不算里程碑，全留给构建层。
+    /// 两个理由：认可词表要看过全部对话才学得出来（单场对话里看不出「继续」
+    /// 说了 242 次）；判据以后还会改，而改判据不该要求用户重建一次索引。
+    public struct Candidate: Equatable, Sendable {
+        public let approval: String
+        public let headline: String?
+        public let at: Date
+        public init(approval: String, headline: String?, at: Date) {
+            self.approval = approval; self.headline = headline; self.at = at
+        }
+    }
+
+    /// 候选素材的累加器。
+    ///
+    /// 全量路径（小文件，整场消息在手）与流式路径（大文件，逐条消费即弃）
+    /// **共用这一份逻辑**——两处各写一遍的话口径会悄悄分叉，这是
+    /// `Segmenter.userTextOfSingle` 已经交过的学费。
+    ///
+    /// 流式下只需记住「最近一条够长的汇报的首句」，一个变量就够：
+    /// 全量路径里的「从当前位置往回找」找到的必然也是最近的那一条。
+    public struct CandidateAccumulator {
+        private var lastHeadline: String?
+        private var out: [Candidate] = []
+        public init() {}
+
+        public mutating func consume(_ m: Message, text: (Message) -> String) {
+            switch m.role {
+            case .assistant:
+                let t = text(m)
+                if t.count >= minReportLength, let h = headline(of: t) { lastHeadline = h }
+            case .user:
+                let said = text(m).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !said.isEmpty,
+                      normalizedApproval(said).count <= maxApprovalLength else { return }
+                out.append(Candidate(approval: said, headline: lastHeadline, at: m.timestamp))
+            default:
+                break
+            }
+        }
+
+        public func finish() -> [Candidate] { out }
+    }
+
+    /// 从一场对话里取出全部候选素材。扫描时逐场调用。
+    public static func candidates(messages: [Message], text: (Message) -> String) -> [Candidate] {
+        var acc = CandidateAccumulator()
+        for m in messages { acc.consume(m, text: text) }
+        return acc.finish()
+    }
+
+    /// 从候选素材里学出认可词表。判据与 `learnApprovals(conversations:text:)`
+    /// 完全相同,只是输入换成了扫描时攒下的素材。
+    public static func learnApprovals(candidates: [Candidate]) -> Set<String> {
+        var seen: [String: Int] = [:], afterReport: [String: Int] = [:]
+        for c in candidates {
+            let core = normalizedApproval(c.approval)
+            guard !core.isEmpty else { continue }
+            seen[core, default: 0] += 1
+            if c.headline != nil { afterReport[core, default: 0] += 1 }
+        }
+        return Set(seen.compactMap { word, n -> String? in
+            guard n >= approvalMinOccurrences else { return nil }
+            return Double(afterReport[word] ?? 0) / Double(n) >= approvalMinAfterReportRatio ? word : nil
+        })
+    }
+
+    /// 用学出的词表把候选筛成里程碑:既要是认可,前面又确实有过一段汇报。
+    public static func milestones(candidates: [Candidate],
+                                  approvals: Set<String>) -> [Milestone] {
+        candidates.compactMap { c in
+            guard let h = c.headline, isApproval(c.approval, approvals: approvals) else { return nil }
+            return Milestone(headline: h, approval: c.approval, at: c.at)
+        }
+    }
+
     /// **学出**这个人的认可词，而不是预先写死一张中文表。
     ///
     /// 判据三条，全部与语言无关：

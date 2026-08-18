@@ -312,4 +312,18 @@ public struct MindsDocument: Sendable {
                                         to: calendar.startOfDay(for: now)).day ?? 0
         return max(0, d)
     }
+
+    /// 「你点头的时刻」：`- 日期 [你说的那句] AI 汇报的首句`
+    public var milestones: [(day: String, approval: String, headline: String)] {
+        bullets("MILESTONES").compactMap { line in
+            let line = String(line.dropFirst(2))          // 去掉 "- "
+            guard let lb = line.firstIndex(of: "["), let rb = line.firstIndex(of: "]"),
+                  lb < rb else { return nil }
+            let day = line[line.startIndex..<lb].trimmingCharacters(in: .whitespaces)
+            let approval = String(line[line.index(after: lb)..<rb])
+            let headline = line[line.index(after: rb)...].trimmingCharacters(in: .whitespaces)
+            guard !headline.isEmpty else { return nil }
+            return (day, approval, headline)
+        }
+    }
 }

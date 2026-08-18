@@ -190,3 +190,88 @@ extension MindsMilestonesTests {
         XCTAssertTrue(MindsMilestones.extractDecisions(messages: ms, text: plain).isEmpty)
     }
 }
+
+// MARK: - 拆成三段：扫描产出素材、构建时学表、构建时筛选
+
+extension MindsMilestonesTests {
+
+    private func at(_ d: Int) -> Date { Date(timeIntervalSince1970: 1_700_000_000 + Double(d) * 86400) }
+
+    /// 扫描一场对话，产出候选素材：每条**短** user 消息，配上它前面那条
+    /// 够长的 AI 汇报的首句（没有就是 nil）。这一层**不做任何判断**——
+    /// 认可词表要看全部对话才学得出来，而判据以后还会改，改判据不该要求重建索引。
+    func testCandidatesCarryRawMaterialOnly() {
+        let report = String(repeating: "风声扩展 P1 落地完毕，表和闸门全链路跑通。", count: 12)
+        let msgs = [
+            msg(.assistant, report),
+            msg(.user, "继续", minute: 1),
+            msg(.user, "这里再改一下配色和间距，另外把标题也一并换掉", minute: 2),
+            msg(.user, "好", minute: 3),
+        ]
+        let cands = MindsMilestones.candidates(messages: msgs, text: plain)
+        XCTAssertEqual(cands.map(\.approval), ["继续", "好"], "长消息不是候选")
+        XCTAssertTrue(cands.allSatisfy { $0.headline?.contains("风声扩展 P1 落地完毕") == true })
+    }
+
+    /// 前面没有够长的汇报时，headline 为 nil——这条候选照样要留，
+    /// 「学认可词」正是靠「有多大比例跟在汇报之后」把认可和口头禅分开的。
+    func testCandidateWithoutReportIsStillKept() {
+        let msgs = [msg(.user, "在吗"), msg(.assistant, "在的", minute: 1),
+                    msg(.user, "继续", minute: 2)]
+        let cands = MindsMilestones.candidates(messages: msgs, text: plain)
+        XCTAssertEqual(cands.count, 2)
+        XCTAssertTrue(cands.allSatisfy { $0.headline == nil })
+    }
+
+    /// 从候选学认可词表：判据不变（短 + 反复出现 + 绝大多数跟在汇报之后），
+    /// 只是输入从「整批对话」换成了「扫描时攒下的候选」。
+    func testLearnApprovalsFromCandidates() {
+        var cands: [MindsMilestones.Candidate] = []
+        for i in 0..<8 {
+            cands.append(.init(approval: "继续", headline: "第 \(i) 块做完了，测试全绿", at: at(i)))
+            cands.append(.init(approval: "在吗", headline: nil, at: at(i)))
+        }
+        let learned = MindsMilestones.learnApprovals(candidates: cands)
+        XCTAssertTrue(learned.contains("继续"))
+        XCTAssertFalse(learned.contains("在吗"), "口头禅不是认可: \(learned)")
+    }
+
+    /// 用学出的词表筛出里程碑：认可 + 前面确实有汇报，两个条件同时成立才算。
+    func testMilestonesNeedBothApprovalAndReport() {
+        let cands: [MindsMilestones.Candidate] = [
+            .init(approval: "继续", headline: "接入层改完了，压测通过", at: at(1)),
+            .init(approval: "继续", headline: nil, at: at(2)),
+            .init(approval: "在吗", headline: "别的事情做完了", at: at(3)),
+        ]
+        let out = MindsMilestones.milestones(candidates: cands, approvals: ["继续"])
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out.first?.headline, "接入层改完了，压测通过")
+    }
+}
+
+// MARK: - 两条扫描路径必须等价
+
+extension MindsMilestonesTests {
+
+    /// 大文件走流式、小文件走全量，两条路径的候选素材必须逐条相同——
+    /// 口径分叉的话，同一场对话换个大小就会得出不同的里程碑。
+    func testStreamingAndFullPathAgree() {
+        let report = String(repeating: "接入层改完了，压测通过，缓存命中率 92%。", count: 12)
+        let msgs = [
+            msg(.user, "先看看这块"),
+            msg(.assistant, report, minute: 1),
+            msg(.user, "继续", minute: 2),
+            msg(.assistant, "短回复", minute: 3),
+            msg(.user, "好", minute: 4),
+            msg(.user, "这条太长了不该算候选，我在描述一个完整的需求和它的边界", minute: 5),
+        ]
+        let full = MindsMilestones.candidates(messages: msgs, text: plain)
+        var acc = MindsMilestones.CandidateAccumulator()
+        for m in msgs { acc.consume(m, text: plain) }
+        XCTAssertEqual(full, acc.finish())
+        XCTAssertEqual(full.map(\.approval), ["先看看这块", "继续", "好"])
+        XCTAssertNil(full[0].headline, "第一条前面还没有汇报")
+        XCTAssertNotNil(full[1].headline)
+        XCTAssertNotNil(full[2].headline, "中间那条短回复不算汇报，仍挂在前面那条上")
+    }
+}

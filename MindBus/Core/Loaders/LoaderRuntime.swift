@@ -223,7 +223,7 @@ public enum LoaderRuntime {
         // 只保留 (瘦身 lite + 全文)；小批 flush 进 SQLite，全文不累积全部。
         let group = DispatchGroup()
         let lock = NSLock()
-        var batch: [(lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String)] = []
+        var batch: [(lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String, milestones: [MindsMilestones.Candidate])] = []
         var barren: [(path: String, mtime: Double)] = []   // 解析了但没产出的
         var revived: [String] = []                         // 曾无产出、这次有了的
         var dupSkipped: [(path: String, mtime: Double)] = []   // 同 id 不同 path 被 upsert 跳过的副本文件
@@ -254,7 +254,7 @@ public enum LoaderRuntime {
             parseGate.wait()
             group.enter()
             DispatchQueue.global(qos: .utility).async {
-                var row: (lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String)? = nil
+                var row: (lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String, milestones: [MindsMilestones.Candidate])? = nil
                 autoreleasepool {
                     // 段级索引:切段后写入(会话级全文实测 R@1 仅 5.2%)。产物形状由
                     // makeRow 统一(全量路径 IndexRow.from / 大文件流式 streamIndexRow)。
@@ -271,7 +271,7 @@ public enum LoaderRuntime {
                                let filtered = Self.rebuildFilteringBuriedMessages(url: item.url, row: r) {
                                 r = filtered
                             }
-                            row = (r.lite, r.segments, item.mtime, r.entityText, r.userText, r.lastRole)
+                            row = (r.lite, r.segments, item.mtime, r.entityText, r.userText, r.lastRole, r.milestones)
                         }
                     }
                 }
@@ -294,7 +294,7 @@ public enum LoaderRuntime {
                     lock.lock(); barren.append((item.url.path, item.mtime)); lock.unlock()
                     return
                 }
-                var pending: [(lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String)]? = nil
+                var pending: [(lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String, milestones: [MindsMilestones.Candidate])]? = nil
                 lock.lock()
                 revived.append(item.url.path)
                 batch.append(r)

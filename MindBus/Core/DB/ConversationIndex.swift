@@ -110,6 +110,7 @@ public final class ConversationIndex: @unchecked Sendable {
         for table in ["conversations", "segments", "segments_fts", "segments_fts_uni",
                       "entities", "conversation_entities", "skipped_files",
                       "segments_fts_lex", "lexicon", "lexicon_meta", "mcp_refs", "user_corpus",
+                      "milestone_candidates",
                       "vocab_uni", "vocab_lex"] {
             var exists = false
             try db.query("SELECT 1 FROM sqlite_master WHERE name = ? LIMIT 1;",
@@ -178,6 +179,16 @@ public final class ConversationIndex: @unchecked Sendable {
         conv_rowid INTEGER PRIMARY KEY,
         text TEXT NOT NULL
     );
+    -- 「你点头的时刻」的原始素材:每条短 user 回应 + 它前面那条够长的 AI 汇报
+    -- 首句(headline 为 NULL = 前面没有汇报)。刻意只存素材、不存结论——认可词表
+    -- 要看过全部对话才学得出来,而判据以后还会改,改判据不该要求用户重建索引。
+    CREATE TABLE IF NOT EXISTS milestone_candidates (
+        conv_rowid INTEGER NOT NULL,
+        approval TEXT NOT NULL,
+        headline TEXT,
+        at REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_milestone_conv ON milestone_candidates(conv_rowid);
     -- MCP 引用回流聚合（Task 5 写入；只用于记录与展示，本轮绝不进排序公式）
     CREATE TABLE IF NOT EXISTS mcp_refs (
         conv_id TEXT PRIMARY KEY,
@@ -261,7 +272,7 @@ public final class ConversationIndex: @unchecked Sendable {
     ///      user:」——「## My request for Codex:」之后才是用户的话，无标记的整条
     ///      是文件清单）。真机 16 场被它把 /var/folders 临时路径灌进语料、创世句
     ///      被顶成 markdown 标题遭噪声正则误杀。存量行含着注入头，必须整体重建。
-    public static let dataPolicyVersion: Int32 = 18
+    public static let dataPolicyVersion: Int32 = 19
 
     private func migrateDataPolicyIfNeeded() throws {
         var current: Int32 = 0
@@ -283,6 +294,7 @@ public final class ConversationIndex: @unchecked Sendable {
         DROP TABLE IF EXISTS lexicon_meta;
         DROP TABLE IF EXISTS mcp_refs;
         DROP TABLE IF EXISTS user_corpus;
+        DROP TABLE IF EXISTS milestone_candidates;
         """)
         try db.exec(Self.schemaSQL)
         try db.exec("PRAGMA user_version = \(Self.dataPolicyVersion);")
@@ -346,6 +358,22 @@ public final class ConversationIndex: @unchecked Sendable {
                               row: { df = Int(sqlite3_column_int64($0, 0)) })
                 if df > 0 { out[word] = df }
             }
+        }
+        return out
+    }
+
+    /// 「你点头的时刻」的全部原始素材。判据（学认可词、筛里程碑）在 Minds
+    /// 构建层，这里只把素材原样取出来。
+    public func milestoneCandidates() -> [MindsMilestones.Candidate] {
+        var out: [MindsMilestones.Candidate] = []
+        try? queue.sync {
+            try db.query("SELECT approval, headline, at FROM milestone_candidates;",
+                         bind: { _ in }, row: { st in
+                let approval = String(cString: sqlite3_column_text(st, 0))
+                let headline = sqlite3_column_text(st, 1).map { String(cString: $0) }
+                out.append(.init(approval: approval, headline: headline,
+                                 at: Date(timeIntervalSince1970: sqlite3_column_double(st, 2))))
+            })
         }
         return out
     }
@@ -634,15 +662,26 @@ public final class ConversationIndex: @unchecked Sendable {
     /// markSkipped——否则副本文件的 mtime 永远不入库，每轮扫描都白解析一遍再跳过。
     /// 4 元重载：既有调用方（全部测试）不带 userText——转发传空串，
     /// user_corpus 仍写行（空串），行数守恒不因调用口径而破。
+    /// 6 元重载：不带里程碑素材的调用方（既有测试）——转发传空数组。
+    /// 素材缺失只让「你点头的时刻」这一项为空，不影响别的产物。
+    @discardableResult
+    public func upsert(_ rows: [(lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String)]) throws
+        -> [(path: String, mtime: Double)] {
+        try upsert(rows.map { (lite: $0.lite, segments: $0.segments, mtime: $0.mtime,
+                               entityText: $0.entityText, userText: $0.userText,
+                               lastRole: $0.lastRole, milestones: []) })
+    }
+
     @discardableResult
     public func upsert(_ rows: [(lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String)]) throws
         -> [(path: String, mtime: Double)] {
         try upsert(rows.map { (lite: $0.lite, segments: $0.segments, mtime: $0.mtime,
-                               entityText: $0.entityText, userText: "", lastRole: "") })
+                               entityText: $0.entityText, userText: "", lastRole: "",
+                               milestones: []) })
     }
 
     @discardableResult
-    public func upsert(_ rows: [(lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String)]) throws
+    public func upsert(_ rows: [(lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String, milestones: [MindsMilestones.Candidate])]) throws
         -> [(path: String, mtime: Double)] {
         var duplicates: [(path: String, mtime: Double)] = []
         try queue.sync {
@@ -681,7 +720,7 @@ public final class ConversationIndex: @unchecked Sendable {
 
     /// 单条 upsert（调用方保证在 queue + transaction 内）。`lexicon`：本批共用的词表快照，
     /// 供第三路切分用（见 `upsert` 里 `loadLexiconInsideQueue()` 的注释）。
-    private func upsertOne(_ it: (lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String),
+    private func upsertOne(_ it: (lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String, milestones: [MindsMilestones.Candidate]),
                             lexicon: Set<String>) throws {
         let l = it.lite
         // 先删旧（含该会话的段与三路 fts），再插，保证幂等——否则重扫会让段随每次重扫翻倍
@@ -704,6 +743,8 @@ public final class ConversationIndex: @unchecked Sendable {
             // 不保证等于这个旧 rid（SQLite 复用的是全表当前最大 rowid+1，不是
             // 本会话原来的号），所以不能指望后面「按新 rowid 删一次」能连带清掉它。
             try db.run("DELETE FROM conversation_entities WHERE conv_rowid = ?;",
+                       bind: { sqlite3_bind_int64($0, 1, rid) })
+            try db.run("DELETE FROM milestone_candidates WHERE conv_rowid = ?;",
                        bind: { sqlite3_bind_int64($0, 1, rid) })
             try db.run("DELETE FROM user_corpus WHERE conv_rowid = ?;",
                        bind: { sqlite3_bind_int64($0, 1, rid) })
@@ -736,6 +777,19 @@ public final class ConversationIndex: @unchecked Sendable {
             sqlite3_bind_int64(s, 1, newRowid)
             sqlite3_bind_text(s, 2, it.userText, -1, SQLiteDB.transient)
         })
+        for c in it.milestones {
+            try db.run("""
+                INSERT INTO milestone_candidates(conv_rowid, approval, headline, at)
+                VALUES(?,?,?,?);
+                """, bind: { s in
+                sqlite3_bind_int64(s, 1, newRowid)
+                sqlite3_bind_text(s, 2, c.approval, -1, SQLiteDB.transient)
+                if let h = c.headline {
+                    sqlite3_bind_text(s, 3, h, -1, SQLiteDB.transient)
+                } else { sqlite3_bind_null(s, 3) }
+                sqlite3_bind_double(s, 4, c.at.timeIntervalSince1970)
+            })
+        }
         for seg in it.segments {
             try db.run("INSERT INTO segments(conv_rowid, first_msg, last_msg, text) VALUES(?,?,?,?);",
                        bind: { s in
@@ -925,6 +979,8 @@ public final class ConversationIndex: @unchecked Sendable {
                                    bind: { sqlite3_bind_int64($0, 1, r) })
                         // 实体关联同属子表，必须在删主行之前删掉，否则实体页会指向已不存在的会话
                         try db.run("DELETE FROM conversation_entities WHERE conv_rowid = ?;",
+                                   bind: { sqlite3_bind_int64($0, 1, r) })
+                        try db.run("DELETE FROM milestone_candidates WHERE conv_rowid = ?;",
                                    bind: { sqlite3_bind_int64($0, 1, r) })
                         try db.run("DELETE FROM user_corpus WHERE conv_rowid = ?;",
                                    bind: { sqlite3_bind_int64($0, 1, r) })
