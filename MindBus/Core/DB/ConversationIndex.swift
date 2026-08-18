@@ -410,6 +410,44 @@ public final class ConversationIndex: @unchecked Sendable {
         return out.map { (candidate: $0.0, conversationID: $0.1) }
     }
 
+    /// 某一场对话的目录素材：里程碑与拍板各自的（消息 id, 文本）。
+    /// 判据照旧在调用方——认可词表要全局学，这里只按会话取素材。
+    public func outlineMaterial(conversationID: String)
+        -> (milestones: [(candidate: MindsMilestones.Candidate, messageID: String)],
+            decisions: [(statement: String, messageID: String)]) {
+        var stones: [(MindsMilestones.Candidate, String)] = []
+        var calls: [(String, String)] = []
+        try? queue.sync {
+            try db.query("""
+                SELECT m.approval, m.headline, m.at, m.message_id
+                FROM milestone_candidates m JOIN conversations c ON c.rowid = m.conv_rowid
+                WHERE c.id = ? AND m.headline IS NOT NULL AND m.message_id != '';
+                """, bind: { sqlite3_bind_text($0, 1, conversationID, -1, SQLiteDB.transient) },
+                row: { st in
+                stones.append((.init(approval: String(cString: sqlite3_column_text(st, 0)),
+                                     headline: sqlite3_column_text(st, 1).map { String(cString: $0) },
+                                     at: Date(timeIntervalSince1970: sqlite3_column_double(st, 2))),
+                               String(cString: sqlite3_column_text(st, 3))))
+            })
+            try db.query("""
+                SELECT d.statement, d.message_id
+                FROM decision_points d JOIN conversations c ON c.rowid = d.conv_rowid
+                WHERE c.id = ? AND d.message_id != '';
+                """, bind: { sqlite3_bind_text($0, 1, conversationID, -1, SQLiteDB.transient) },
+                row: { st in
+                calls.append((String(cString: sqlite3_column_text(st, 0)),
+                              String(cString: sqlite3_column_text(st, 1))))
+            })
+        }
+        return (stones.map { (candidate: $0.0, messageID: $0.1) },
+                calls.map { (statement: $0.0, messageID: $0.1) })
+    }
+
+    /// 全库的里程碑素材（只为学认可词表用——判据要看过所有对话）。
+    public func allMilestoneApprovals() -> Set<String> {
+        MindsMilestones.learnApprovals(candidates: milestoneCandidates())
+    }
+
     /// 里程碑素材 + 它属于哪个项目。返回素材而不是计数——认可词表要看过
     /// 全部对话才学得出来，判据只能在构建层做。
     public func milestoneCandidatesByProject()
