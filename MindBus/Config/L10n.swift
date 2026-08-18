@@ -293,6 +293,9 @@ struct Strings {
     let mindsCatchphrasesHint: String
     let mindsSecRarities: String
     let mindsRaritiesHint: String
+    let mindsSecTaught: String
+    let mindsTaughtHint: String
+    let mindsTaughtMeta: (Int, Int) -> String
     let mindsSecOpenLoops: String
     let mindsOpenLoopsHint: String
     let forgottenHelp: String
@@ -702,6 +705,9 @@ struct Strings {
         mindsCatchphrasesHint: "你总挂在嘴边的短句，原话照数",
         mindsSecRarities: "独一无二",
         mindsRaritiesHint: "最晚的深夜·只问过一次的话题·稀有词",
+        mindsSecTaught: "它教你的词",
+        mindsTaughtHint: "它先说的,你后来接过来、带着走了好几个项目",
+        mindsTaughtMeta: { "\($0) 天后你开始用 · \($1) 个项目" },
         mindsSecOpenLoops: "悬着的事",
         mindsOpenLoopsHint: "它问了你、你再没回过——每条都还等着你定",
         forgottenHelp: "跟这场相关、但久到你多半忘了的旧对话",
@@ -1093,6 +1099,9 @@ struct Strings {
         mindsCatchphrasesHint: "short messages you send again and again",
         mindsSecRarities: "Rarities",
         mindsRaritiesHint: "deepest night · asked once · rare words",
+        mindsSecTaught: "Words It Taught You",
+        mindsTaughtHint: "it used them first — you picked them up and carried them on",
+        mindsTaughtMeta: { "picked up \($0)d later · \($1) projects" },
         mindsSecOpenLoops: "Open Loops",
         mindsOpenLoopsHint: "it asked, you never answered — still waiting on you",
         forgottenHelp: "related work old enough that you have probably forgotten it",

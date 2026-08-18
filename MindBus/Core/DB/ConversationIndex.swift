@@ -415,6 +415,20 @@ public final class ConversationIndex: @unchecked Sendable {
         return out.map { (candidate: $0.0, conversationID: $0.1) }
     }
 
+    /// 词表词的文档频次（出现在多少场对话里）。判「这个词是不是库里到处都是」用。
+    public func documentFrequencies() -> (df: [String: Int], total: Int) {
+        var df: [String: Int] = [:]
+        var total = 1
+        try? queue.sync {
+            try db.query("SELECT count(*) FROM conversations;", bind: { _ in },
+                         row: { total = max(1, Int(sqlite3_column_int64($0, 0))) })
+            try db.query("SELECT term, doc FROM vocab_lex;", bind: { _ in }, row: { st in
+                df[String(cString: sqlite3_column_text(st, 0))] = Int(sqlite3_column_int64(st, 1))
+            })
+        }
+        return (df, total)
+    }
+
     /// 「你可能忘了的」：与当前这场相关、但已经久到你多半想不起来的旧对话。
     ///
     /// # 为什么是这个形状（第一性原理）

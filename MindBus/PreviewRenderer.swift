@@ -30,6 +30,7 @@ enum PreviewRenderer {
             render(forgottenSample, name: "forgotten", size: CGSize(width: 400, height: 240), to: sub)
             render(openLoopsSample, name: "minds-open-loops", size: CGSize(width: 900, height: 330), to: sub)
             render(phraseQuotesSample, name: "minds-phrase-quotes", size: CGSize(width: 900, height: 420), to: sub)
+            render(taughtSample, name: "minds-taught", size: CGSize(width: 900, height: 340), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -66,6 +67,25 @@ enum PreviewRenderer {
     }
 
     /// 「悬着的事」样张（真机原话）
+    /// 「它教你的词」样张（真机数据）
+    private static var taughtSample: some View {
+        let md = """
+        # Minds
+
+        ## WORDS IT TAUGHT YOU
+        Words it used first. (mechanical, 6)
+        - 视觉语言 — 33d later, 4 projects
+        - 半透明 — 43d later, 4 projects
+        - 评估方法 — 93d later, 3 projects
+        - 副标题 — 43d later, 3 projects
+        - 长期留存 — 87d later, 2 projects
+        - 黑名单 — 108d later, 2 projects
+        """
+        return MindsWordsItTaught(ctx: MindsContext(store: ConversationStore(), md: md,
+                                                    viz: MindsViz(), isLoading: false))
+            .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
+    }
+
     /// 「你反复说的话」+ 展开成原话（真机数据）
     private static var phraseQuotesSample: some View {
         let md = """

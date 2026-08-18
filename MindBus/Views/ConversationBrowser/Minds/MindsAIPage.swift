@@ -18,6 +18,7 @@ struct MindsAIPage: View {
                 MindsLeverage(ctx: ctx)
             }
             MindsRepeatedPhrases(ctx: ctx)
+            MindsWordsItTaught(ctx: ctx)
             MindsCitedPeople(ctx: ctx)
             MindsRepeatedBriefings(ctx: ctx)
             MindsTwoColumn {
@@ -502,5 +503,50 @@ struct MindsRepeatedBriefings: View {
             out += "，" + l10n.s.mBriefSpan(Int(span) ?? 0)
         }
         return out
+    }
+}
+
+// MARK: - 它教你的词
+
+/// 它先说的词，你后来接过来、并且带着走了好几个项目。
+///
+/// 这是只有跨工具对话库才做得到的观察：单个 AI 工具只看得见自己那一摊，
+/// 看不到你在别的项目、别的工具里的用词演变。真机上「视觉语言」是它先说的，
+/// 33 天后你开始用，如今带着它走了 4 个项目——你以为是自己的词。
+///
+/// 判据全是时间和精确匹配，没有语义推断：谁先说、隔了多久、你带它走了几个项目。
+struct MindsWordsItTaught: View {
+    let ctx: MindsContext
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let items = ctx.wordsItTaughtYou
+        return Group {
+            if !items.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    MindsSectionHeader(title: l10n.s.mindsSecTaught, hint: l10n.s.mindsTaughtHint)
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(items.enumerated()), id: \.offset) { i, it in
+                            if i > 0 {
+                                Rectangle().fill(MindsUI.border.opacity(0.55))
+                                    .frame(height: 1).padding(.vertical, 8)
+                            }
+                            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                Text(it.word)
+                                    .font(BrandFont.text(it.word, 13, weight: .medium))
+                                    .foregroundStyle(MindsUI.textPrimary)
+                                    .frame(width: 110, alignment: .leading)
+                                    .lineLimit(1)
+                                Text(l10n.s.mindsTaughtMeta(it.gapDays, it.projects))
+                                    .font(BrandFont.text(l10n.s.mindsTaughtMeta(it.gapDays, it.projects), 11.5))
+                                    .foregroundStyle(MindsUI.textSecondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }
+                    .mindsCard()
+                }
+            }
+        }
     }
 }

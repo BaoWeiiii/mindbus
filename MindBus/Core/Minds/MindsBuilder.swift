@@ -208,6 +208,20 @@ public enum MindsBuilder {
             if !qs.isEmpty { surprise.quotesByPhrase[p.phrase] = qs }
         }
 
+        // 词汇的传染方向。要角色和时间戳,索引里的段是合并的,只能回原文件解析
+        // ——真机 141 场约 7 秒,Minds 本来就是后台重建,这个代价换得起。
+        surprise.contagion = vocabularyContagion(
+            conversations: index.allMetadata().compactMap { lite in
+                guard let conv = LoaderRuntime.fullParse(url: lite.fileURL, source: lite.source)
+                else { return nil }
+                return (messages: conv.messages, cwd: lite.cwd)
+            },
+            lexicon: index.loadLexicon(),
+            limit: contagionShown,
+            functionWords: Set(pos.compactMap {
+                functionWordClasses.contains($0.value) ? $0.key.lowercased() : nil
+            }))
+
         let mechanical = renderDocument(overview: overview, projects: projects,
                                         vocabulary: vocabulary, vocabStats: vocabStats,
                                         refs: refs, surprise: surprise, builtAt: now)
@@ -365,6 +379,8 @@ public enum MindsBuilder {
         var phrases: [(phrase: String, times: Int, projects: Int)] = []
         /// 锚点展开成的原话:短语 → 你在不同项目里说过的完整句子
         var quotesByPhrase: [String: [(text: String, cwd: String)]] = [:]
+        /// 它先说、你后来接过来的词
+        var contagion: [(word: String, gapDays: Int, projects: Int)] = []
         /// 短语展开成的原话：锚点 → 你在不同项目里说过的完整句子
         var phraseQuotes: [String: [(text: String, cwd: String)]] = [:]
         var researchDestinations: [(dest: String, count: Int)] = []
@@ -956,6 +972,123 @@ public enum MindsBuilder {
         return out
     }
 
+    /// 「它先说、你后来接过来」至少要隔多久。同一天不算——那多半只是你在
+    /// 同一场对话里顺着它的话复述了一遍，不是把这个词带走了。
+    static let contagionMinGapDays = 1
+
+    /// 接过来的词至少要用在几个项目里。只在一个项目里跟着说过一次，
+    /// 说明你没真的带走它。
+    static let contagionMinProjects = 2
+
+    /// 词汇的传染方向：哪些词是**它先说、你后来接过来**的。
+    ///
+    /// 这是只有跨工具对话库才做得到的观察——单个 AI 工具只看得见自己那一摊，
+    /// 看不到你在别的项目、别的工具里的用词演变。
+    ///
+    /// 真机实例：「用户旅程」是它先说的，17 天后你开始用，如今带着它走了
+    /// 4 个项目；「视觉语言」33 天；「黑名单」108 天。你以为是自己的词，
+    /// 其实是它教你的。
+    ///
+    /// 判据全是时间和精确匹配，没有语义推断：首次出现的先后（谁先说）、
+    /// 间隔（≥1 天，排掉同场复述）、你的项目覆盖（≥2，排掉当场跟读）。
+    /// 词的会话覆盖率上限。超过它就是到处都有的常用字眼——「浏览器」「互联网」
+    /// 「右上角」不是它教你的概念，只是碰巧它先说了
+    /// （2026-08-18 真机现场：不设这道闸，前六名全是这种）。
+    ///
+    /// df **在这一层自己数**，不读 vocab_lex：那张表是词表统计的产物，
+    /// Minds 重建的时候它还是空的（时序在后），读出来 df 全是 0，
+    /// 这道闸会静默失效——第一版就是这样，装机后结果一字未变才发现。
+    /// 自己数还顺带更准：vocab_lex 的 doc 是**段**级的，这里要的是会话级。
+    static let contagionMaxDF = 0.10
+
+    /// 覆盖率这道闸的最低样本量。库太小时「出现在几成对话里」没有分辨力
+    /// ——三场对话里任何词都是 33% 起步，闸门会把真词一起毙掉
+    /// （同 `phraseComponentMinConversations` 的道理）。新装的库因此先不设这道闸。
+    static let contagionMinConversations = 30
+
+    static func vocabularyContagion(conversations: [(messages: [Message], cwd: String)],
+                                    lexicon: Set<String>,
+                                    limit: Int,
+                                    functionWords: Set<String> = [])
+        -> [(word: String, gapDays: Int, projects: Int)] {
+        var aiFirst: [String: Date] = [:]
+        var userFirst: [String: Date] = [:]
+        var userProjects: [String: Set<String>] = [:]
+        var conversationsWith: [String: Int] = [:]
+        let words = lexicon.filter { $0.count >= 3 }
+        // 从文本里取 n-gram 查词表,而不是拿每个词去 contains 整段文本:
+        // 后者是 O(词表 × 语料),真机 2324 词 × 数千条消息直接把测试从 12 秒
+        // 拖到 563 秒（2026-08-18 实测）。取 n-gram 是 O(语料 × 4)。
+        let lengths = Set(words.map(\.count)).filter { (3...8).contains($0) }.sorted()
+        func hits(in text: String) -> Set<String> {
+            var out = Set<String>()
+            let chars = Array(text)
+            for n in lengths where chars.count >= n {
+                for i in 0...(chars.count - n) {
+                    let gram = String(chars[i..<i + n])
+                    if words.contains(gram) { out.insert(gram) }
+                }
+            }
+            return out
+        }
+        for (messages, cwd) in conversations {
+            var seenHere = Set<String>()
+            for m in messages {
+                let text = Segmenter.textBlocksOnly(of: m)
+                guard text.count >= 4 else { continue }
+                for w in hits(in: text) {
+                    seenHere.insert(w)
+                    switch m.role {
+                    case .assistant:
+                        if aiFirst[w].map({ m.timestamp < $0 }) ?? true { aiFirst[w] = m.timestamp }
+                    case .user:
+                        if userFirst[w].map({ m.timestamp < $0 }) ?? true { userFirst[w] = m.timestamp }
+                        userProjects[w, default: []].insert(cwd)
+                    default: break
+                    }
+                }
+            }
+            for w in seenHere { conversationsWith[w, default: 0] += 1 }
+        }
+        let docTotal = max(conversations.count, 1)
+        var out: [(word: String, gapDays: Int, projects: Int)] = []
+        for (w, uf) in userFirst {
+            guard let af = aiFirst[w], af < uf else { continue }
+            let gap = Int(uf.timeIntervalSince(af) / 86400)
+            let projects = userProjects[w]?.count ?? 0
+            guard gap >= contagionMinGapDays, projects >= contagionMinProjects,
+                  docTotal < contagionMinConversations
+                    || Double(conversationsWith[w] ?? 0) / Double(docTotal) <= contagionMaxDF,
+                  !edgeIsFunctionWord(w, functionWords: functionWords),
+                  // 纯拉丁的多词组合在这一层几乎都是虚词串(do not / is not)
+                  !w.allSatisfy({ $0.isASCII && ($0.isLetter || $0 == " ") })
+            else { continue }
+            out.append((word: w, gapDays: gap, projects: projects))
+        }
+        // 先按你带它走了几个项目（接得有多深），再按隔了多久（隔越久越说明是真学到）
+        return Array(out.sorted {
+            $0.projects != $1.projects ? $0.projects > $1.projects : $0.gapDays > $1.gapDays
+        }.prefix(limit))
+    }
+
+    /// 传染词显示几个
+    static let contagionShown = 10
+
+    /// 「它教你的词」：它先说、你后来接过来、并且带着走了几个项目。
+    static func renderContagion(_ items: [(word: String, gapDays: Int, projects: Int)]) -> String {
+        var lines = ["## WORDS IT TAUGHT YOU",
+                     "Words it used first — you picked them up later and carried them across projects. "
+                        + "(mechanical, \(items.count))"]
+        if items.isEmpty {
+            lines.append("(none yet)")
+        } else {
+            for i in items {
+                lines.append("- \(i.word) — \(i.gapDays)d later, \(i.projects) projects")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// 一条代表句的长度区间。短于下界没有信息（「AI 味」本身），
     /// 长于上界就不是一句话而是一段话，摘出来也读不动。
     static let quoteLength = 10...70
@@ -1438,6 +1571,7 @@ public enum MindsBuilder {
             renderQuestionShape(surprise.questionShape),
             renderDelegation(verbs: surprise.delegationVerbs, research: surprise.researchDestinations),
             renderPhrases(surprise.phrases, quotes: surprise.quotesByPhrase),
+            renderContagion(surprise.contagion),
             renderPeople(surprise.citedPeople),
             renderRepeatedBriefings(surprise.repeatedBriefings),
             renderOpenLoops(surprise.unfinished),

@@ -376,4 +376,17 @@ public struct MindsDocument: Sendable {
             return (phrase, project, text)
         }
     }
+
+    /// 它教你的词：`- 词 — Nd later, M projects`
+    public var wordsItTaughtYou: [(word: String, gapDays: Int, projects: Int)] {
+        bullets("WORDS IT TAUGHT YOU").compactMap { line in
+            let body = String(line.dropFirst(2))
+            guard let dash = body.range(of: " — ") else { return nil }
+            let word = String(body[body.startIndex..<dash.lowerBound])
+            let rest = body[dash.upperBound...]
+            let nums = Self.captures(String(rest), #"(\d+)d later, (\d+) projects"#)
+            guard nums.count == 2, let d = Int(nums[0]), let p = Int(nums[1]) else { return nil }
+            return (word, d, p)
+        }
+    }
 }
