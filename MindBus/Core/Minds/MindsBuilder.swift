@@ -112,9 +112,13 @@ public enum MindsBuilder {
                                   thresholds: displayLexiconThresholds))
         // 语法位置过滤:把「类似/更好/复杂/情况」这类汉语通用词剔掉,留你的实词
         let grammar = grammarProfiles(lexicon: displayLexicon, corpus: corpusRows.map(\.text))
+        let posContent = contentWordByPOS(corpus: corpusRows.map(\.text))
         let vocabStats = userVocabularyStats(lexicon: displayLexicon,
                                              corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) })
             .filter { isContentWord(grammar[$0.word] ?? GrammarProfile()) }
+            // 第二道:系统词性标注剔虚词。查不到词性的保留(分词器的局限不该
+            // 让「大模型」这类词出局)
+            .filter { posContent[$0.word] ?? true }
             // 技术名词走单独一路(中文词表挖不到拉丁词,见 technicalTerms 注释)
             + technicalTerms(candidates: index.crossProjectIdentifiers(minProjects: 3, limit: 60),
                              corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) },
@@ -947,6 +951,42 @@ public enum MindsBuilder {
                                   projects: projs[$0.key]?.count ?? 0, df: df[$0.key] ?? 0) }
     }
 
+    /// 汉语虚词的词类。用系统词性标注剔除——**词类是语法事实，不是我对词义的判断**，
+    /// 这跟「不要黑名单」不冲突：介词/连词/代词/助词在汉语里是封闭类。
+    ///
+    /// 为什么需要它：现行榜按出现次数排，虚词天然排不上，所以看着没问题；
+    /// 可一旦排序换成「跨项目数」（跟着你走的词才算你的词），虚词立刻冒头——
+    /// 它们天然跨所有项目。真机验证（2026-08-18）：按跨项目排的 top16 里
+    /// 混进了 非常(Adverb) · 完全(OtherWord) · 以及(Conjunction)。
+    ///
+    /// 查不到词性的一律**保留**：系统分词器不认识的词（真机上「大模型」就被它
+    /// 切开了）不该因为工具的局限而出局。
+    static let functionWordClasses: Set<String> = [
+        "Adverb", "Conjunction", "Pronoun", "Preposition",
+        "Particle", "Determiner", "Interjection", "OtherWord",
+    ]
+
+    /// 给语料里的词元打词性，取众数。返回「词 → 是否实词」。
+    static func contentWordByPOS(corpus: [String]) -> [String: Bool] {
+        var byWord: [String: [String: Int]] = [:]
+        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        for text in corpus where !text.isEmpty {
+            tagger.string = text
+            tagger.setLanguage(.simplifiedChinese, range: text.startIndex..<text.endIndex)
+            tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word,
+                                 scheme: .lexicalClass,
+                                 options: [.omitWhitespace, .omitPunctuation]) { tag, r in
+                guard let tag else { return true }
+                byWord[String(text[r]), default: [:]][tag.rawValue, default: 0] += 1
+                return true
+            }
+        }
+        return byWord.compactMapValues { dist in
+            guard let top = dist.max(by: { $0.value < $1.value })?.key else { return nil }
+            return !functionWordClasses.contains(top)
+        }
+    }
+
     /// 你引用过的人。
     ///
     /// 为什么值得单开一节：人名的价值不在频次而在「你搬出了谁」。马斯克说 3 次、
@@ -1581,7 +1621,7 @@ public enum MindsBuilder {
         }
         let top = topical
             .sorted { $0.tf != $1.tf ? $0.tf > $1.tf : $0.word < $1.word }
-            .prefix(16)
+            .prefix(32)
         var lines = ["## VOCABULARY",
                      "Words you keep saying, counted in your own messages (not the AI's replies). "
                         + "Filler words excluded; everything else earns its place by repetition. "

@@ -1244,3 +1244,36 @@ extension MindsSurpriseTests {
         XCTAssertEqual(MindsBuilder.briefingMinSpanDays, 14)
     }
 }
+
+// MARK: - 词性剔虚词（2026-08-18）
+
+extension MindsSurpriseTests {
+
+    /// 词类是语法事实不是词义判断——介词/连词/代词/副词在汉语里是封闭类。
+    /// 真机验证：按跨项目排序时 非常(Adverb) · 完全(OtherWord) · 以及(Conjunction)
+    /// 会混进 top16，而 目标/平台/识别/架构/信号 全是 Noun/Verb。
+    func testFunctionWordClassesCoverTheClosedClasses() {
+        for c in ["Adverb", "Conjunction", "Pronoun", "Preposition", "Particle", "Determiner"] {
+            XCTAssertTrue(MindsBuilder.functionWordClasses.contains(c), c)
+        }
+        for c in ["Noun", "Verb", "Adjective"] {
+            XCTAssertFalse(MindsBuilder.functionWordClasses.contains(c), c)
+        }
+    }
+
+    /// 查不到词性的必须保留：系统分词器不认识的词（真机上「大模型」被它切开了）
+    /// 不该因为工具的局限而出局
+    func testUnknownPOSDefaultsToKeeping() {
+        let map = MindsBuilder.contentWordByPOS(corpus: ["把这个平台的识别逻辑理一遍"])
+        // 没被切成独立词元的串查不到，调用方按「保留」处理
+        XCTAssertNil(map["某个分词器不认识的怪词"])
+    }
+
+    /// 冒烟:标注这一层只保证跑得起来、给出的是布尔判断。
+    /// 不断言具体词的词性——那是系统 ML 模型,行为随 OS 版本变。
+    func testContentWordByPOSSmoke() {
+        let map = MindsBuilder.contentWordByPOS(
+            corpus: ["我们非常需要一个平台以及完整的识别能力"])
+        XCTAssertFalse(map.isEmpty)
+    }
+}
