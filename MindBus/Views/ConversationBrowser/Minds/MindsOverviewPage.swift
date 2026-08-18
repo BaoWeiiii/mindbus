@@ -2,10 +2,11 @@ import SwiftUI
 import Charts
 import MindBusCore
 
-/// PAGE 01 · 你的总览：核心指标 → 悬着的事 → 你点头的时刻 → 你拍板的时刻 → 活跃地图 → 工作节奏 → 本月 / 周末的你。
+/// PAGE 01 · 你的总览：核心指标 → 悬着的事 → 活跃地图 → 工作节奏 → 本月 / 周末的你。
 ///
-/// 「你点头的时刻」排在第二位而不是垫底：这一页别的栏目回答「你是个什么样的人」，
-/// 只有它回答「你做成过什么」。进来第一眼该看到后者。
+/// 「你点头 / 拍板的时刻」曾在这里各占一栏，已撤下：那两层是**探针**——
+/// 用来定位有价值的句子、给长对话切章节、量项目产出量，本身不是要给人看的
+/// 内容清单（用户 2026-08-18 定案）。信号仍在，只是不再单独成栏。
 struct MindsOverviewPage: View {
     let ctx: MindsContext
     @ObservedObject private var l10n = L10n.shared
@@ -14,8 +15,6 @@ struct MindsOverviewPage: View {
         VStack(alignment: .leading, spacing: MindsUI.moduleGap) {
             MindsSummaryMetrics(ctx: ctx)
             MindsOpenLoopsCard(ctx: ctx)
-            MindsMilestonesCard(ctx: ctx)
-            MindsDecisionsCard(ctx: ctx)
             MindsActivityMap(ctx: ctx)
             MindsWorkRhythm(ctx: ctx)
             MindsTwoColumn {

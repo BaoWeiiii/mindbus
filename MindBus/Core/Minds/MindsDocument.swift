@@ -358,4 +358,22 @@ public struct MindsDocument: Sendable {
             return (day, ctx, q)
         }
     }
+
+    /// 锚点展开成的原话：`- 短语 — [项目] 你说过的那句`
+    ///
+    /// 与 chipRow 并存：第一行仍是词表（一眼看全），后续行是展开。
+    /// 词是压缩的价值，句子才是完整的表达。
+    public func phraseQuotes() -> [(phrase: String, project: String, text: String)] {
+        bullets("PHRASES YOU REPEAT").compactMap { line in
+            let body = String(line.dropFirst(2))
+            guard let dash = body.range(of: " — "),
+                  let lb = body.range(of: "[", range: dash.upperBound..<body.endIndex),
+                  let rb = body.range(of: "]", range: lb.upperBound..<body.endIndex) else { return nil }
+            let phrase = String(body[body.startIndex..<dash.lowerBound])
+            let project = String(body[lb.upperBound..<rb.lowerBound])
+            let text = body[rb.upperBound...].trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty else { return nil }
+            return (phrase, project, text)
+        }
+    }
 }

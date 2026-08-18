@@ -200,6 +200,13 @@ public enum MindsBuilder {
             functionWords: Set(pos.compactMap {
                 functionWordClasses.contains($0.value) ? $0.key.lowercased() : nil
             }))
+        // 把锚点展开成原话。锚点本身已由短语层验证(跨项目复现),
+        // 这一步不做新判断,只是把压缩的价值还原成完整表达。
+        let quoteRows = corpusRows.map { (text: $0.text, cwd: $0.cwd) }
+        for p in surprise.phrases.prefix(phrasesWithQuotes) {
+            let qs = phraseQuotes(corpus: quoteRows, phrase: p.phrase, limit: quotesPerPhrase)
+            if !qs.isEmpty { surprise.quotesByPhrase[p.phrase] = qs }
+        }
 
         let mechanical = renderDocument(overview: overview, projects: projects,
                                         vocabulary: vocabulary, vocabStats: vocabStats,
@@ -356,6 +363,10 @@ public enum MindsBuilder {
         var questionShape: [(kind: String, count: Int)] = []
         var delegationVerbs: [(verb: String, lines: Int, conversations: Int)] = []
         var phrases: [(phrase: String, times: Int, projects: Int)] = []
+        /// 锚点展开成的原话:短语 → 你在不同项目里说过的完整句子
+        var quotesByPhrase: [String: [(text: String, cwd: String)]] = [:]
+        /// 短语展开成的原话：锚点 → 你在不同项目里说过的完整句子
+        var phraseQuotes: [String: [(text: String, cwd: String)]] = [:]
         var researchDestinations: [(dest: String, count: Int)] = []
         /// 你引用过的人(2026-08-18)
         var citedPeople: [CitedPerson] = []
@@ -945,6 +956,46 @@ public enum MindsBuilder {
         return out
     }
 
+    /// 一条代表句的长度区间。短于下界没有信息（「AI 味」本身），
+    /// 长于上界就不是一句话而是一段话，摘出来也读不动。
+    static let quoteLength = 10...70
+
+    /// 把一个短语**展开成你说过的原话**。
+    ///
+    /// 短语层给的是压缩后的价值——「AI 味」只有三个字；而
+    /// 「太丑，太 AI 味，布局也不高端，缺乏质感」才说清了你到底要什么。
+    /// 这一层不产生新判断：锚点（跨项目复现的短语）已经由短语层验证过，
+    /// 这里只负责把它还原成完整表达。
+    ///
+    /// 同一个项目最多出一句：要展示的是**跨项目的一致性**——同一句主张
+    /// 你在几个不相干的项目里都说过，它才是跟着你走的偏好，而不是
+    /// 某个项目的具体要求。
+    static func phraseQuotes(corpus: [(text: String, cwd: String)],
+                             phrase: String,
+                             limit: Int) -> [(text: String, cwd: String)] {
+        var out: [(text: String, cwd: String)] = []
+        var seenText = Set<String>()
+        var usedProject = Set<String>()
+        for (text, cwd) in corpus {
+            guard !usedProject.contains(cwd) else { continue }
+            for line in text.split(separator: "\n") {
+                for piece in line.split(whereSeparator: { "。！？!?;；".contains($0) }) {
+                    let sentence = piece.trimmingCharacters(in: .whitespaces)
+                    guard sentence.contains(phrase),
+                          quoteLength.contains(sentence.count),
+                          !seenText.contains(sentence) else { continue }
+                    seenText.insert(sentence)
+                    usedProject.insert(cwd)
+                    out.append((text: sentence, cwd: cwd))
+                    break
+                }
+                if usedProject.contains(cwd) { break }
+            }
+            if out.count >= limit { break }
+        }
+        return out
+    }
+
     /// 跨项目高频短语:比词长、比句短的中间层——你的思维口令(「从第一性原理思考」)、
     /// 固定问法(「是什么意思」「是不是需要」)、审美红线(「AI 味」)全在这一层。
     ///
@@ -1386,12 +1437,10 @@ public enum MindsBuilder {
             renderWeekendSplit(surprise.weekendSplit),
             renderQuestionShape(surprise.questionShape),
             renderDelegation(verbs: surprise.delegationVerbs, research: surprise.researchDestinations),
-            renderPhrases(surprise.phrases),
+            renderPhrases(surprise.phrases, quotes: surprise.quotesByPhrase),
             renderPeople(surprise.citedPeople),
             renderRepeatedBriefings(surprise.repeatedBriefings),
             renderOpenLoops(surprise.unfinished),
-            renderMilestones(surprise.milestones, total: surprise.milestonesTotal),
-            renderDecisions(surprise.decisions, total: surprise.decisionsTotal),
             renderCatchphrases(phrases: surprise.catchphrases, politeness: surprise.politeness),
             renderLeverage(surprise.volume),
             renderProjectLeverage(surprise.projectLeverage),
@@ -1589,7 +1638,15 @@ public enum MindsBuilder {
         return lines.joined(separator: "\n")
     }
 
-    private static func renderPhrases(_ ps: [(phrase: String, times: Int, projects: Int)]) -> String {
+    /// 每个锚点展开几条原话。三条足够看出一致性,再多就成了语料倾倒。
+    static let quotesPerPhrase = 3
+
+    /// 展开成原话的锚点取前几个。全部展开会把这一节撑成几十行,
+    /// 而这一节要的是「一眼看出你反复主张什么」。
+    static let phrasesWithQuotes = 5
+
+    private static func renderPhrases(_ ps: [(phrase: String, times: Int, projects: Int)],
+                                      quotes: [String: [(text: String, cwd: String)]] = [:]) -> String {
         var lines = ["## PHRASES YOU REPEAT",
                      "Turns of phrase you carry across projects — your thinking commands and stock questions. "
                         + "(mechanical, \(ps.count) phrases)"]
@@ -1598,6 +1655,14 @@ public enum MindsBuilder {
         } else {
             lines.append("- " + ps.map { "\($0.phrase) (\($0.times)×/\($0.projects)p)" }
                 .joined(separator: " · "))
+            // 词是压缩的价值,句子才是完整的表达:「AI 味」只有三个字,
+            // 「太丑,太 AI 味,布局也不高端」才说清了你到底要什么。
+            for p in ps.prefix(phrasesWithQuotes) {
+                guard let qs = quotes[p.phrase], !qs.isEmpty else { continue }
+                for q in qs {
+                    lines.append("- \(p.phrase) — [\((q.cwd as NSString).lastPathComponent)] \(q.text)")
+                }
+            }
         }
         return lines.joined(separator: "\n")
     }

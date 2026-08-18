@@ -25,12 +25,11 @@ enum PreviewRenderer {
             render(sidebarMindsSample, name: "sidebar-minds", size: CGSize(width: 220, height: 420), to: sub)
             render(MindsPlaceholderView(), name: "minds-placeholder", size: CGSize(width: 700, height: 300), to: sub)
             render(mindsContentSample, name: "minds-content", size: CGSize(width: 900, height: 3400), to: sub)
-            render(milestonesSample, name: "minds-milestones", size: CGSize(width: 900, height: 420), to: sub)
-            render(decisionsSample, name: "minds-decisions", size: CGSize(width: 900, height: 340), to: sub)
             render(projectsSample, name: "minds-projects", size: CGSize(width: 900, height: 400), to: sub)
             render(outlineSample, name: "outline", size: CGSize(width: 420, height: 420), to: sub)
             render(forgottenSample, name: "forgotten", size: CGSize(width: 400, height: 240), to: sub)
             render(openLoopsSample, name: "minds-open-loops", size: CGSize(width: 900, height: 330), to: sub)
+            render(phraseQuotesSample, name: "minds-phrase-quotes", size: CGSize(width: 900, height: 420), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -60,27 +59,6 @@ enum PreviewRenderer {
 
     // MARK: - 样本视图
 
-    /// 列表行：本次改动的主战场（系统语义色 → DSLight 暖灰四级）
-    /// Minds 真内容页样张：临时目录造 minds.md + enriched.jsonl（一条待确认 + 一条已确认），
-    /// 经 MINDBUS_MINDS_ROOT 注入让 MindsStore 读到假数据。渲 renderableContent 绕开
-    /// ScrollView 盲区。
-    /// 「你点头的时刻」单卡样张（真机原话）
-    private static var milestonesSample: some View {
-        var viz = MindsViz()
-        viz.milestones = [
-            ("砍完推送(1b2c3d4),净删 573 行,801 测试全绿,已装机", "继续", "2026-08-16"),
-            ("看了零态和校准流两屏,拿\"数字先在、零处明着要\"这把尺子量,还能挑出不少毛病", "全部优化", "2026-08-14"),
-            ("线一:上架合规全套上线(2c3d4e5)", "继续", "2026-08-13"),
-            ("收到,dev 不充值——那正好把架构态度定了:prod 当唯一活管线,dev 当免费沙盒", "继续", "2026-08-12"),
-            ("风声扩展 P1 落地完毕:表 + 闸门 + 真实种子全链路跑通,准入判据实弹检验通过", "继续", "2026-08-11"),
-            ("迁移铺开第一波(B1+B2)完成:读族 + 投票读写全部切上 CloudBase,96/96 测绿", "确认", "2026-08-11"),
-        ].map { (MindsMilestones.Milestone(headline: $0.0, approval: $0.1,
-                                           at: day($0.2), messageID: "m"), "c") }
-        return MindsMilestonesCard(ctx: MindsContext(store: ConversationStore(), md: "# Minds",
-                                                     viz: viz, isLoading: false))
-            .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
-    }
-
     /// 样张用的日期
     private static func day(_ s: String) -> Date {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current
@@ -88,6 +66,26 @@ enum PreviewRenderer {
     }
 
     /// 「悬着的事」样张（真机原话）
+    /// 「你反复说的话」+ 展开成原话（真机数据）
+    private static var phraseQuotesSample: some View {
+        let md = """
+        # Minds
+
+        ## PHRASES YOU REPEAT
+        Turns of phrase you carry across projects. (mechanical, 5 phrases)
+        - 产品经理 (28×/14p) · 第一性原理 (53×/13p) · AI 味 (26×/10p) · 热点事件 (20×/9p) · 生成图片 (16×/7p)
+        - 第一性原理 — [AISG] 从第一性原理来看,他提到的哪些方案还可以优化
+        - 第一性原理 — [ResourceLoop] 你从第一性原理思考,短期方案面临的就是流量不太够
+        - AI 味 — [aicoding] 是否远离了 AI 味的前端设计、文案设计
+        - AI 味 — [Codex] 太丑,太 AI 味,布局也不高端,缺乏质感
+        - AI 味 — [gen] 不改变图片内容,更改图片风格,科技风,避免 AI 味
+        - 热点事件 — [爬虫] 第二个分城市维度的,当地城市的热点事件
+        """
+        return MindsRepeatedPhrases(ctx: MindsContext(store: ConversationStore(), md: md,
+                                                     viz: MindsViz(), isLoading: false))
+            .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
+    }
+
     private static var openLoopsSample: some View {
         let md = """
         # Minds
@@ -150,21 +148,6 @@ enum PreviewRenderer {
         """
         return MindsProjectsPage(ctx: MindsContext(store: ConversationStore(), md: md,
                                                    viz: MindsViz(), isLoading: false))
-            .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
-    }
-
-    /// 「你拍板的时刻」单卡样张（真机原话）
-    private static var decisionsSample: some View {
-        var viz = MindsViz()
-        viz.decisions = [
-            ("梯队不要计算,改成纯粹通过后台配置逻辑。就在【梯队公式】里配置,通过拖拽完成配置", "2026-08-18"),
-            ("继续。另外我觉得不需要是否被证实、是否有争议那几个状态,ai 判定完也不需要人审", "2026-08-17"),
-            ("好,全部进入设计,而且要保证纯代码层面能实现,而不依赖 llm", "2026-08-16"),
-            ("全部冻,而且需要兜底,另外把目前的所有抓取内容全部审核通过", "2026-08-16"),
-            ("这些不收", "2026-08-15"),
-        ].map { (MindsMilestones.Decision(statement: $0.0, at: day($0.1), messageID: "m"), "c") }
-        return MindsDecisionsCard(ctx: MindsContext(store: ConversationStore(), md: "# Minds",
-                                                    viz: viz, isLoading: false))
             .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
     }
 

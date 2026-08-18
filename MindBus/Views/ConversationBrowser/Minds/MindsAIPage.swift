@@ -271,10 +271,34 @@ struct MindsRepeatedPhrases: View {
             if !chips.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     MindsSectionHeader(title: l10n.s.mindsSecLanguage, hint: l10n.s.mindsLanguageHint)
-                    FlowLayout(spacing: 8) {
-                        ForEach(Array(chips.enumerated()), id: \.element.word) { i, c in
-                            MindsTagChip(word: c.word, meta: ctx.vocabMeta(c.meta),
-                                         emphasis: i < 3) { ctx.search(c.word) }
+                    VStack(alignment: .leading, spacing: 14) {
+                        FlowLayout(spacing: 8) {
+                            ForEach(Array(chips.enumerated()), id: \.element.word) { i, c in
+                                MindsTagChip(word: c.word, meta: ctx.vocabMeta(c.meta),
+                                             emphasis: i < 3) { ctx.search(c.word) }
+                            }
+                        }
+                        // 把词展开成原话:「AI 味」只有三个字,
+                        // 「太丑,太 AI 味,布局也不高端」才说清了你要什么。
+                        // 同一个锚点的几句来自不同项目——那才叫「跟着你走」。
+                        let quotes = ctx.doc.phraseQuotes()
+                        if !quotes.isEmpty {
+                            Rectangle().fill(MindsUI.border.opacity(0.6)).frame(height: 1)
+                            VStack(alignment: .leading, spacing: 9) {
+                                ForEach(Array(quotes.enumerated()), id: \.offset) { _, q in
+                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                        Text(q.phrase)
+                                            .font(BrandFont.text(q.phrase, 11, weight: .medium))
+                                            .foregroundStyle(MindsUI.accent)
+                                            .frame(width: 76, alignment: .leading)
+                                        Text(q.text)
+                                            .font(BrandFont.text(q.text, 12.5))
+                                            .foregroundStyle(MindsUI.textPrimary)
+                                            .lineLimit(2)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                            }
                         }
                     }
                     .mindsCard()

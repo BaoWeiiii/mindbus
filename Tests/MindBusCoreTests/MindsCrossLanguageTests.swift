@@ -258,3 +258,44 @@ extension MindsCrossLanguageTests {
         XCTAssertEqual(variants.count, 1, "大小写变体只该占一个位置: \(out)")
     }
 }
+
+// MARK: - 把词展开成句子
+
+extension MindsCrossLanguageTests {
+
+    /// 跨项目复现的短语是**压缩的**价值，句子才是完整的表达。
+    /// 「AI 味」只是三个字，「太丑，太 AI 味，布局也不高端」才说清了你要什么。
+    func testQuotesComeFromDifferentProjects() {
+        let corpus: [(text: String, cwd: String)] = [
+            ("太丑，太 AI 味，布局也不高端，缺乏质感", "/w/a"),
+            ("是否远离了 AI 味的前端设计、文案设计", "/w/b"),
+            ("这一版还是有点 AI 味，再调一调", "/w/c"),
+            ("同一个项目里再说一次 AI 味的问题", "/w/a"),
+            ("完全无关的一句话", "/w/d"),
+        ]
+        let quotes = MindsBuilder.phraseQuotes(corpus: corpus, phrase: "AI 味", limit: 3)
+        XCTAssertEqual(quotes.count, 3)
+        XCTAssertEqual(Set(quotes.map(\.cwd)).count, 3, "同一个项目最多出一句——要的是跨项目的一致性")
+        XCTAssertTrue(quotes.allSatisfy { $0.text.contains("AI 味") })
+    }
+
+    /// 太短的没信息、太长的不是一句话
+    func testQuotesRejectOutOfRangeSentences() {
+        let corpus: [(text: String, cwd: String)] = [
+            ("AI 味", "/w/a"),
+            (String(repeating: "关于 AI 味我有很多话要说，", count: 12), "/w/b"),
+            ("这个配色有 AI 味，换掉", "/w/c"),
+        ]
+        XCTAssertEqual(MindsBuilder.phraseQuotes(corpus: corpus, phrase: "AI 味", limit: 5).map(\.text),
+                       ["这个配色有 AI 味，换掉"])
+    }
+
+    /// 一字不差的重复只算一句
+    func testQuotesDeduplicate() {
+        let corpus: [(text: String, cwd: String)] = [
+            ("这个配色有 AI 味，换掉", "/w/a"),
+            ("这个配色有 AI 味，换掉", "/w/b"),
+        ]
+        XCTAssertEqual(MindsBuilder.phraseQuotes(corpus: corpus, phrase: "AI 味", limit: 5).count, 1)
+    }
+}
