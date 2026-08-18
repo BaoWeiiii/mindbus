@@ -151,10 +151,15 @@ public enum MindsMilestones {
                     lastHeadline = h
                     lastReportID = m.id
                 }
-                if isSolicitation(t) { solicitationWindow = decisionLookahead }
+                if isSolicitation(t) {
+                    solicitationWindow = decisionLookahead
+                    harvest.openQuestion = trailingQuestion(of: t)
+                }
             case .user:
                 let said = text(m).trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !said.isEmpty else { return }
+                // 你回话了，上一个问题就不算悬着
+                harvest.openQuestion = nil
                 if solicitationWindow > 0 {
                     harvest.decisions.append(DecisionCandidate(statement: said, at: m.timestamp,
                                                               messageID: m.id))
@@ -183,11 +188,37 @@ public enum MindsMilestones {
         }
     }
 
-    /// 一次遍历攒下的两类素材
+    /// 一次遍历攒下的素材
     public struct Harvest: Equatable, Sendable {
         public var milestones: [Candidate] = []
         public var decisions: [DecisionCandidate] = []
+        /// 悬而未决：它最后问了你一个问题，而你再没回过。
+        ///
+        /// 这一项对应「价值 = 遗忘度 × 相关性 × **未闭合度**」里的第三项：
+        /// 已经做完的事提醒你没用，悬着没做完的事提醒才有价值。
+        ///
+        /// 试过并否掉的判据：`last_role = 'user'`（你问了没人答）——真机
+        /// 141 场里只有 4 场，因为 AI 工具总会回复，对话几乎必然以它收尾。
+        /// 反过来看「它问了你、你没回」才抓得住：真机 5 场，且条条可执行
+        /// （「要我把它归档提交、还是继续调形态？」）。
+        public var openQuestion: String?
         public init() {}
+    }
+
+    /// 从一段汇报里切出结尾那个问句。
+    ///
+    /// 待办清单上该写「要我把它归档提交吗」，而不是把 1800 字的汇报原样贴上去
+    /// ——前面那一大段是它做完的事，不是需要你决定的事。
+    public static func trailingQuestion(of text: String) -> String? {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let last = t.last, questionMarks.contains(last) else { return nil }
+        // 从末尾往前找上一个句末标点，中间那段就是问句本身
+        let body = String(t.dropLast())
+        if let cut = body.lastIndex(where: { "。！？!?\n；;".contains($0) }) {
+            let q = String(t[t.index(after: cut)...]).trimmingCharacters(in: .whitespaces)
+            if !q.isEmpty { return q }
+        }
+        return t
     }
 
     /// 构建层筛选:太短/太长/疑问句都不是拍板。

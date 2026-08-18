@@ -30,6 +30,7 @@ enum PreviewRenderer {
             render(projectsSample, name: "minds-projects", size: CGSize(width: 900, height: 400), to: sub)
             render(outlineSample, name: "outline", size: CGSize(width: 420, height: 420), to: sub)
             render(forgottenSample, name: "forgotten", size: CGSize(width: 400, height: 240), to: sub)
+            render(openLoopsSample, name: "minds-open-loops", size: CGSize(width: 900, height: 330), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -84,6 +85,24 @@ enum PreviewRenderer {
     private static func day(_ s: String) -> Date {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current
         return f.date(from: s) ?? Date(timeIntervalSince1970: 1_754_000_000)
+    }
+
+    /// 「悬着的事」样张（真机原话）
+    private static var openLoopsSample: some View {
+        let md = """
+        # Minds
+
+        ## OPEN LOOPS
+        Threads left hanging. (mechanical, 5)
+        - 2026-08-05 [构建本地 AI 记忆系统的设计方案] 要我开始吗？
+        - 2026-07-28 [ResourceLoop] 这两条改起来都是几分钟的事,要我现在跟一版补丁推上去吗？
+        - 2026-07-21 [拉取最新的 demo 代码库] 需要我顺手帮你开这个 PR 吗?
+        - 2026-07-21 [确定上传事件按钮的信息层级位置] 要我把它归档提交、还是继续调形态？
+        - 2026-07-18 [gitbook] 这八个分部的骨架是否符合你的预期？
+        """
+        return MindsOpenLoopsCard(ctx: MindsContext(store: ConversationStore(), md: md,
+                                                    viz: MindsViz(), isLoading: false))
+            .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
     }
 
     /// 「你可能忘了的」样张（真机召回结果）

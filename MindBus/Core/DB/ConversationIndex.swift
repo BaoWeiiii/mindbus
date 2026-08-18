@@ -137,7 +137,12 @@ public final class ConversationIndex: @unchecked Sendable {
         file_path TEXT UNIQUE, mtime REAL,
         -- 最后一条消息的角色（user/assistant/''）——「断点」信号：最后一条是 user
         -- = 你问了没人答（被打断/没继续），Minds 的 UNFINISHED THREADS 按它数
-        last_role TEXT NOT NULL DEFAULT ''
+        last_role TEXT NOT NULL DEFAULT '',
+        -- 悬而未决的另一半：**它**最后问了你一个问题、你再没回过。NULL = 没有。
+        -- 「你问了没人答」天然稀有（AI 工具总会回复，真机 141 场只有 4 场），
+        -- 反过来看才抓得住真正悬着的事。判据见 MindsMilestones.trailingQuestion。
+        -- 新列一律加在表末尾：中间插列会打乱按列索引取值的读取路径。
+        open_question TEXT
     );
     -- 段：检索的基本单位。text 要存（contentless FTS 没有原文可回显，命中片段与短词 LIKE 兜底都靠它）
     CREATE TABLE IF NOT EXISTS segments (
@@ -282,7 +287,7 @@ public final class ConversationIndex: @unchecked Sendable {
     ///      user:」——「## My request for Codex:」之后才是用户的话，无标记的整条
     ///      是文件清单）。真机 16 场被它把 /var/folders 临时路径灌进语料、创世句
     ///      被顶成 markdown 标题遭噪声正则误杀。存量行含着注入头，必须整体重建。
-    public static let dataPolicyVersion: Int32 = 23
+    public static let dataPolicyVersion: Int32 = 24
 
     private func migrateDataPolicyIfNeeded() throws {
         var current: Int32 = 0
@@ -1050,8 +1055,8 @@ public final class ConversationIndex: @unchecked Sendable {
                        bind: { sqlite3_bind_int64($0, 1, rid) })
         }
         try db.run("""
-        INSERT INTO conversations (id, source, start_at, end_at, cwd, git_branch, title, preview, message_count, file_path, mtime, last_role)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?);
+        INSERT INTO conversations (id, source, start_at, end_at, cwd, git_branch, title, preview, message_count, file_path, mtime, last_role, open_question)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);
         """, bind: { s in
             sqlite3_bind_text(s, 1, l.id, -1, SQLiteDB.transient)
             sqlite3_bind_text(s, 2, l.source.rawValue, -1, SQLiteDB.transient)
@@ -1065,6 +1070,9 @@ public final class ConversationIndex: @unchecked Sendable {
             sqlite3_bind_text(s, 10, l.fileURL.path, -1, SQLiteDB.transient)
             sqlite3_bind_double(s, 11, it.mtime)
             sqlite3_bind_text(s, 12, it.lastRole, -1, SQLiteDB.transient)
+            if let q = it.harvest.openQuestion, !q.isEmpty {
+                sqlite3_bind_text(s, 13, q, -1, SQLiteDB.transient)
+            } else { sqlite3_bind_null(s, 13) }
         })
         // 用 last_insert_rowid 取代「INSERT 完再 SELECT 查回来」，每条省一次查询
         let newRowid = db.lastInsertRowid
@@ -2045,14 +2053,23 @@ public final class ConversationIndex: @unchecked Sendable {
         }
     }
 
-    /// 断点会话：`last_role = 'user'` 且 `end_at >= since`，按最近降序。
-    /// 纯结构信号——词面分类（「这句话像不像没说完」）已被评测否定，不做。
+    /// 悬而未决的会话。两类合并，都是纯结构信号——词面分类
+    /// （「这句话像不像没说完」）已被评测否定，不做：
+    ///
+    /// ① 你问了没人答（`last_role = 'user'`）。真机 141 场里只有 4 场：
+    ///    AI 工具总会回复，对话几乎必然以它收尾，所以这一类天然稀有。
+    /// ② **它问了你、你没回**（`open_question`）。反过来看才抓得住真正
+    ///    悬着的事，而且条条可执行——真机抽样：「要我把它归档提交、
+    ///    还是继续调形态？」「…是这轮所有工作里最确定的收益。要我开始吗？」
+    ///
+    /// 覆盖率低（合计约 6%）不是缺陷：悬着的事本来就该少，5 件是一份
+    /// 可行动的清单，50 件才说明有问题。
     public func unfinishedThreads(since: Date, limit: Int) -> [UnfinishedThread] {
         var out: [UnfinishedThread] = []
         try? queue.sync {
             try db.query("""
-            SELECT id, title, preview, cwd, end_at FROM conversations
-            WHERE last_role = 'user' AND end_at >= ?
+            SELECT id, title, COALESCE(open_question, preview), cwd, end_at FROM conversations
+            WHERE (last_role = 'user' OR open_question IS NOT NULL) AND end_at >= ?
             ORDER BY end_at DESC LIMIT ?;
             """, bind: { st in
                 sqlite3_bind_double(st, 1, since.timeIntervalSince1970)

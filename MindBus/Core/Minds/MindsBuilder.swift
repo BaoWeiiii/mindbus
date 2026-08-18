@@ -84,7 +84,10 @@ public enum MindsBuilder {
         // 断点近 14 天；反复回来 ≥3 会话跨 ≥7 天、排除 Top-10 主项目词；
         // 沉睡 ≥10 会话且 >30 天没碰；本月对比自然月。
         var surprise = SurpriseData(
-            unfinished: index.unfinishedThreads(since: now.addingTimeInterval(-14 * 86_400), limit: 5),
+            // 90 天而不是 14 天：悬着的事**越久越该提醒**——你早忘了它。
+            // 14 天的窗口恰好把最该被想起的那些滤掉了（真机 5 件里 4 件超过 14 天）。
+            // 也不设成无限：超过一个季度没碰的，多半已经自然作废。
+            unfinished: index.unfinishedThreads(since: now.addingTimeInterval(-90 * 86_400), limit: 8),
             recurring: index.recurringEntities(minConversations: 3, minSpanDays: 7,
                                                excludeTop: 10, limit: 10),
             dormant: allProjects.filter { $0.count >= 10 && $0.lastTouched < now.addingTimeInterval(-30 * 86_400) }
@@ -1386,6 +1389,7 @@ public enum MindsBuilder {
             renderPhrases(surprise.phrases),
             renderPeople(surprise.citedPeople),
             renderRepeatedBriefings(surprise.repeatedBriefings),
+            renderOpenLoops(surprise.unfinished),
             renderMilestones(surprise.milestones, total: surprise.milestonesTotal),
             renderDecisions(surprise.decisions, total: surprise.decisionsTotal),
             renderCatchphrases(phrases: surprise.catchphrases, politeness: surprise.politeness),
@@ -1633,6 +1637,27 @@ public enum MindsBuilder {
 
     /// 一条里程碑要显示多少条。多了就成流水账——这一栏要的是「回头一看，
     /// 原来这几件事是我点头放行的」，不是全量日志。
+    /// 「悬着的事」：它最后问了你一个问题、你再没回过；或者你问了没人答。
+    ///
+    /// 这一栏对应「价值 = 遗忘度 × 相关性 × **未闭合度**」的第三项：
+    /// 做完的事提醒你没用，悬着的才有价值。真机 5 件，条条可执行
+    /// （「要我把它归档提交、还是继续调形态？」）。
+    static func renderOpenLoops(_ items: [ConversationIndex.UnfinishedThread]) -> String {
+        var lines = ["## OPEN LOOPS",
+                     "Threads left hanging — it asked, you never answered. (mechanical, \(items.count))"]
+        if items.isEmpty {
+            lines.append("(none yet)")
+        } else {
+            for t in items {
+                // 上下文用标题,没标题退回项目名——只有一句「要我开始吗？」
+                // 说不清悬的是什么事
+                let ctx = (t.title?.isEmpty == false ? t.title! : (t.cwd as NSString).lastPathComponent)
+                lines.append("- \(day(t.endAt)) [\(ctx)] \(t.preview)")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
     public static let milestonesShown = 12
 
     /// 「你点头的时刻」：你说「继续」之前，AI 那条汇报的首句。

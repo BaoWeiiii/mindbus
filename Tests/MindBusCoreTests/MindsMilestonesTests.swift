@@ -370,3 +370,45 @@ extension MindsMilestonesTests {
         XCTAssertEqual(out.map(\.statement), ["走第二条，先把界面接上"])
     }
 }
+
+// MARK: - 悬而未决：它问了你，你没回
+
+extension MindsMilestonesTests {
+
+    private var longAsk: String {
+        String(repeating: "这三项加起来是从 R@5 41.6% 到 55.4%,是最确定的收益。", count: 8) + "要我开始吗？"
+    }
+
+    /// 最后一条是征询、之后再没有你的消息 —— 这件事悬着
+    func testOpenQuestionSurvivesToFinish() {
+        var acc = MindsMilestones.CandidateAccumulator()
+        for m in [msg(.user, "先看看这块"), msg(.assistant, longAsk, minute: 1)] {
+            acc.consume(m, text: plain)
+        }
+        XCTAssertEqual(acc.finish().openQuestion, "要我开始吗？",
+                       "只留问句本身——前面那一大段汇报不是待办事项")
+    }
+
+    /// 你回了，就不算悬着
+    func testAnsweredQuestionIsNotOpen() {
+        var acc = MindsMilestones.CandidateAccumulator()
+        for m in [msg(.assistant, longAsk), msg(.user, "开始吧", minute: 1)] {
+            acc.consume(m, text: plain)
+        }
+        XCTAssertNil(acc.finish().openQuestion)
+    }
+
+    /// 最后一条只是汇报、没在问你，也不算悬着
+    func testPlainReportIsNotAnOpenQuestion() {
+        var acc = MindsMilestones.CandidateAccumulator()
+        acc.consume(msg(.assistant, String(repeating: "这一块做完了,测试全绿。", count: 12)), text: plain)
+        XCTAssertNil(acc.finish().openQuestion)
+    }
+
+    /// 问句要从整段汇报里切出来:待办清单上该写「要我把它归档提交吗」，
+    /// 不是把 1800 字的汇报原样贴上去
+    func testTrailingQuestionIsExtracted() {
+        let text = "先说结论。这一版把三件事做完了,细节如下。要我把它归档提交、还是继续调形态？"
+        XCTAssertEqual(MindsMilestones.trailingQuestion(of: text), "要我把它归档提交、还是继续调形态？")
+    }
+}

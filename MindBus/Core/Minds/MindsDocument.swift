@@ -344,4 +344,18 @@ public struct MindsDocument: Sendable {
             return (day, statement)
         }
     }
+
+    /// 悬着的事：`- 日期 [上下文] 那个没被回答的问题`
+    public var openLoops: [(day: String, context: String, question: String)] {
+        bullets("OPEN LOOPS").compactMap { line in
+            let body = String(line.dropFirst(2))
+            guard let lb = body.firstIndex(of: "["), let rb = body.firstIndex(of: "]"),
+                  lb < rb else { return nil }
+            let day = body[body.startIndex..<lb].trimmingCharacters(in: .whitespaces)
+            let ctx = String(body[body.index(after: lb)..<rb])
+            let q = body[body.index(after: rb)...].trimmingCharacters(in: .whitespaces)
+            guard !q.isEmpty else { return nil }
+            return (day, ctx, q)
+        }
+    }
 }

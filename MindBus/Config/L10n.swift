@@ -293,6 +293,8 @@ struct Strings {
     let mindsCatchphrasesHint: String
     let mindsSecRarities: String
     let mindsRaritiesHint: String
+    let mindsSecOpenLoops: String
+    let mindsOpenLoopsHint: String
     let forgottenHelp: String
     let forgottenTitle: String
     let outlineHelp: String
@@ -700,6 +702,8 @@ struct Strings {
         mindsCatchphrasesHint: "你总挂在嘴边的短句，原话照数",
         mindsSecRarities: "独一无二",
         mindsRaritiesHint: "最晚的深夜·只问过一次的话题·稀有词",
+        mindsSecOpenLoops: "悬着的事",
+        mindsOpenLoopsHint: "它问了你、你再没回过——每条都还等着你定",
         forgottenHelp: "跟这场相关、但久到你多半忘了的旧对话",
         forgottenTitle: "你可能忘了的",
         outlineHelp: "这场对话的目录:放行、拍板、以及隔了很久才回来的地方",
@@ -1089,6 +1093,8 @@ struct Strings {
         mindsCatchphrasesHint: "short messages you send again and again",
         mindsSecRarities: "Rarities",
         mindsRaritiesHint: "deepest night · asked once · rare words",
+        mindsSecOpenLoops: "Open Loops",
+        mindsOpenLoopsHint: "it asked, you never answered — still waiting on you",
         forgottenHelp: "related work old enough that you have probably forgotten it",
         forgottenTitle: "You may have forgotten",
         outlineHelp: "outline: what you signed off, what you called, and where you came back",

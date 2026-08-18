@@ -388,3 +388,34 @@ extension MindsDocumentTests {
         XCTAssertTrue(MindsBuilder.renderProjectRhythmForTest([q]).contains("4 signed off"))
     }
 }
+
+// MARK: - 悬着的事
+
+extension MindsDocumentTests {
+
+    func testOpenLoopsRoundTrip() {
+        let items = [
+            ConversationIndex.UnfinishedThread(
+                id: "c1", title: "构建本地 AI 记忆系统的设计方案",
+                preview: "要我开始吗？", cwd: "/w/mindbus",
+                endAt: Date(timeIntervalSince1970: 1_754_000_000)),
+            ConversationIndex.UnfinishedThread(
+                id: "c2", title: nil, preview: "要我把它归档提交、还是继续调形态？",
+                cwd: "/w/ResourceLoop", endAt: Date(timeIntervalSince1970: 1_753_000_000)),
+        ]
+        let md = MindsBuilder.renderOpenLoops(items)
+        XCTAssertTrue(md.contains("## OPEN LOOPS"), md)
+        let rows = MindsDocument(markdown: md).openLoops
+        XCTAssertEqual(rows.count, 2)
+        // 问题本身要在，光有标题等于没说清楚悬的是什么
+        XCTAssertEqual(rows[0].question, "要我开始吗？")
+        XCTAssertEqual(rows[0].context, "构建本地 AI 记忆系统的设计方案")
+        // 没标题时退回项目名——总得让人知道这是哪儿的事
+        XCTAssertEqual(rows[1].context, "ResourceLoop")
+    }
+
+    func testOpenLoopsEmptyIsHonest() {
+        XCTAssertTrue(MindsBuilder.renderOpenLoops([]).contains("(none yet)"))
+        XCTAssertTrue(MindsDocument(markdown: MindsBuilder.renderOpenLoops([])).openLoops.isEmpty)
+    }
+}
