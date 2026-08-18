@@ -327,6 +327,12 @@ public final class ConversationStore: ObservableObject {
         index?.latestNightConversation()
     }
 
+    /// 「你可能忘了的」：与这场相关、但已经久到多半想不起来的旧对话。
+    public nonisolated func forgottenRelated(to conversationID: String)
+        -> [ConversationIndex.RelatedConversation] {
+        index?.forgottenRelated(to: conversationID) ?? []
+    }
+
     /// 某一场对话的目录。判据在 Core，这里只负责把素材取出来喂给它。
     /// nonisolated：详情页在后台线程调用，别让它挂在主线程上。
     public nonisolated func outlineNodes(conversationID: String,

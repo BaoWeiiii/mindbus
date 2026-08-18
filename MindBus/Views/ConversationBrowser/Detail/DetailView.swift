@@ -343,6 +343,8 @@ struct DetailView: View {
                     if let conv {
                         // 长对话的目录:够不上 3 个节点时它自己不显示
                         OutlineButton(conversation: conv)
+                        // 你可能忘了的:没把握时它自己也不显示
+                        ForgottenRelatedButton(conversationID: conv.id)
                     }
                     moreMenu(for: conv)
                 }

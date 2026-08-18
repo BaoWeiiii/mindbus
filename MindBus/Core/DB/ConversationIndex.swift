@@ -410,6 +410,180 @@ public final class ConversationIndex: @unchecked Sendable {
         return out.map { (candidate: $0.0, conversationID: $0.1) }
     }
 
+    /// 「你可能忘了的」：与当前这场相关、但已经久到你多半想不起来的旧对话。
+    ///
+    /// # 为什么是这个形状（第一性原理）
+    ///
+    /// 人会来翻自己的对话库，根本原因只有一个——**他想不起来了**。记得的
+    /// 东西不需要查。所以
+    ///
+    ///     价值 = 「你想不起来」 × 「你现在需要它」
+    ///
+    /// 两项都能用算法逼近：前者用**时间**（久远 = 大概率忘了），后者用
+    /// **相关性**（与你此刻在看的这场相关 = 大概率用得上）。
+    ///
+    /// 这也是它和这个库里其他挖掘的根本区别：那些都是**静态**的——把库统计
+    /// 一遍摆出来，能不能撞上你需要的东西全看运气；这一层是**动态**的，
+    /// query 来自你当下在看的对话。它因此不依赖任何交互习惯，
+    /// 覆盖率不受「你说不说继续」的限制。
+    ///
+    /// 相关性直接用检索层（BM25 双路，已验证），不自己造相似度——
+    /// 相似度判据在这个项目里失败过好几次，而检索是有评测背书的。
+    public struct RelatedConversation: Equatable, Sendable {
+        public let id: String
+        public let title: String
+        public let cwd: String
+        public let daysAgo: Int
+        public init(id: String, title: String, cwd: String, daysAgo: Int) {
+            self.id = id; self.title = title; self.cwd = cwd; self.daysAgo = daysAgo
+        }
+    }
+
+    /// 特征词取几个。太少了检索不稳，太多了会把这场对话的边缘话题也拉进来。
+    static let relatedQueryTerms = 6
+
+    /// 特征词的最高覆盖率。超过它说明这个词在库里到处都是，没有指向性。
+    ///
+    /// 定在 0.5 而不是更严：0.2 会把「评估方法」这类**中频但有指向**的词一起
+    /// 砍掉，query 只剩「整个商圈或」这种长尾碎片，碎片在别的对话里根本不出现，
+    /// 结果是零召回（2026-08-18 实测）。真正的把关交给下面的
+    /// `relatedMinTermsHit`——宁可让通用词进 query，也不能让 query 只剩碎片。
+    static let relatedMaxDF = 0.5
+
+    /// 一条召回至少要命中几个特征词。命中一个词就推给你的话，
+    /// 噪声比信号多——**宁可空着，也不要给不相关的**：这一层的前提是
+    /// 「你想不起来的、但确实用得上的」，给错了就是在浪费你的注意力。
+    static let relatedMinTermsHit = 2
+
+    /// 每个特征词认几条命中。BM25 已经把最相关的排在前面，取前几条就等于
+    /// 要求「这个词在那场对话里也重要」，而不只是出现过。
+    static let relatedHitsPerTerm = 20
+
+
+    public func forgottenRelated(to conversationID: String,
+                                 olderThanDays: Int = 30,
+                                 limit: Int = 3,
+                                 now: Date = Date()) -> [RelatedConversation] {
+        // ① 这场对话的特征词:用全局词表切出它说过的词,按 tf 取前几个。
+        //    不在这里做 idf——BM25 自带 idf,通用词进了 query 也拿不到权重。
+        var corpus = ""
+        try? queue.sync {
+            try db.query("""
+                SELECT u.text FROM user_corpus u JOIN conversations c ON c.rowid = u.conv_rowid
+                WHERE c.id = ?;
+                """, bind: { sqlite3_bind_text($0, 1, conversationID, -1, SQLiteDB.transient) },
+                row: { corpus = String(cString: sqlite3_column_text($0, 0)) })
+        }
+        guard !corpus.isEmpty else { return [] }
+        var tf: [String: Int] = [:]
+        for w in loadLexicon() where w.count >= 2 {
+            let n = corpus.components(separatedBy: w).count - 1
+            if n > 0 { tf[w] = n }
+        }
+        // 词表还没建好时的回退:新装的库、刚导入的库都会走到这里,
+        // 没有回退的话这个功能对新用户直接哑火。
+        // 拉丁按空白切词,CJK 取二字组——够检索层用了。
+        if tf.isEmpty {
+            var latin = ""
+            var cjk: [Character] = []
+            func flushLatin() {
+                if latin.count >= 3 { tf[latin.lowercased(), default: 0] += 1 }
+                latin = ""
+            }
+            for ch in corpus {
+                if ch.unicodeScalars.first.map({ (0x4E00...0x9FFF).contains($0.value) }) ?? false {
+                    flushLatin()
+                    cjk.append(ch)
+                    if cjk.count >= 2 {
+                        tf[String(cjk.suffix(2)), default: 0] += 1
+                    }
+                } else if ch.isLetter || ch.isNumber {
+                    cjk = []
+                    latin.append(ch)
+                } else {
+                    flushLatin(); cjk = []
+                }
+            }
+            flushLatin()
+        }
+        // 选词必须按 **tf-idf**,不能只看 tf:高频词(项目/数据/方案)在每一场
+        // 对话里 tf 都高,只看 tf 的话每场算出来的 query 几乎一样,召回自然
+        // 也一样——真机现场就是所有对话都召回同样那几场超长旧对话。
+        // 检索层的 idf 只影响排序,救不了选错的词。
+        var df: [String: Int] = [:]
+        var docTotal = 1
+        try? queue.sync {
+            try db.query("SELECT count(*) FROM conversations;", bind: { _ in },
+                         row: { docTotal = max(1, Int(sqlite3_column_int64($0, 0))) })
+            try db.query("SELECT term, doc FROM vocab_lex;", bind: { _ in }, row: { st in
+                df[String(cString: sqlite3_column_text(st, 0))] = Int(sqlite3_column_int64(st, 1))
+            })
+        }
+        let terms = tf.map { (w, n) -> (String, Double) in
+            // 词表里没有的（回退切出来的）当作只在这一场出现过——它天然稀有
+            let d = max(1, df[w] ?? 1)
+            return (w, Double(n) * log(Double(docTotal) / Double(d)))
+        }
+        // 覆盖率超过这个比例的词直接不要:它在你库里到处都是,拿它当特征
+        // 只会把「什么都沾一点」的对话捞上来（真机现场:「大概」「稍微」
+        // 混进 query 之后,MacBook 迁移召回了三国游戏开发）。
+        .filter { w, s in s > 0 && Double(df[w] ?? 1) / Double(docTotal) <= Self.relatedMaxDF }
+        .sorted { $0.1 > $1.1 }
+        .prefix(Self.relatedQueryTerms).map(\.0)
+        guard !terms.isEmpty else { return [] }
+
+        // ② 逐词检索再合并,按命中了几个词算相关度。
+        //    不把词拼成一条 query:那是 AND 语义,只要有一个词在索引里不存在
+        //    (回退切出来的碎片就会这样)整条查询就颗粒无收。
+        //    每个词只认排名靠前的命中:超长对话几乎什么词都能匹配上,
+        //    只数「有没有命中」的话它们会霸占所有召回位(真机现场:同一场
+        //    116 天前的长对话同时出现在三个毫不相干项目的召回里)。
+        //    取 top-K 相当于要求「这个词在这场对话里确实重要」,而不只是出现过。
+        //    用倒数排名融合(RRF)而不是数命中个数:检索层已经把最相关的排在
+        //    前面,只数「有没有命中」等于把这个信息扔掉——真机现场就是所有
+        //    召回都塌成同样几场超长对话(它们什么词都能匹配上)。
+        var score: [String: Double] = [:]
+        var termsHit: [String: Int] = [:]
+        for t in terms {
+            for (rank, id) in search(t).prefix(Self.relatedHitsPerTerm).enumerated()
+            where id != conversationID {
+                score[id, default: 0] += 1.0 / (Self.rrfK + Double(rank))
+                termsHit[id, default: 0] += 1
+            }
+        }
+        let overlap = score.filter { (termsHit[$0.key] ?? 0) >= Self.relatedMinTermsHit }
+        guard !overlap.isEmpty else { return [] }
+        let cutoff = now.addingTimeInterval(-Double(olderThanDays) * 86400)
+        let hits = Array(overlap.keys)
+        var out: [RelatedConversation] = []
+        try? queue.sync {
+            for id in hits {
+                try db.query("SELECT title, cwd, start_at FROM conversations WHERE id = ?;",
+                             bind: { sqlite3_bind_text($0, 1, id, -1, SQLiteDB.transient) },
+                             row: { st in
+                    let at = Date(timeIntervalSince1970: sqlite3_column_double(st, 2))
+                    guard at < cutoff else { return }
+                    out.append(RelatedConversation(
+                        id: id,
+                        title: sqlite3_column_text(st, 0).map { String(cString: $0) } ?? "",
+                        cwd: sqlite3_column_text(st, 1).map { String(cString: $0) } ?? "",
+                        daysAgo: max(0, Int(now.timeIntervalSince(at) / 86400))))
+                })
+            }
+        }
+        // 相关性主导排序，「久远」只作为**过滤**条件(≥olderThanDays)。
+        // 反过来让久远主导的话,返回的永远是库里最老的那几场,跟你在看什么
+        // 没关系了(第一版就是这个毛病)。最久远 ≠ 最该被想起。
+        return Array(out.sorted {
+            // 分数先量化再比:RRF 分数带着检索排名的细微差异,而那点差异
+            // 常常是任意的(两场内容一样的对话谁排前谁排后取决于扫描顺序)。
+            // 不量化的话「同样相关时更久远的优先」这条 tie-break 永远轮不到。
+            let a = ((overlap[$0.id] ?? 0) * 100).rounded()
+            let b = ((overlap[$1.id] ?? 0) * 100).rounded()
+            return a != b ? a > b : $0.daysAgo > $1.daysAgo
+        }.prefix(limit))
+    }
+
     /// 某一场对话的目录素材：里程碑与拍板各自的（消息 id, 文本）。
     /// 判据照旧在调用方——认可词表要全局学，这里只按会话取素材。
     public func outlineMaterial(conversationID: String)

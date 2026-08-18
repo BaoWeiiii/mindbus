@@ -293,6 +293,8 @@ struct Strings {
     let mindsCatchphrasesHint: String
     let mindsSecRarities: String
     let mindsRaritiesHint: String
+    let forgottenHelp: String
+    let forgottenTitle: String
     let outlineHelp: String
     let outlineGapHours: (Int) -> String
     let outlineGapDays: (Int) -> String
@@ -698,6 +700,8 @@ struct Strings {
         mindsCatchphrasesHint: "你总挂在嘴边的短句，原话照数",
         mindsSecRarities: "独一无二",
         mindsRaritiesHint: "最晚的深夜·只问过一次的话题·稀有词",
+        forgottenHelp: "跟这场相关、但久到你多半忘了的旧对话",
+        forgottenTitle: "你可能忘了的",
         outlineHelp: "这场对话的目录:放行、拍板、以及隔了很久才回来的地方",
         outlineGapHours: { "\($0) 小时后" },
         outlineGapDays: { "\($0) 天后" },
@@ -1085,6 +1089,8 @@ struct Strings {
         mindsCatchphrasesHint: "short messages you send again and again",
         mindsSecRarities: "Rarities",
         mindsRaritiesHint: "deepest night · asked once · rare words",
+        forgottenHelp: "related work old enough that you have probably forgotten it",
+        forgottenTitle: "You may have forgotten",
         outlineHelp: "outline: what you signed off, what you called, and where you came back",
         outlineGapHours: { "\($0)h later" },
         outlineGapDays: { "\($0)d later" },

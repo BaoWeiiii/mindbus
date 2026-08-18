@@ -29,6 +29,7 @@ enum PreviewRenderer {
             render(decisionsSample, name: "minds-decisions", size: CGSize(width: 900, height: 340), to: sub)
             render(projectsSample, name: "minds-projects", size: CGSize(width: 900, height: 400), to: sub)
             render(outlineSample, name: "outline", size: CGSize(width: 420, height: 420), to: sub)
+            render(forgottenSample, name: "forgotten", size: CGSize(width: 400, height: 240), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -83,6 +84,16 @@ enum PreviewRenderer {
     private static func day(_ s: String) -> Date {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current
         return f.date(from: s) ?? Date(timeIntervalSince1970: 1_754_000_000)
+    }
+
+    /// 「你可能忘了的」样张（真机召回结果）
+    private static var forgottenSample: some View {
+        ForgottenListPreview(items: [
+            .init(id: "1", title: "我负责某行业的排班调度工作", cwd: "/w/Delta", daysAgo: 30),
+            .init(id: "2", title: "热点事件驱动,让每个省份的 BD 看到商机", cwd: "/w/Foxtrot", daysAgo: 63),
+            .init(id: "3", title: "我想做一个调度 SKILL,核心是不管商家有多少指标", cwd: "/w/Echo", daysAgo: 88),
+        ])
+        .padding(16).background(DSLight.sf)
     }
 
     /// 长对话目录样张（真机节点形态：放行 / 拍板 / 时间断点交织）
