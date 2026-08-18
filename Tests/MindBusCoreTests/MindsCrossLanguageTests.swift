@@ -237,3 +237,24 @@ extension MindsCrossLanguageTests {
         XCTAssertTrue(out.contains { $0.phrase.contains("AI 味") }, "\(out)")
     }
 }
+
+extension MindsCrossLanguageTests {
+
+    /// 同一个说法的大小写变体不该各占一个榜位（真机：Claude Code 47 次与
+    /// claude code 12 次并列在榜）。合并同族时按小写比。
+    func testPhraseFamilyMergeIgnoresCase() {
+        // 右邻要有变化:句子一模一样的话,右邻恒定 = 邻接变化度判它是残片
+        var corpus: [(text: String, cwd: String)] = (0..<8).map { i in
+            (text: i % 2 == 0 ? "用 Claude Code 把这个跑通" : "用 Claude Code 重写一遍",
+             cwd: "/proj\(i % 4)")
+        }
+        corpus += (0..<8).map { i in
+            (text: i % 2 == 0 ? "用 claude code 跑一下试试" : "用 claude code 看看结果",
+             cwd: "/proj\(i % 4)")
+        }
+        corpus += noise(30)
+        let out = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 20, pronouns: [])
+        let variants = out.filter { $0.phrase.lowercased().contains("claude code") }
+        XCTAssertEqual(variants.count, 1, "大小写变体只该占一个位置: \(out)")
+    }
+}

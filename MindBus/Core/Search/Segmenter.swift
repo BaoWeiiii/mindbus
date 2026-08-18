@@ -145,18 +145,35 @@ public enum Segmenter {
     public static func userTextOfSingle(_ message: Message) -> String? {
         guard message.role == .user, !isSystemInjected(message) else { return nil }
         var t = plainTextForSearch(of: message).replacingOccurrences(of: "\n", with: " ")
-        // Codex 客户端的文件引用头(policy v17):「# Files mentioned by the user:
-        // ## 文件名: /var/folders/…」是客户端拼进 user 消息的注入,不是你打的。
-        // 后随「## My request for Codex:」标记时,标记之后才是你的话(真机:
-        // Codex 项目创世句曾被这个头顶成 markdown 标题、遭噪声正则整条误杀);
-        // 无标记=整条是文件清单,丢弃。两个条件绑定,不误伤恰好写出这句话的人。
-        if t.trimmingCharacters(in: .whitespaces)
-            .hasPrefix("# Files mentioned by the user:") {
+        // Codex 客户端拼在 user 消息**前面**的注入头。后随「## My request for
+        // Codex:」标记时,标记之后才是你的话(真机: Codex 项目创世句曾被这个头
+        // 顶成 markdown 标题、遭噪声正则整条误杀);无标记=整条都是注入,丢弃。
+        // 两个条件绑定,不误伤恰好写出这句话的人——只有出现在开头才算。
+        if codexInjectedHeaders.contains(where: {
+            t.trimmingCharacters(in: .whitespaces).hasPrefix($0)
+        }) {
             guard let r = t.range(of: "## My request for Codex:") else { return nil }
             t = String(t[r.upperBound...]).trimmingCharacters(in: .whitespaces)
         }
-        return t
+        // Claude Code 把粘贴的图片写成「[Image: source: <本地路径>]」。那是客户端
+        // 写进正文的路径,不是你打的字,而且路径里带着家目录用户名(policy v18)。
+        t = t.replacingOccurrences(of: #"\[Image: source:[^\]]*\]"#, with: "",
+                                   options: .regularExpression)
+        // Codex 的同类标记是 XML 形态:<image name=… path="/var/folders/…"> </image>
+        t = t.replacingOccurrences(of: #"</?image[^>]*>"#, with: "",
+                                   options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+        return t.isEmpty ? nil : t
     }
+
+    /// Codex 客户端拼在 user 消息前面的注入头。两种形态同构——头在前、
+    /// 你的话在「## My request for Codex:」之后。
+    static let codexInjectedHeaders = [
+        "# Files mentioned by the user:",   // 文件引用头(policy v17)
+        // 浏览器状态注入(policy v18)。真机 336 个 block 带着它,是短语榜上
+        // app browser 532 次、Current URL 257 次、家目录路径 306 次的来源。
+        "# In app browser:",
+    ]
 
     /// 以 user 角色进场的系统产物：整条消息以已知系统模式开头，或全文由注入标记主导。
     /// 判定保守（前缀级）——宁放过存疑的，不误杀你的真话。

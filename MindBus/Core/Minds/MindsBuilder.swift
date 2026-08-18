@@ -1012,8 +1012,12 @@ public enum MindsBuilder {
         // 把别的概念全挤出榜。子串频次必然 ≥ 超串,所以留下的是最核心的说法。
         var merged: [(phrase: String, times: Int, projects: Int)] = []
         for item in kept.sorted(by: { $0.times > $1.times }) {
+            // 按小写比:「Claude Code」和「claude code」是同一个说法,
+            // 不该各占一个榜位(真机 47 次 / 12 次曾并列在榜)。
+            let lower = item.phrase.lowercased()
             if merged.contains(where: {
-                $0.phrase.contains(item.phrase) || item.phrase.contains($0.phrase)
+                let m = $0.phrase.lowercased()
+                return m.contains(lower) || lower.contains(m)
             }) { continue }
             merged.append(item)
         }

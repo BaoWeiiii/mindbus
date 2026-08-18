@@ -56,6 +56,9 @@ public enum CodexLoader {
             "<subagent_notification>",    // 子 agent 通知注入
             "<recommended_plugins>",      // 插件推荐清单（顶着 user 名头注入）
             "<multi_agent_mode>",         // 多 agent 模式声明注入
+            // 浏览器状态注入的第三种形态(另两种:「# In app browser:」头在语料层
+            // 剥、截图在图片过滤里丢)。它整块都是客户端写的环境描述。
+            "<in-app-browser-context",
             "# AGENTS.md instructions",   // Codex 把 AGENTS.md 作为前言注入
             "AGENTS.md instructions for",
         ]

@@ -261,7 +261,7 @@ public final class ConversationIndex: @unchecked Sendable {
     ///      user:」——「## My request for Codex:」之后才是用户的话，无标记的整条
     ///      是文件清单）。真机 16 场被它把 /var/folders 临时路径灌进语料、创世句
     ///      被顶成 markdown 标题遭噪声正则误杀。存量行含着注入头，必须整体重建。
-    public static let dataPolicyVersion: Int32 = 17
+    public static let dataPolicyVersion: Int32 = 18
 
     private func migrateDataPolicyIfNeeded() throws {
         var current: Int32 = 0

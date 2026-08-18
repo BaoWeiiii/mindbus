@@ -202,6 +202,53 @@ final class MindsSurpriseTests: XCTestCase {
                        "标记后才是用户的话;纯文件清单消息整条丢弃")
     }
 
+    /// 浏览器状态是 Codex 拼在你消息**前面**的,和文件引用头同构:
+    /// 标记之后才是你的话,没有标记就整条是注入。
+    /// 真机 336 个 block 带这个头,它制造了短语榜上 app browser 532 次、
+    /// Current URL 257 次、以及带用户名的家目录路径 306 次。
+    func testUserTextStripsInAppBrowserHeader() {
+        let msgs = [
+            Message(id: "m1", role: .user, timestamp: Date(), blocks: [.text(
+                "\n# In app browser:\n- The user has the in-app browser open.\n" +
+                "- Current URL: http://localhost:5179/index.html\n\n" +
+                "## My request for Codex: 我想根据以下结构去调整")]),
+            Message(id: "m2", role: .user, timestamp: Date(), blocks: [.text(
+                "\n# In app browser:\n- The user has the in-app browser open.\n" +
+                "- Current URL: http://localhost:5179/index.html")]),
+        ]
+        XCTAssertEqual(Segmenter.userText(of: msgs), "我想根据以下结构去调整")
+    }
+
+    /// 只有**开头**才算注入头——自己写到这句话的人不该被误删
+    func testInAppBrowserMentionedMidSentenceIsKept() {
+        let msgs = [Message(id: "m1", role: .user, timestamp: Date(),
+                            blocks: [.text("帮我看看 # In app browser: 这个注入是什么")])]
+        XCTAssertEqual(Segmenter.userText(of: msgs), "帮我看看 # In app browser: 这个注入是什么")
+    }
+
+    /// Claude Code 的图片引用标记：客户端写进正文的本地路径，不是你打的字，
+    /// 而且路径里带着家目录用户名（真机 17 场里 image-cache 出现 185 次）。
+    func testUserTextStripsImageSourceMarkers() {
+        let msgs = [Message(id: "m1", role: .user, timestamp: Date(), blocks: [.text(
+            "clash verge 还报错\n[Image: source: /somewhere/.claude/image-cache/abc/1.png]\n改了会带来其他问题吗")])]
+        let t = Segmenter.userText(of: msgs)
+        XCTAssertFalse(t.contains("image-cache"), t)
+        XCTAssertTrue(t.contains("clash verge 还报错"), t)
+        XCTAssertTrue(t.contains("改了会带来其他问题吗"), t)
+    }
+
+    /// Codex 的图片引用标记（XML 形态）：和 Claude Code 的「[Image: source: ]」
+    /// 是同一类东西——客户端把图片路径写进正文，不是你打的字，路径同样带用户名。
+    func testUserTextStripsCodexImageTags() {
+        let msgs = [Message(id: "m1", role: .user, timestamp: Date(), blocks: [.text(
+            "看看这个 <image name=[Image #31] path=\"/var/folders/w2/T/codex-clipboard-51c4.png\"> </image> 的问题")])]
+        let t = Segmenter.userText(of: msgs)
+        XCTAssertFalse(t.contains("codex-clipboard"), t)
+        XCTAssertFalse(t.contains("var/folders"), t)
+        XCTAssertTrue(t.contains("看看这个"), t)
+        XCTAssertTrue(t.contains("的问题"), t)
+    }
+
     func testLastMeaningfulRoleSkipsInjection() {
         let msgs = [
             Message(id: "m1", role: .user, timestamp: Date(), blocks: [.text("问题来了")]),

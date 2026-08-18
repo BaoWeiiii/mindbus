@@ -13,6 +13,19 @@ final class CodexLoaderTests: XCTestCase {
         XCTAssertTrue(CodexLoader.isAutoInjectedUserText("<permissions instructions>\n..."))
     }
 
+    /// 浏览器状态的第三种形态:一个独立的 XML 注入块,顶着 user 名头进场。
+    /// 另两种(「# In app browser:」头 / 截图)分别由语料层和图片过滤处理。
+    func testInAppBrowserContextBlockIsInjected() {
+        XCTAssertTrue(CodexLoader.isAutoInjectedUserText(
+            "<in-app-browser-context source=\"ambient-ui-state\"> This block is automatically..."))
+    }
+
+    /// 自己写到这几个字的人不该被误删——只有出现在开头才算注入
+    func testInAppBrowserContextMidSentenceIsNotInjected() {
+        XCTAssertFalse(CodexLoader.isAutoInjectedUserText(
+            "帮我看看 <in-app-browser-context> 这个注入块是什么"))
+    }
+
     func testTurnAbortedIsAutoInjected() {
         XCTAssertTrue(CodexLoader.isAutoInjectedUserText("<turn_aborted>\nuser interrupted"))
     }
