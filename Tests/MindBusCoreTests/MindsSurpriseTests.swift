@@ -247,12 +247,14 @@ final class MindsSurpriseTests: XCTestCase {
 
     // MARK: - 反复交代的容错边界
 
+    /// 夹具的日期要拉开:这一条测的是**聚类容错**,而 `briefingMinSpanDays`
+    /// 会把同期重复挡掉,不拉开就测不到聚类逻辑本身。
     func testRepeatedBriefingsToleratesSmallEdits() {
         // 同一段交代的三个变体,各改 2-3 个字——3-gram Jaccard 应聚成一组
         let corpus = [
-            (text: "你是资深审查员,只看规格符合性,不要提出风格意见", convID: "c1", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
-            (text: "你是资深审查员,只看规格符合性,不要给出风格意见", convID: "c2", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
-            (text: "你是资深审查员,只看规格的符合性,不要提风格意见", convID: "c3", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: "你是资深审查员,只看规格符合性,不要提出风格意见", convID: "c1", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 0 * 30 * 86_400)),
+            (text: "你是资深审查员,只看规格符合性,不要给出风格意见", convID: "c2", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 1 * 30 * 86_400)),
+            (text: "你是资深审查员,只看规格的符合性,不要提风格意见", convID: "c3", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 2 * 30 * 86_400)),
         ]
         let groups = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
         XCTAssertEqual(groups.count, 1, "小改动的变体应聚为一组: \(groups)")
@@ -263,9 +265,9 @@ final class MindsSurpriseTests: XCTestCase {
         // 超过 80 字的长交代(真实场景:完整的角色设定/工作约定)也要能聚类
         let long = String(repeating: "这是一段很长的工作交代,包含背景约束和验收标准,", count: 5)  // ~115 字
         let corpus = [
-            (text: long + "最后按清单逐项检查", convID: "c1", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
-            (text: long + "最后按照清单逐项核对", convID: "c2", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
-            (text: long + "最后按清单逐一核查", convID: "c3", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: long + "最后按清单逐项检查", convID: "c1", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 0 * 30 * 86_400)),
+            (text: long + "最后按照清单逐项核对", convID: "c2", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 1 * 30 * 86_400)),
+            (text: long + "最后按清单逐一核查", convID: "c3", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 2 * 30 * 86_400)),
         ]
         let groups = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
         XCTAssertEqual(groups.count, 1, "长交代不该被长度上限拒之门外: \(groups)")
@@ -793,10 +795,10 @@ final class MindsSurpriseTests: XCTestCase {
     func testRepeatedBriefingsClustersSimilarCrossConversation() {
         let brief = "你是资深审查员,正在审查 Task N 的代码质量,请只看规格符合性"
         let corpus: [(text: String, convID: String, startAt: Date)] = [
-            (text: brief.replacingOccurrences(of: "N", with: "3"), convID: "a", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
-            (text: brief.replacingOccurrences(of: "N", with: "4"), convID: "b", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
-            (text: brief.replacingOccurrences(of: "N", with: "5"), convID: "c", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
-            (text: "完全无关的一句话,聊聊今天天气怎么样吧", convID: "d", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: brief.replacingOccurrences(of: "N", with: "3"), convID: "a", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 0 * 30 * 86_400)),
+            (text: brief.replacingOccurrences(of: "N", with: "4"), convID: "b", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 1 * 30 * 86_400)),
+            (text: brief.replacingOccurrences(of: "N", with: "5"), convID: "c", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 2 * 30 * 86_400)),
+            (text: "完全无关的一句话,聊聊今天天气怎么样吧", convID: "d", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 3 * 30 * 86_400)),
         ]
         let groups = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
         XCTAssertEqual(groups.count, 1, "三条同模板该聚成一组,无关句不进: \(groups)")
@@ -807,9 +809,9 @@ final class MindsSurpriseTests: XCTestCase {
     func testRepeatedBriefingsFiltersNoiseAndSameConversation() {
         let corpus: [(text: String, convID: String, startAt: Date)] = [
             // 编号行与 JSON 键值是粘贴残留,不算「你讲的话」
-            (text: "1. 地形倍率:road 1、plain 1、mountain 1.35", convID: "a", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
-            (text: "2. 地形倍率:road 1、plain 1、mountain 1.35", convID: "b", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
-            (text: "3. 地形倍率:road 1、plain 1、mountain 1.35", convID: "c", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
+            (text: "1. 地形倍率:road 1、plain 1、mountain 1.35", convID: "a", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 0 * 30 * 86_400)),
+            (text: "2. 地形倍率:road 1、plain 1、mountain 1.35", convID: "b", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 1 * 30 * 86_400)),
+            (text: "3. 地形倍率:road 1、plain 1、mountain 1.35", convID: "c", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 2 * 30 * 86_400)),
             // 同一会话内的三遍重复:times 够但 conversations=1,不算「反复交代」
             (text: "帮我把这个模块重构一下注意保持接口\n帮我把这个模块重构一下注意保持接口\n帮我把这个模块重构一下注意保持接口", convID: "x", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
         ]
@@ -1203,5 +1205,42 @@ extension MindsSurpriseTests {
         for p in ["用户旅程", "第一性原理", "产品经理", "热点事件", "最佳实践", "在 github"] {
             XCTAssertFalse(MindsBuilder.containsPronoun(p), p)
         }
+    }
+}
+
+// MARK: - 反复交代的话：跨度门槛（2026-08-18）
+
+extension MindsSurpriseTests {
+
+    /// 同一个任务周期里的重复不算「反复交代」。真机验证：不加跨度门槛时
+    /// 12 条里 11 条跨度 0-4 天，全部来自同一批讨论——会话被切分后用户重新
+    /// 粘贴前情造成的，不是隔了一段时间还要再讲一遍的规矩。
+    func testBriefingsRejectSameTaskRepetition() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let line = "你写的评估方法太复杂了，稍微简单一点，我只要短期和长期两套"
+        let corpus = (0..<3).map { i in
+            (text: line, convID: "c\(i)", startAt: base.addingTimeInterval(Double(i) * 86_400))
+        }
+        let out = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
+        XCTAssertTrue(out.isEmpty, "跨 2 天的重复是同一个任务的上下文，不是反复交代：\(out)")
+    }
+
+    /// 隔了一段时间还在讲，才是该沉淀成模板的那种
+    func testBriefingsKeepLongSpanRepetition() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let line = "按照我们之前聊的那套做法，利用 skill 把这件事继续推下去"
+        let corpus = [
+            (text: line, convID: "a", startAt: base),
+            (text: line, convID: "b", startAt: base.addingTimeInterval(40 * 86_400)),
+            (text: line, convID: "c", startAt: base.addingTimeInterval(82 * 86_400)),
+        ]
+        let out = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
+        XCTAssertEqual(out.count, 1, "\(out)")
+        XCTAssertEqual(out.first?.conversations, 3)
+        XCTAssertGreaterThanOrEqual(out.first?.spanDays ?? 0, MindsBuilder.briefingMinSpanDays)
+    }
+
+    func testBriefingSpanFloorIsTwoWeeks() {
+        XCTAssertEqual(MindsBuilder.briefingMinSpanDays, 14)
     }
 }

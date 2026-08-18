@@ -19,6 +19,7 @@ struct MindsAIPage: View {
             }
             MindsRepeatedPhrases(ctx: ctx)
             MindsCitedPeople(ctx: ctx)
+            MindsRepeatedBriefings(ctx: ctx)
             MindsTwoColumn {
                 MindsCatchphrases(ctx: ctx)
             } right: {
@@ -437,5 +438,45 @@ struct MindsCitedPeople: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - 反复交代的话
+
+/// 同一句话隔了一段时间还在讲——该存成模板了。
+/// 跨度门槛拦掉的是「同一个任务周期内重新粘贴上下文」那种假重复。
+struct MindsRepeatedBriefings: View {
+    let ctx: MindsContext
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let rows = ctx.bullets("REPEATED BRIEFINGS").compactMap(ctx.parseRecurring)
+        return Group {
+            if !rows.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    MindsSectionHeader(title: l10n.s.mindsSecBriefings,
+                                       hint: l10n.s.mindsBriefingsHint)
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(rows, id: \.word) { row in
+                            MindsInsightRow(icon: "repeat",
+                                            title: row.word,
+                                            detail: briefMeta(row.detail))
+                        }
+                    }
+                    .mindsCard()
+                }
+            }
+        }
+    }
+
+    /// "said 4× across 3 conversations, spanning 82 days" → 中文
+    private func briefMeta(_ d: String) -> String {
+        let g = MindsDocument.captures(d, #"said (\d+)× across (\d+) conversations"#)
+        guard g.count >= 2 else { return d }
+        var out = l10n.s.mBriefSaid(Int(g[0]) ?? 0, Int(g[1]) ?? 0)
+        if let span = MindsDocument.captures(d, #"spanning (\d+) days"#).first {
+            out += "，" + l10n.s.mBriefSpan(Int(span) ?? 0)
+        }
+        return out
     }
 }

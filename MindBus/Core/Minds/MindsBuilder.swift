@@ -159,6 +159,11 @@ public enum MindsBuilder {
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 8)
         surprise.researchDestinations = researchDestinations(corpus: corpus)
         surprise.citedPeople = citedPeople(corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) })
+        // 反复交代的话:同一句规矩讲了好几遍,该沉淀成模板。
+        // 这一项此前也从没被赋值(渲染函数写好了、GUI 也读它,就是没人调 build)
+        surprise.repeatedBriefings = repeatedBriefings(
+            corpus: corpusRows.map { (text: $0.text, convID: $0.convID, startAt: $0.startAt) },
+            limit: 5)
         surprise.phrases = repeatedPhrases(
             corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) }, limit: 24)
 
@@ -405,6 +410,10 @@ public enum MindsBuilder {
     /// 项目出生句:从最早会话的 user 语料里取第一条像「人话」的行
     /// (5-100 字、非系统注入、非结构化粘贴——复用 briefingNoise 过滤)。
     /// enrich 管道:宿主模型 minds_read 读到这节 → 分析 → minds_enrich 写建议。
+    /// 「反复交代」的最短跨度。低于它的重复基本是同一个任务周期内的上下文重复
+    /// （会话被切分时用户重新粘贴前情），不是隔了一段时间还要再讲一遍的规矩。
+    static let briefingMinSpanDays = 14
+
     public struct RepeatedBriefing: Equatable {
         public let sample: String        // 组内最长样本
         public let times: Int            // 讲过几遍(含同会话重复)
@@ -484,10 +493,15 @@ public enum MindsBuilder {
             guard ids.count >= 3 else { return nil }
             let convs = Set(ids.map { msgs[$0].1 })
             guard convs.count >= 2 else { return nil }
+            // 见下方 briefingMinSpanDays:跨度门槛在算出 span 之后判
             let sample = ids.map { msgs[$0].0 }.max(by: { $0.count < $1.count }) ?? ""
             let dates = convs.compactMap { dateOf[$0] }.sorted()
             let span = (dates.first != nil && dates.count > 1)
                 ? Int(dates.last!.timeIntervalSince(dates.first!) / 86_400) : 0
+            // 跨度门槛:一天里连讲三遍是当时较劲,隔一段时间还在讲才是真·反复交代。
+            // 真机验证(2026-08-18):不加门槛时 12 条里 11 条跨度 0-4 天,全部来自
+            // 同一批讨论——会话被切分后用户重新粘贴上下文造成的重复,不是交代规矩。
+            guard span >= briefingMinSpanDays else { return nil }
             return RepeatedBriefing(sample: sample, times: ids.count,
                                     conversations: convs.count, spanDays: span)
         }
