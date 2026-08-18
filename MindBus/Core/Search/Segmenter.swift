@@ -170,13 +170,15 @@ public enum Segmenter {
         "# In app browser:",
     ]
 
-    /// 剥掉客户端写进正文的图片标记。三种形态，都不是你打的字：
-    /// - Claude Code：`[Image: source: <本地路径>]`、`[Image #3]`
+    /// 剥掉客户端写进正文的图片标记。四种形态，都不是你打的字：
+    /// - Claude Code：`[Image: source: <本地路径>]`、`[Image #3]`、
+    ///   `[Image: original 3420x2224, displayed at …]`
     /// - Codex：`<image name=… path="/var/folders/…"> </image>`
-    /// 前两种还带着家目录用户名。
+    /// 头两种还带着家目录用户名；元数据那种跨对话反复出现，
+    /// 会伪装成「你反复说的话」（2026-08-18 跨对话重复探测第一名就是它）。
     public static func strippingImageMarkers(_ text: String) -> String {
         var t = text
-        for pattern in [#"\[Image: source:[^\]]*\]"#, #"\[Image #\d+\]"#, #"</?image[^>]*>"#] {
+        for pattern in [#"\[Image:[^\]]*\]"#, #"\[Image #\d+\]"#, #"</?image[^>]*>"#] {
             t = t.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
         }
         return t
@@ -198,6 +200,8 @@ public enum Segmenter {
     public static func isSystemInjected(_ message: Message) -> Bool {
         let text = plainTextForSearch(of: message).trimmingCharacters(in: .whitespacesAndNewlines)
         let prefixes = ["Stop hook feedback:", "This session is being continued",
+                        // skill 重新调用的注入,顶着 user 名头进场
+                        "(Re-invocation of /",
                         "[Request interrupted", "Caveat: The messages below",
                         "<system-reminder>", "<task-notification>", "<command-name>",
                         "<local-command-stdout>"]

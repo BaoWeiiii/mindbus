@@ -1348,3 +1348,31 @@ extension MindsSurpriseTests {
         XCTAssertTrue(t.contains("好吗"), t)
     }
 }
+
+extension MindsSurpriseTests {
+
+    /// 图片标记的第四种形态：`[Image: original 3420x2224, displayed at ...]`。
+    /// 它是客户端写的图片元数据，跨对话反复出现，会伪装成「你反复说的话」。
+    func testImageMetadataMarkerIsStripped() {
+        let t = Segmenter.strippingImageMarkers(
+            "看这张 [Image: original 3420x2224, displayed at 2000x1301. Multiple] 有问题吗")
+        XCTAssertFalse(t.contains("Image"), t)
+        XCTAssertTrue(t.contains("看这张"), t)
+        XCTAssertTrue(t.contains("有问题吗"), t)
+    }
+
+    /// skill 重新调用的注入顶着 user 名头进场，整条都不是你打的字
+    func testSkillReinvocationIsSystemInjected() {
+        let m = Message(id: "m", role: .user, timestamp: Date(), blocks: [.text(
+            "(Re-invocation of /superpowers:writing-plans — the skill instructs you to...)")])
+        XCTAssertTrue(Segmenter.isSystemInjected(m))
+        XCTAssertNil(Segmenter.userTextOfSingle(m))
+    }
+
+    /// 自己写到这几个字不该被误删
+    func testMentioningReinvocationMidSentenceIsKept() {
+        let m = Message(id: "m", role: .user, timestamp: Date(), blocks: [.text(
+            "帮我看看 (Re-invocation of ...) 这个注入是什么")])
+        XCTAssertFalse(Segmenter.isSystemInjected(m))
+    }
+}
