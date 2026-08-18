@@ -288,7 +288,9 @@ final class MindsSurpriseTests: XCTestCase {
         let out = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 10)
         let ps = out.map(\.phrase)
         XCTAssertTrue(ps.contains { $0.contains("第一性原理思考") }, "跨项目高频短语该被找到: \(ps)")
-        XCTAssertTrue(ps.contains { $0.contains("是什么意思") }, "固定问法同样该被找到: \(ps)")
+        // 「是什么意思」含代词「什么」,2026-08-18 起被代词过滤挡掉:
+        // 真机上它的成分覆盖率也有 44%,两道判据结论一致
+        XCTAssertTrue(MindsBuilder.containsPronoun("是什么意思"))
     }
 
     func testRepeatedPhrasesRejectsFragments() {
@@ -1072,5 +1074,134 @@ extension MindsSurpriseTests {
         let found = MindsBuilder.detectPersonNames(
             corpus: [(text: "乔布斯在发布会上说专注就是拒绝一百件事", cwd: "/p/a")])
         XCTAssertTrue(found.allSatisfy { !$0.name.isEmpty && $0.taggedHits > 0 })
+    }
+}
+
+extension MindsSurpriseTests {
+    /// 背景语料：不含被测短语的普通对话。
+    /// 没有它，测试语料里每个成分的会话覆盖率都是 100%，
+    /// 成分过滤会把一切毙掉——真实语料从来不长这样。
+    func backgroundCorpus(_ n: Int) -> [(text: String, cwd: String)] {
+        (0..<n).map { i in
+            (text: "把仓库里的日志归档一下，顺便看看构建产物 \(i)", cwd: "/bg/\(i % 7)")
+        }
+    }
+}
+
+// MARK: - 短语成分口水词过滤（2026-08-18）
+
+extension MindsSurpriseTests {
+
+    /// 「需要 X」这一族是句式框架不是概念。判据不是黑名单：短语里任一 CJK 双字
+    /// 成分覆盖太多会话，它就是模板。真机上「需要」覆盖 45% 的对话，
+    /// 于是需要优化/需要增加/需要怎么/是否需要 被一次清掉。
+    func testFrameworkPhrasesAreDroppedByComponentRatio() {
+        var corpus = backgroundCorpus(40)
+        // 「需要」出现在几乎每一场——它是这个人的口头语
+        for i in 0..<40 {
+            corpus.append((text: "这里需要优化一下。还需要增加一个开关。需要优化。",
+                           cwd: "/p/\(i % 5)"))
+        }
+        // 「用户旅程」只在少数几场，但两个成分都不是口头语
+        for i in 0..<6 {
+            corpus.append((text: "把用户旅程重新梳理一遍。用户旅程。", cwd: "/p/x\(i % 4)"))
+        }
+        let phrases = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 20).map(\.phrase)
+        XCTAssertTrue(phrases.contains { $0.contains("用户旅程") }, phrases.description)
+        XCTAssertFalse(phrases.contains { $0.hasPrefix("需要") },
+                       "含高覆盖成分的短语是句式框架：\(phrases)")
+    }
+
+    /// ASCII 的字母 bigram 天然高频（skill 里的 il/ll），不能拿它算成分覆盖率，
+    /// 否则所有含英文的短语都会被误杀
+    func testAsciiBigramsDoNotCountAsComponents() {
+        var corpus: [(text: String, cwd: String)] = []
+        for i in 0..<8 {
+            corpus.append((text: "把 AI 味去掉。AI 味太重了。", cwd: "/p/\(i % 4)"))
+        }
+        corpus += backgroundCorpus(40)
+        let phrases = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 20).map(\.phrase)
+        XCTAssertTrue(phrases.contains { $0.contains("AI") },
+                      "含英文的短语不该被字母 bigram 误杀：\(phrases)")
+    }
+
+    /// 阈值是可调的策略，不是魔法数
+    /// 阈值是策略不是魔法数。真机定阈现场:概念型 热点事件 20% · 第一性原理 23% ·
+    /// 用户旅程 25% · 产品经理 27%;框架型 怎么设计 30% · 这个地方 39% ·
+    /// 一个完整 43% · 需要 X 一族 45%。分界在 27%→30% 之间。
+    func testComponentRatioThresholdSitsInTheRealGap() {
+        XCTAssertGreaterThan(MindsBuilder.phraseComponentDFRatio, 0.27,
+                             "低于 0.27 会误伤「产品经理」这类真概念")
+        XCTAssertLessThanOrEqual(MindsBuilder.phraseComponentDFRatio, 0.30,
+                                 "高于 0.30 会放进「怎么设计」这类句式框架")
+    }
+
+    /// 小语料豁免:9 场里每个成分覆盖率都接近 100%,比例失去分辨力,
+    /// 此时不做成分过滤——否则所有短语一起出局
+    func testComponentFilterIsSkippedOnTinyCorpus() {
+        var corpus: [(text: String, cwd: String)] = []
+        for p in ["/a", "/b", "/c"] {
+            for _ in 0..<3 { corpus.append((text: "从第一性原理思考整件事", cwd: p)) }
+        }
+        XCTAssertLessThan(corpus.count, MindsBuilder.phraseComponentMinConversations)
+        let ps = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 10).map(\.phrase)
+        XCTAssertFalse(ps.isEmpty, "样本不足时不该把短语全毙掉：\(ps)")
+    }
+}
+
+// MARK: - 同族合并与代词过滤（2026-08-18）
+
+extension MindsSurpriseTests {
+
+    /// 同一个概念的不同说法只占一个位置。真机现场：「第一性原理」一族独占 5 个位置
+    /// （第一性原理 53× / 从第一性原理 26× / 第一性原理思考 16× /
+    /// 从第一性原理思考 12× / 按照第一性原理 10×），把别的概念全挤出榜。
+    func testPhraseFamilyCollapsesToItsCore() {
+        var corpus = backgroundCorpus(80)
+        for i in 0..<10 {
+            corpus.append((text: "从第一性原理思考这件事。第一性原理。按照第一性原理来看。第一性原理。",
+                           cwd: "/p/\(i % 6)"))
+        }
+        let ps = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 20).map(\.phrase)
+        let family = ps.filter { $0.contains("第一性") }
+        XCTAssertEqual(family.count, 1, "一族只该占一个位置：\(family)")
+        XCTAssertEqual(family.first, "第一性原理", "留下的该是最核心的说法（子串频次必然更高）")
+    }
+
+    /// 两步顺序不能颠倒：先按长度去碎片，再按频次合并同族。
+    /// 反过来做（直接按频次排）会让「从第一性」「原理思考」这类部分重叠的碎片
+    /// 没人吃掉——2026-08-18 改错过一次的现场。
+    func testFamilyMergeDoesNotResurrectFragments() {
+        var corpus = backgroundCorpus(80)
+        for i in 0..<10 {
+            corpus.append((text: "从第一性原理思考。第一性原理。第一性原理思考。",
+                           cwd: "/p/\(i % 6)"))
+        }
+        let ps = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 20).map(\.phrase)
+        for bad in ["从第一性", "原理思考", "一性原理思", "照第一性原"] {
+            XCTAssertFalse(ps.contains(bad), "碎片不该出现：\(ps)")
+        }
+    }
+
+    /// 代词是封闭类，不是语义黑名单。真机上挡住的是 我不知道 · 让我看看 ·
+    /// 我希望能 · 我觉得你 · 我的理解 · 我们自己 · 类似这样 · 这些信息。
+    func testPronounPhrasesAreDropped() {
+        var corpus = backgroundCorpus(80)
+        for i in 0..<10 {
+            corpus.append((text: "我不知道这样对不对。我们自己看看。这些信息够吗。用户旅程要重梳。",
+                           cwd: "/p/\(i % 6)"))
+        }
+        let ps = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 20).map(\.phrase)
+        XCTAssertFalse(ps.contains { MindsBuilder.containsPronoun($0) }, ps.description)
+        XCTAssertTrue(ps.contains { $0.contains("用户旅程") }, "不含代词的概念该留下：\(ps)")
+    }
+
+    func testContainsPronounClassifier() {
+        for p in ["我不知道", "我们自己", "这些信息", "类似这样", "那个方案", "什么意思"] {
+            XCTAssertTrue(MindsBuilder.containsPronoun(p), p)
+        }
+        for p in ["用户旅程", "第一性原理", "产品经理", "热点事件", "最佳实践", "在 github"] {
+            XCTAssertFalse(MindsBuilder.containsPronoun(p), p)
+        }
     }
 }

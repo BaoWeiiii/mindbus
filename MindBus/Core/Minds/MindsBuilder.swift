@@ -160,7 +160,7 @@ public enum MindsBuilder {
         surprise.researchDestinations = researchDestinations(corpus: corpus)
         surprise.citedPeople = citedPeople(corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) })
         surprise.phrases = repeatedPhrases(
-            corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) }, limit: 12)
+            corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) }, limit: 24)
 
         let mechanical = renderDocument(overview: overview, projects: projects,
                                         vocabulary: vocabulary, vocabStats: vocabStats,
@@ -698,6 +698,48 @@ public enum MindsBuilder {
                                                   "个", "些", "把", "被", "和", "与",
                                                   "或", "就", "都", "也", "还", "很", "更", "再"]
 
+    /// 短语里不该出现的人称/指示代词。
+    ///
+    /// 判据是**词类**不是词义：代词在汉语里是封闭类，穷举得完、几十年不变，
+    /// 和 `phraseEdgeStops`（结构助词）是同一条思路的延伸——那条管首尾，
+    /// 这条管任意位置。真机现场（2026-08-18）挡住的是：我不知道 · 让我看看 ·
+    /// 我希望能 · 我觉得你 · 我的理解 · 我们自己 · 类似这样 · 这些信息；
+    /// 而概念短语（产品经理 · 第一性原理 · 热点事件 · 最佳实践 · 库存管理 ·
+    /// 调度能力 · AI 产品 · 用户旅程）一个都不含代词。
+    ///
+    /// 「你」不在表里:「在 github」「用 AI」这类里没有代词,而「给你的 AI」
+    /// 这种含「你」的说法本身就是你的说法,不该一刀切。
+    static let phrasePronouns = ["我们", "我", "咱", "他们", "她们", "它们",
+                                 "这个", "这些", "这样", "这里", "这种", "这条",
+                                 "那个", "那些", "那样", "那里", "那种",
+                                 "什么", "哪些", "哪个", "自己"]
+
+    static func containsPronoun(_ phrase: String) -> Bool {
+        phrasePronouns.contains { phrase.contains($0) }
+    }
+
+    static func isCJKChar(_ c: Character) -> Bool {
+        c.unicodeScalars.first.map { (0x4E00...0x9FFF).contains($0.value) } ?? false
+    }
+
+    /// 短语成分的口水词阈值：短语里任一 CJK 双字成分的会话覆盖率超过它，
+    /// 这条短语就是句式框架而不是概念。
+    ///
+    /// 真机定阈（2026-08-18，150 场）：概念型短语的成分覆盖率
+    /// 热点事件 20% · 第一性原理 23% · 用户旅程 25% · 产品经理 27% · AI 味 0%；
+    /// 框架型 怎么设计 30% · 这个地方/这个 skill 39% · 一个完整 43% ·
+    /// 是什么意思 44% · 需要 X 一族 45%。分界落在 27%→30% 之间。
+    ///
+    /// 这与词表层的 `stopwordDFRatio` 是同一个思想，只是作用在**成分**上：
+    /// 一个词你到处都在说，那么含它的短语就不是一个概念。好处是「需要 X」
+    /// 这一整族被一次清掉，不需要枚举。
+    static let phraseComponentDFRatio = 0.30
+
+    /// 成分过滤的最低样本量。会话太少时「覆盖率」没有意义——
+    /// 9 场语料里每个成分的覆盖率都接近 100%，比例失去分辨力，
+    /// 会把所有短语一起毙掉（同 `weekPercentile` 的「历史周 <4 个返回 nil」）。
+    static let phraseComponentMinConversations = 30
+
     /// 短语首尾不允许出现的标点。含全角/半角括号、引号、书名号与常见标点——
     /// 判据不是「这个符号不好」，而是「一句话不会以标点开头或结尾」。
     static func isPhraseEdgePunctuation(_ c: Character) -> Bool {
@@ -752,17 +794,58 @@ public enum MindsBuilder {
                 }
             }
         }
+        // 成分口水词过滤:短语里任一 CJK 双字成分覆盖太多会话 → 那是句式框架。
+        // 只看 CJK 子串——ASCII 的字母 bigram(「skill」的 il/ll)天然高频,
+        // 拿它算会把所有含英文的短语误杀。
+        let convCount = max(corpus.count, 1)
+        var bigramDF: [String: Int] = [:]
+        for (text, _) in corpus {
+            var seen = Set<String>()
+            let a = Array(text)
+            for i in 0..<max(a.count - 1, 0) where isCJKChar(a[i]) && isCJKChar(a[i + 1]) {
+                seen.insert(String(a[i...i + 1]))
+            }
+            for g in seen { bigramDF[g, default: 0] += 1 }
+        }
+        func componentsAreTopical(_ phrase: String) -> Bool {
+            guard convCount >= phraseComponentMinConversations else { return true }
+            let a = Array(phrase)
+            var worst = 0
+            for i in 0..<max(a.count - 1, 0) where isCJKChar(a[i]) && isCJKChar(a[i + 1]) {
+                worst = max(worst, bigramDF[String(a[i...i + 1])] ?? 0)
+            }
+            return Double(worst) / Double(convCount) < phraseComponentDFRatio
+        }
+
         // 频次 + 跨项目双门槛,再去子串(长的优先;同频的短子串是碎片)
         let cands = count.compactMap { (g, c) -> (String, Int, Int)? in
             let p = projects[g]?.count ?? 0
             return (c >= 6 && p >= 3) ? (g, c, p) : nil
         }.sorted { $0.0.count > $1.0.count }
+        // 第一步:长度降序去碎片。长串先入选,同频的短子串是它切碎的残片。
+        // 这一步不能按频次排——那样长串不先入选,「从第一性」「原理思考」
+        // 这类部分重叠的碎片就没人吃掉了(2026-08-18 改错过一次的现场)。
         var kept: [(phrase: String, times: Int, projects: Int)] = []
         for (g, c, p) in cands {
             if kept.contains(where: { $0.phrase.contains(g) && c <= $0.times + 1 }) { continue }
             kept.append((phrase: g, times: c, projects: p))
         }
-        return kept.sorted {
+        // 第二步:同族合并。互为子串的是同一个概念的不同说法,留频次最高的那个。
+        // 真机现场——「第一性原理」一族独占 5 个位置(第一性原理 53× / 从第一性原理
+        // 26× / 第一性原理思考 16× / 从第一性原理思考 12× / 按照第一性原理 10×),
+        // 把别的概念全挤出榜。子串频次必然 ≥ 超串,所以留下的是最核心的说法。
+        var merged: [(phrase: String, times: Int, projects: Int)] = []
+        for item in kept.sorted(by: { $0.times > $1.times }) {
+            if merged.contains(where: {
+                $0.phrase.contains(item.phrase) || item.phrase.contains($0.phrase)
+            }) { continue }
+            merged.append(item)
+        }
+        let kept2 = merged
+        // 成分过滤放在去子串**之后**:反过来做的话,长短语被成分毙掉后,
+        // 它的子串会从碎片堆里冒出来顶替它(真机现场:「我觉得需要」因含「需要」
+        // 出局,「我觉得需」这个碎片反而进了榜)。
+        return kept2.filter { componentsAreTopical($0.phrase) && !containsPronoun($0.phrase) }.sorted {
             $0.projects != $1.projects ? $0.projects > $1.projects : $0.times > $1.times
         }.prefix(limit).map { $0 }
     }
