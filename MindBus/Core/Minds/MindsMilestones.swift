@@ -37,14 +37,67 @@ public enum MindsMilestones {
         }
     }
 
-    /// 认可词。整条消息必须**只有**这一句才算——
-    /// 「继续，另外把 X 改一下」是新指令不是认可，混进来会把里程碑变成噪声。
-    static let approvals = ["继续", "好", "好的", "可以", "行", "对", "是的", "同意",
-                            "没问题", "ok", "就这样", "不错", "确认", "通过", "采纳",
-                            "听你的", "你决定"]
-
-    /// 认可词最长多少字。超过就当它带了新内容。
+    /// 认可词的长度上限。
+    ///
+    /// 12 个字符对中英文都落在「一句短应答」的量级：
+    /// 继续(2) · 确认(2) · ok(2) · yes(3) · lgtm(4) · ship it(7) ·
+    /// continue(8) · go ahead(8) · looks good(10) · sounds good(11)。
+    /// 超过它就当这条消息带了新内容，不是纯粹的应答。
     static let maxApprovalLength = 12
+
+    /// 学认可词时，一个候选至少要出现这么多次。
+    static let approvalMinOccurrences = 5
+    /// 候选出现处有多大比例紧跟在一段长汇报之后。
+    static let approvalMinAfterReportRatio = 0.7
+
+    /// **学出**这个人的认可词，而不是预先写死一张中文表。
+    ///
+    /// 判据三条，全部与语言无关：
+    /// ① **短**——不超过 `maxApprovalLength`
+    /// ② **反复出现**——至少 `approvalMinOccurrences` 次
+    /// ③ **位置**——绝大多数出现在一段够长的 AI 汇报之后
+    ///
+    /// 真机验证（2026-08-18，150 场）自动学出：继续(242 次/84%) · 确认(19/100%) ·
+    /// push · 全部优化 · 做 · a。用学出的表提取里程碑得到 287 条，
+    /// 与人工写死那张表的 233 条质量相当——学出来的「噪声词」其实无害，
+    /// 它们前面同样是实质汇报。换个说英文的人，学到的会是
+    /// continue / yes / ok / go ahead，代码一行不用改。
+    ///
+    /// 试过并否掉的四条判据（都想把「认可」和「短指令」分开，都不成立）：
+    /// 跨项目数（会误伤只在少数项目里说的「确认」）、
+    /// 前后 AI 消息的话题延续度（继续 0.095 vs 全部优化 0.061，区分度不够）、
+    /// 独立成句率（确认只有 5%，反被误杀）、
+    /// 完全不用词表只看「长汇报 + 短回应」（484 条，混进大量讨论中间态）。
+    /// 结论：词表是必需的，但它必须是学出来的。
+    public static func learnApprovals(conversations: [[Message]],
+                                      text: (Message) -> String) -> Set<String> {
+        var seen: [String: Int] = [:]
+        var afterReport: [String: Int] = [:]
+        for messages in conversations {
+            for (i, m) in messages.enumerated() where m.role == .user {
+                let core = normalizedApproval(text(m))
+                guard !core.isEmpty, core.count <= maxApprovalLength else { continue }
+                seen[core, default: 0] += 1
+                let prev = messages[..<i].last { $0.role == .assistant }
+                if let prev, text(prev).count >= minReportLength {
+                    afterReport[core, default: 0] += 1
+                }
+            }
+        }
+        return Set(seen.compactMap { word, n -> String? in
+            guard n >= approvalMinOccurrences else { return nil }
+            let ratio = Double(afterReport[word] ?? 0) / Double(n)
+            return ratio >= approvalMinAfterReportRatio ? word : nil
+        })
+    }
+
+    /// 归一化成比对用的形态：去首尾空白、去句末标点、小写。
+    /// 标点集合含中英两套，是**书写系统**的差异，不是某种语言的词汇表。
+    static func normalizedApproval(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "。，！？!?,.~、;；ï¼ 　"))
+            .lowercased()
+    }
 
     /// AI 消息至少多长才算「一个工作块」。真机上被认可的平均 1342 字，
     /// 其余 264 字；200 是保守下界，宁可漏掉短汇报，不要把闲聊当里程碑。
@@ -53,12 +106,11 @@ public enum MindsMilestones {
     /// 首句至少多长才算一条里程碑。
     static let minHeadlineLength = 10
 
-    public static func isApproval(_ text: String) -> Bool {
-        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard t.count <= maxApprovalLength else { return false }
-        // 去掉句末标点后必须**整句**等于某个认可词
-        let core = t.trimmingCharacters(in: CharacterSet(charactersIn: "。，！？!?,.~、 　"))
-        return approvals.contains { $0.caseInsensitiveCompare(core) == .orderedSame }
+    /// 整条消息必须**只有**这一句认可才算——「继续，另外把 X 改一下」是新指令。
+    public static func isApproval(_ text: String, approvals: Set<String>) -> Bool {
+        let core = normalizedApproval(text)
+        guard !core.isEmpty, core.count <= maxApprovalLength else { return false }
+        return approvals.contains(core)
     }
 
     /// 取一段汇报的首句：第一行有实质内容的文字，截到第一个句末标点。
@@ -84,12 +136,13 @@ public enum MindsMilestones {
     /// `text(of:)` 由调用方给——Core 里 `Message` 的正文提取有好几种口径
     /// （检索用 / 展示用），这一层不替调用方决定用哪种。
     public static func extract(messages: [Message],
+                               approvals: Set<String>,
                                text: (Message) -> String) -> [Milestone] {
         var out: [Milestone] = []
         for (i, m) in messages.enumerated() {
             guard m.role == .user else { continue }
             let said = text(m)
-            guard isApproval(said) else { continue }
+            guard isApproval(said, approvals: approvals) else { continue }
             // 往回找最近的一条「够长的」AI 消息
             guard let report = messages[..<i].reversed().first(where: {
                 $0.role == .assistant && text($0).count >= minReportLength
@@ -114,41 +167,35 @@ public enum MindsMilestones {
         }
     }
 
-    /// AI 侧的「征询」标记。
-    ///
-    /// 注意这些模式匹配的是 **AI 的话**，不是你的话——它只用来定位「这里是个
-    /// 决策点」，不对你说的内容做任何价值判断。真机上 AI 摆出选项 65 次。
-    ///
-    /// 为什么不去判「你选了 A 还是 B」：真机实测你几乎不用编号选择（用
-    /// 「A」「第二个」这类说法的只有 2 处），你的做法是**用自己的话重述**，
-    /// 所以配对到具体选项做不到，也不必要——你那句回应本身就是决定。
-    static let solicitationMarkers = [
-        "方案 A", "方案 B", "方案一", "方案二", "选项 A", "选项 B",
-        "两个选择", "两个方案", "两个做法", "两个思路",
-        "三个选择", "三个方案", "三个做法", "三个思路",
-        "哪一种", "哪种", "你倾向", "你想要哪",
-    ]
-
     /// 征询之后多少条消息内的回应算数。隔太远就不是对这次征询的回答了。
     static let decisionLookahead = 2
     static let minSolicitationLength = 150
     static let decisionRange = 4...120
 
+    /// 问号。中英两套写法都列上——那是**书写系统**的差别，
+    /// 不是「中文词汇表」；任何用这两个符号的语言都被覆盖。
+    static let questionMarks: Set<Character> = ["?", "？"]
+
+    /// AI 在向你征询意见：一段够长的话，并且**以问号收尾**。
+    ///
+    /// 原先这里是一张中文模式表（方案 A/B、两个选择、你倾向哪种…），
+    /// 换个语言的模型说话就全部失效。改成「以问号收尾」之后判据与语言无关，
+    /// 而且更准——真机实测「结尾是问句」在被认可组里富集 4.17×/2.64×，
+    /// 本来就是这批消息最稳的特征。
     static func isSolicitation(_ report: String) -> Bool {
         guard report.count >= minSolicitationLength else { return false }
-        if solicitationMarkers.contains(where: { report.contains($0) }) { return true }
-        // 「要么…要么…」是同一个语用形态，只是没法写成固定串
-        guard let first = report.range(of: "要么") else { return false }
-        return report[first.upperBound...].contains("要么")
+        let tail = report.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let last = tail.last else { return false }
+        return questionMarks.contains(last)
     }
 
     /// 疑问句不是拍板——你在追问，不是在定。
-    /// 真机上剔掉的是「测试和验收呢？」「什么是语义地图渲染管线？」这类。
+    ///
+    /// 只看问号，不列疑问词：疑问词表是语言相关的（中文「什么/为什么」、
+    /// 英文 what/why/how），而问号是书写系统级的。代价是漏掉不带问号的
+    /// 疑问句，宁可漏一条也不要把整套判据绑死在一种语言上。
     static func isQuestion(_ text: String) -> Bool {
-        if text.contains("？") || text.contains("?") { return true }
-        let openers = ["什么", "为什么", "怎么", "如何", "是不是", "能不能",
-                       "有没有", "哪些", "哪个", "多少", "在哪"]
-        return openers.contains { text.hasPrefix($0) }
+        text.contains { questionMarks.contains($0) }
     }
 
     public static func extractDecisions(messages: [Message],

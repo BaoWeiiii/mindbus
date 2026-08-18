@@ -168,8 +168,13 @@ public enum MindsBuilder {
         surprise.repeatedBriefings = repeatedBriefings(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID, startAt: $0.startAt) },
             limit: 5)
+        let pos = posProfile(corpus: corpusRows.map(\.text))
         surprise.phrases = repeatedPhrases(
-            corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) }, limit: 24)
+            corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) }, limit: 24,
+            pronouns: Set(pos.compactMap { $0.value == "Pronoun" ? $0.key : nil }),
+            functionWords: Set(pos.compactMap {
+                functionWordClasses.contains($0.value) ? $0.key.lowercased() : nil
+            }))
 
         let mechanical = renderDocument(overview: overview, projects: projects,
                                         vocabulary: vocabulary, vocabStats: vocabStats,
@@ -716,24 +721,106 @@ public enum MindsBuilder {
                                                   "个", "些", "把", "被", "和", "与",
                                                   "或", "就", "都", "也", "还", "很", "更", "再"]
 
-    /// 短语里不该出现的人称/指示代词。
+    /// 短语里含代词就不是概念——判据是**词类**不是词义。
     ///
-    /// 判据是**词类**不是词义：代词在汉语里是封闭类，穷举得完、几十年不变，
-    /// 和 `phraseEdgeStops`（结构助词）是同一条思路的延伸——那条管首尾，
-    /// 这条管任意位置。真机现场（2026-08-18）挡住的是：我不知道 · 让我看看 ·
-    /// 我希望能 · 我觉得你 · 我的理解 · 我们自己 · 类似这样 · 这些信息；
-    /// 而概念短语（产品经理 · 第一性原理 · 热点事件 · 最佳实践 · 库存管理 ·
-    /// 调度能力 · AI 产品 · 用户旅程）一个都不含代词。
+    /// 代词表由 `pronounsByPOS` 从语料里学，不写死：写死一张中文表的话，
+    /// 同一套代码换个说英文的人就整体失效。真机现场（2026-08-18）挡住的是：
+    /// 我不知道 · 让我看看 · 我希望能 · 我觉得你 · 我的理解 · 我们自己 ·
+    /// 类似这样 · 这些信息；而概念短语（产品经理 · 第一性原理 · 热点事件 ·
+    /// 最佳实践 · 库存管理 · 调度能力 · AI 产品 · 用户旅程）一个都不含代词。
     ///
-    /// 「你」不在表里:「在 github」「用 AI」这类里没有代词,而「给你的 AI」
-    /// 这种含「你」的说法本身就是你的说法,不该一刀切。
-    static let phrasePronouns = ["我们", "我", "咱", "他们", "她们", "它们",
-                                 "这个", "这些", "这样", "这里", "这种", "这条",
-                                 "那个", "那些", "那样", "那里", "那种",
-                                 "什么", "哪些", "哪个", "自己"]
+    /// 与 `phraseEdgeStops`（结构助词）是同一条思路的延伸——那条管首尾，
+    /// 这条管任意位置。
+    static func containsPronoun(_ phrase: String, pronouns: Set<String>) -> Bool {
+        pronouns.contains { matchesAsWord($0, in: phrase) }
+    }
 
-    static func containsPronoun(_ phrase: String) -> Bool {
-        phrasePronouns.contains { phrase.contains($0) }
+    /// 代词是否在短语里**作为一个词**出现。
+    ///
+    /// 中日韩没有词间空格，子串匹配就是正确的匹配；
+    /// 拉丁字母必须看词边界——否则「I」会命中 AI / API / UI / CI，
+    /// 「we」会命中 webhook。这不是假想:代词表改成从语料学之后，
+    /// 英文的「I」被学了进来，真机上「AI 味」「AI 产品」当场被误杀
+    /// （2026-08-18 现场）。硬编码中文表时遇不到这个坑，一通用化就暴露。
+    static func matchesAsWord(_ needle: String, in phrase: String) -> Bool {
+        guard !needle.isEmpty else { return false }
+        let latin = needle.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber) }
+        guard latin else { return phrase.contains(needle) }
+        func isWordChar(_ c: Character) -> Bool { c.isASCII && (c.isLetter || c.isNumber) }
+        var from = phrase.startIndex
+        while let r = phrase.range(of: needle, options: .caseInsensitive,
+                                   range: from..<phrase.endIndex) {
+            let beforeOK = r.lowerBound == phrase.startIndex
+                || !isWordChar(phrase[phrase.index(before: r.lowerBound)])
+            let afterOK = r.upperBound == phrase.endIndex || !isWordChar(phrase[r.upperBound])
+            if beforeOK && afterOK { return true }
+            guard r.upperBound < phrase.endIndex else { break }
+            from = phrase.index(after: r.lowerBound)
+        }
+        return false
+    }
+
+    /// 给语料里每个词元打词性、取众数,得到「词 → 主导词类」。
+    /// 代词表和功能词表都从这一份派生:语料一大,这遍 NLTagger 遍历是
+    /// 这一层最贵的一步,不能为每张表各跑一遍。
+    static func posProfile(corpus: [String]) -> [String: String] {
+        var byWord: [String: [String: Int]] = [:]
+        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        for text in corpus where !text.isEmpty {
+            tagger.string = text
+            if let lang = NLLanguageRecognizer.dominantLanguage(for: text) {
+                tagger.setLanguage(lang, range: text.startIndex..<text.endIndex)
+            }
+            tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word,
+                                 scheme: .lexicalClass,
+                                 options: [.omitWhitespace, .omitPunctuation]) { tag, r in
+                guard let tag else { return true }
+                byWord[String(text[r]), default: [:]][tag.rawValue, default: 0] += 1
+                return true
+            }
+        }
+        return byWord.compactMapValues { $0.max(by: { $0.value < $1.value })?.key }
+    }
+
+    /// 从语料里学出代词表（`NLTagger` 判为 Pronoun 的词元）。
+    /// 说中文的人学到 我/我们/这个/什么，说英文的人学到 I/we/this/what。
+    static func pronounsByPOS(corpus: [String]) -> Set<String> {
+        Set(posProfile(corpus: corpus).compactMap { $0.value == "Pronoun" ? $0.key : nil })
+    }
+
+    /// 学出虚词表(冠词/介词/连词/助词/代词…)。与代词表同源,只是放宽到整类。
+    /// 用途是短语的**首尾**过滤——中文那条规矩写在 `phraseEdgeStops`
+    /// (的/了/着/地/得),是手写的;英文这张表靠 POS 学,一个词都不用写死。
+    static func functionWordsByPOS(corpus: [String]) -> Set<String> {
+        Set(posProfile(corpus: corpus).compactMap {
+            functionWordClasses.contains($0.value) ? $0.key.lowercased() : nil
+        })
+    }
+
+    /// 短语首尾的拉丁词元是不是虚词。
+    ///
+    /// 「the user」「in the」「is a」这类组合在英文语料里频次极高但没有内容,
+    /// 中文靠 `phraseEdgeStops` 挡同类的「的 skill」,英文此前无人管——
+    /// 真机 2026-08-18 放开非中文后,in the / to the / is a / as a / on the
+    /// 一次涌进榜单前列。CJK 词元不在这里判,它归成分覆盖率那条管。
+    static func edgeIsFunctionWord(_ phrase: String, functionWords: Set<String>) -> Bool {
+        let toks = phraseTokenRanges(phrase)
+        guard let first = toks.first, let last = toks.last else { return false }
+        for r in [first, last] {
+            let w = String(phrase[r])
+            guard w.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { continue }
+            if functionWords.contains(w.lowercased()) { return true }
+        }
+        return false
+    }
+
+    /// 自然语言的一句话里不会出现的字符:路径分隔符、标记语言的尖括号与等号、
+    /// 引号与各种括号。带上它们的那一段不是人说的话,是文件路径、XML 片段
+    /// 或工具输出——真机 2026-08-18 短语层一放开非中文,家目录路径 306 次
+    /// 冲到榜首(还带着用户名),「image> </image」「path="/var/folders」紧随其后。
+    /// 撇号和点不在其中:don't、user's、github.com 都是人写得出来的。
+    static func isMachineTextCharacter(_ c: Character) -> Bool {
+        "/<>=\"{}[]|\\".contains(c)
     }
 
     static func isCJKChar(_ c: Character) -> Bool {
@@ -766,6 +853,67 @@ public enum MindsBuilder {
         return c.isPunctuation || c.isSymbol
     }
 
+    /// 一个候选短语右边最多可以有多集中的「唯一后续」。超过它就是残片。
+    ///
+    /// 真机定阈(2026-08-18,150 场):残片 AI 产 84%(后面是「品」)·
+    /// AI 工 88%(「具」);完整的词 产品经理 16% · 第一性原理 25% ·
+    /// 用户旅程 37% · AI 味 45%。分界落在 45%→84% 之间,0.7 取中。
+    static let phraseRightBranchingMax = 0.7
+
+    /// 这个短语是不是从一个更长的词里切出来的一半。
+    ///
+    /// 判据来自无监督分词的**邻接变化度**(branching entropy):
+    /// 一个真正的词,右边接什么都行——「产品经理」后面可以是「团队」「说」
+    /// 「，」;而一个残片右边几乎只有一种可能,因为它本来就是被切开的
+    /// ——「AI 产」后面 84% 是「品」。纯统计,不查词典,也不挑语言。
+    ///
+    /// 标点、空白和段尾**不算**收敛证据,恰恰相反:残片后面不会出现句号,
+    /// 能收句号说明这里本来就是词尾(真机:「AI 味」45% 的右邻是逗号、
+    /// 「在 github」69% 是空格,两个都是完整的说法)。
+    static func isTruncatedFragment(rightNeighbors: [String: Int]) -> Bool {
+        var content: [String: Int] = [:]
+        var total = 0
+        for (n, c) in rightNeighbors {
+            total += c
+            guard let f = n.first, !isPhraseEdgePunctuation(f) else { continue }
+            content[n, default: 0] += c
+        }
+        guard total > 0, let top = content.values.max() else { return false }
+        return Double(top) / Double(total) >= phraseRightBranchingMax
+    }
+
+    /// 把一段话切成词元的位置。
+    ///
+    /// 拉丁字母数字连成的一串算**一个**词元(「github」不能从中间切开),
+    /// 其余每个字符各算一个词元——中文没有词间空格,字就是最小单位。
+    ///
+    /// 短语窗口按词元数而不是字符数取,这是能同时服务两种书写系统的关键:
+    /// 4-12 个字符对中文是 4-12 个字(正好),对英文连两个词都装不下
+    /// (「user journey」就有 12 个字符),纯英文语料因此一条短语都出不来。
+    /// 返回原文区间、按首尾区间取子串,空格和连字符就原样留在短语里。
+    static func phraseTokenRanges(_ seg: String) -> [Range<String.Index>] {
+        var out: [Range<String.Index>] = []
+        var i = seg.startIndex
+        while i < seg.endIndex {
+            let c = seg[i]
+            if c.isASCII && (c.isLetter || c.isNumber) {
+                var j = i
+                while j < seg.endIndex, seg[j].isASCII, seg[j].isLetter || seg[j].isNumber {
+                    j = seg.index(after: j)
+                }
+                out.append(i..<j)
+                i = j
+            } else if c.isWhitespace {
+                i = seg.index(after: i)
+            } else {
+                let j = seg.index(after: i)
+                out.append(i..<j)
+                i = j
+            }
+        }
+        return out
+    }
+
     /// 跨项目高频短语:比词长、比句短的中间层——你的思维口令(「从第一性原理思考」)、
     /// 固定问法(「是什么意思」「是不是需要」)、审美红线(「AI 味」)全在这一层。
     ///
@@ -777,37 +925,43 @@ public enum MindsBuilder {
     /// ④ 频次 ≥6 且跨 ≥3 个项目——跨项目才是「跟着你走」而非项目内容
     /// 最后去子串(同频时保留最长的),按跨项目数 × 频次排序。
     static func repeatedPhrases(corpus: [(text: String, cwd: String)],
-                                limit: Int) -> [(phrase: String, times: Int, projects: Int)] {
+                                limit: Int,
+                                pronouns: Set<String> = [],
+                                functionWords: Set<String> = [])
+        -> [(phrase: String, times: Int, projects: Int)] {
         var count: [String: Int] = [:]
         var projects: [String: Set<String>] = [:]
+        var rightOf: [String: [String: Int]] = [:]
         let seps = CharacterSet(charactersIn: "。！？\n;；，,、：:!?")
-        func isAlnumASCII(_ c: Character) -> Bool {
-            c.isASCII && (c.isLetter || c.isNumber)
-        }
         for (text, cwd) in corpus {
             for piece in text.components(separatedBy: seps) {
                 let seg = piece.trimmingCharacters(in: .whitespaces)
-                guard (4...60).contains(seg.count),
-                      seg.contains(where: { ("\u{4E00}"..."\u{9FFF}").contains($0) }) else { continue }
-                let a = Array(seg)
-                for L in 4...12 where a.count >= L {
-                    for i in 0...(a.count - L) {
-                        if isAlnumASCII(a[i]), i > 0, isAlnumASCII(a[i - 1]) { continue }
-                        let j = i + L - 1
-                        if isAlnumASCII(a[j]), j + 1 < a.count, isAlnumASCII(a[j + 1]) { continue }
-                        let g = String(a[i...j]).trimmingCharacters(in: .whitespaces)
+                let toks = phraseTokenRanges(seg)
+                // 下限按字数、上限按词元数:「有 AI 味」只有 3 个词元却有 6 个字,
+                // 下限也按词元卡的话这种短句会被整段丢掉(真机上「AI 味」
+                // 因此从 61 次掉到 31 次);而上限按字数的话,60 个字符对英文
+                // 才十来个词,长句子全被挡在外面。
+                guard seg.count >= 4, (2...60).contains(toks.count) else { continue }
+                for L in 2...12 where toks.count >= L {
+                    for i in 0...(toks.count - L) {
+                        // 词元化本身就保证了不会从英文单词中间切开
+                        let g = String(seg[toks[i].lowerBound..<toks[i + L - 1].upperBound])
+                            .trimmingCharacters(in: .whitespaces)
                         guard g.count >= 4, let f = g.first, let l = g.last,
                               !phraseEdgeStops.contains(f), !phraseEdgeStops.contains(l),
                               // 首尾不能是标点/括号:真机上「】改成【」跨 9 个项目 45 次,
                               // 统计完全成立,但那是「把【A】改成【B】」这个书写习惯的
                               // 括号残片,显示出来是一串符号,不是一句话
                               !isPhraseEdgePunctuation(f), !isPhraseEdgePunctuation(l),
-                              g.contains(where: { ("\u{4E00}"..."\u{9FFF}").contains($0) }),
                               // 只排阿拉伯数字:Swift 的 isNumber 对中文数字「一」也为真,
                               // 用它会把「第一性原理」整条毙掉(2026-08-16 实测踩中)
-                              !g.contains(where: { $0.isASCII && $0.isNumber }) else { continue }
+                              !g.contains(where: { $0.isASCII && $0.isNumber }),
+                              !g.contains(where: isMachineTextCharacter) else { continue }
                         count[g, default: 0] += 1
                         projects[g, default: []].insert(cwd)
+                        // 右邻的词元;段尾记空串——那是「这里是词尾」的证据
+                        let right = i + L < toks.count ? String(seg[toks[i + L]]) : ""
+                        rightOf[g, default: [:]][right, default: 0] += 1
                     }
                 }
             }
@@ -836,9 +990,13 @@ public enum MindsBuilder {
         }
 
         // 频次 + 跨项目双门槛,再去子串(长的优先;同频的短子串是碎片)
+        // 残片必须在去子串**之前**剔除:否则「AI 产」(18次)会在同族合并里
+        // 以更高的频次吃掉「AI 产品」,榜上只剩那一半。
         let cands = count.compactMap { (g, c) -> (String, Int, Int)? in
             let p = projects[g]?.count ?? 0
-            return (c >= 6 && p >= 3) ? (g, c, p) : nil
+            guard c >= 6, p >= 3 else { return nil }
+            guard !isTruncatedFragment(rightNeighbors: rightOf[g] ?? [:]) else { return nil }
+            return (g, c, p)
         }.sorted { $0.0.count > $1.0.count }
         // 第一步:长度降序去碎片。长串先入选,同频的短子串是它切碎的残片。
         // 这一步不能按频次排——那样长串不先入选,「从第一性」「原理思考」
@@ -863,7 +1021,9 @@ public enum MindsBuilder {
         // 成分过滤放在去子串**之后**:反过来做的话,长短语被成分毙掉后,
         // 它的子串会从碎片堆里冒出来顶替它(真机现场:「我觉得需要」因含「需要」
         // 出局,「我觉得需」这个碎片反而进了榜)。
-        return kept2.filter { componentsAreTopical($0.phrase) && !containsPronoun($0.phrase) }.sorted {
+        return kept2.filter { componentsAreTopical($0.phrase)
+            && !containsPronoun($0.phrase, pronouns: pronouns)
+            && !edgeIsFunctionWord($0.phrase, functionWords: functionWords) }.sorted {
             $0.projects != $1.projects ? $0.projects > $1.projects : $0.times > $1.times
         }.prefix(limit).map { $0 }
     }
@@ -972,7 +1132,11 @@ public enum MindsBuilder {
         let tagger = NLTagger(tagSchemes: [.lexicalClass])
         for text in corpus where !text.isEmpty {
             tagger.string = text
-            tagger.setLanguage(.simplifiedChinese, range: text.startIndex..<text.endIndex)
+            // 不写死语言:让 NLTagger 自己认。写死简体中文的话,同一套代码
+            // 换个说英文的人就整体失效——而 NER / 词性标注本身是多语言的。
+            if let lang = NLLanguageRecognizer.dominantLanguage(for: text) {
+                tagger.setLanguage(lang, range: text.startIndex..<text.endIndex)
+            }
             tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word,
                                  scheme: .lexicalClass,
                                  options: [.omitWhitespace, .omitPunctuation]) { tag, r in
@@ -1030,7 +1194,11 @@ public enum MindsBuilder {
         let tagger = NLTagger(tagSchemes: [.nameType])
         for (text, _) in corpus where !text.isEmpty {
             tagger.string = text
-            tagger.setLanguage(.simplifiedChinese, range: text.startIndex..<text.endIndex)
+            // 不写死语言:让 NLTagger 自己认。写死简体中文的话,同一套代码
+            // 换个说英文的人就整体失效——而 NER / 词性标注本身是多语言的。
+            if let lang = NLLanguageRecognizer.dominantLanguage(for: text) {
+                tagger.setLanguage(lang, range: text.startIndex..<text.endIndex)
+            }
             tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word,
                                  scheme: .nameType,
                                  options: [.omitWhitespace, .omitPunctuation, .joinNames]) { tag, r in

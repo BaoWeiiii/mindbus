@@ -292,7 +292,7 @@ final class MindsSurpriseTests: XCTestCase {
         XCTAssertTrue(ps.contains { $0.contains("第一性原理思考") }, "跨项目高频短语该被找到: \(ps)")
         // 「是什么意思」含代词「什么」,2026-08-18 起被代词过滤挡掉:
         // 真机上它的成分覆盖率也有 44%,两道判据结论一致
-        XCTAssertTrue(MindsBuilder.containsPronoun("是什么意思"))
+        XCTAssertTrue(MindsBuilder.containsPronoun("是什么意思", pronouns: zhPronouns))
     }
 
     func testRepeatedPhrasesRejectsFragments() {
@@ -1187,24 +1187,36 @@ extension MindsSurpriseTests {
 
     /// 代词是封闭类，不是语义黑名单。真机上挡住的是 我不知道 · 让我看看 ·
     /// 我希望能 · 我觉得你 · 我的理解 · 我们自己 · 类似这样 · 这些信息。
+    /// 中文用例用的代词表。运行时这张表由 `pronounsByPOS` 从语料学出。
+    private var zhPronouns: Set<String> {
+        ["我", "我们", "这个", "这些", "这样", "那个", "什么", "自己"]
+    }
+
     func testPronounPhrasesAreDropped() {
         var corpus = backgroundCorpus(80)
         for i in 0..<10 {
             corpus.append((text: "我不知道这样对不对。我们自己看看。这些信息够吗。用户旅程要重梳。",
                            cwd: "/p/\(i % 6)"))
         }
-        let ps = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 20).map(\.phrase)
-        XCTAssertFalse(ps.contains { MindsBuilder.containsPronoun($0) }, ps.description)
+        let ps = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 20,
+                                              pronouns: zhPronouns).map(\.phrase)
+        XCTAssertFalse(ps.contains { MindsBuilder.containsPronoun($0, pronouns: zhPronouns) },
+                       ps.description)
         XCTAssertTrue(ps.contains { $0.contains("用户旅程") }, "不含代词的概念该留下：\(ps)")
     }
 
     func testContainsPronounClassifier() {
         for p in ["我不知道", "我们自己", "这些信息", "类似这样", "那个方案", "什么意思"] {
-            XCTAssertTrue(MindsBuilder.containsPronoun(p), p)
+            XCTAssertTrue(MindsBuilder.containsPronoun(p, pronouns: zhPronouns), p)
         }
         for p in ["用户旅程", "第一性原理", "产品经理", "热点事件", "最佳实践", "在 github"] {
-            XCTAssertFalse(MindsBuilder.containsPronoun(p), p)
+            XCTAssertFalse(MindsBuilder.containsPronoun(p, pronouns: zhPronouns), p)
         }
+        // 同一个函数换一套代词表就服务另一种语言——表是学出来的，不写死
+        XCTAssertTrue(MindsBuilder.containsPronoun("what we shipped",
+                                                   pronouns: ["we", "what", "this"]))
+        XCTAssertFalse(MindsBuilder.containsPronoun("user journey",
+                                                    pronouns: ["we", "what", "this"]))
     }
 }
 
