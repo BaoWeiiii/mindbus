@@ -19,16 +19,21 @@ struct MindsMilestonesCard: View {
                     header
                     MindsSkeletonBody(lines: 5).mindsCard()
                 }
-            } else if !ctx.milestones.isEmpty {
+            } else if !ctx.viz.milestones.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     header
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(ctx.milestones.enumerated()), id: \.offset) { i, m in
+                        ForEach(Array(ctx.viz.milestones.prefix(MindsBuilder.milestonesShown)
+                            .enumerated()), id: \.offset) { i, item in
                             if i > 0 {
                                 Rectangle().fill(MindsUI.border.opacity(0.55))
                                     .frame(height: 1).padding(.vertical, 9)
                             }
-                            row(m)
+                            Button { ctx.open(conversation: item.convID,
+                                              locate: item.m.messageID) } label: {
+                                row(item.m)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .mindsCard()
@@ -43,9 +48,9 @@ struct MindsMilestonesCard: View {
 
     /// 一行 = 日期 · 你说的那句（金色小徽章）· 它汇报的首句。
     /// 日期列定宽，几十行叠起来时左边缘才是一条直线。
-    private func row(_ m: (day: String, approval: String, headline: String)) -> some View {
+    private func row(_ m: MindsMilestones.Milestone) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(m.day)
+            Text(MindsContext.dayString(m.at))
                 .font(BrandFont.mono(11.5))
                 .foregroundStyle(MindsUI.textTertiary)
                 .frame(width: 74, alignment: .leading)
@@ -83,26 +88,31 @@ struct MindsDecisionsCard: View {
                     header
                     MindsSkeletonBody(lines: 4).mindsCard()
                 }
-            } else if !ctx.decisions.isEmpty {
+            } else if !ctx.viz.decisions.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     header
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(ctx.decisions.enumerated()), id: \.offset) { i, d in
+                        ForEach(Array(ctx.viz.decisions.prefix(MindsBuilder.decisionsShown)
+                            .enumerated()), id: \.offset) { i, item in
                             if i > 0 {
                                 Rectangle().fill(MindsUI.border.opacity(0.55))
                                     .frame(height: 1).padding(.vertical, 9)
                             }
-                            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                Text(d.day)
-                                    .font(BrandFont.mono(11.5))
-                                    .foregroundStyle(MindsUI.textTertiary)
-                                    .frame(width: 74, alignment: .leading)
-                                Text(d.statement)
-                                    .font(BrandFont.text(d.statement, 13))
-                                    .foregroundStyle(MindsUI.textPrimary)
-                                    .lineLimit(2)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            Button { ctx.open(conversation: item.convID,
+                                              locate: item.d.messageID) } label: {
+                                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                    Text(MindsContext.dayString(item.d.at))
+                                        .font(BrandFont.mono(11.5))
+                                        .foregroundStyle(MindsUI.textTertiary)
+                                        .frame(width: 74, alignment: .leading)
+                                    Text(item.d.statement)
+                                        .font(BrandFont.text(item.d.statement, 13))
+                                        .foregroundStyle(MindsUI.textPrimary)
+                                        .lineLimit(2)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
                             }
+                            .buttonStyle(.plain)
                         }
                     }
                     .mindsCard()

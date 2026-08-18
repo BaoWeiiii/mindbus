@@ -1622,7 +1622,7 @@ public enum MindsBuilder {
 
     /// 一条里程碑要显示多少条。多了就成流水账——这一栏要的是「回头一看，
     /// 原来这几件事是我点头放行的」，不是全量日志。
-    static let milestonesShown = 12
+    public static let milestonesShown = 12
 
     /// 「你点头的时刻」：你说「继续」之前，AI 那条汇报的首句。
     ///
@@ -1644,7 +1644,7 @@ public enum MindsBuilder {
         return lines.joined(separator: "\n")
     }
 
-    static let decisionsShown = 8
+    public static let decisionsShown = 8
 
     /// 「你拍板的时刻」：它把选择摆到你面前之后，你说的那句话。
     ///

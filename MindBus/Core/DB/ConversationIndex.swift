@@ -186,7 +186,8 @@ public final class ConversationIndex: @unchecked Sendable {
         conv_rowid INTEGER NOT NULL,
         approval TEXT NOT NULL,
         headline TEXT,
-        at REAL NOT NULL
+        at REAL NOT NULL,
+        message_id TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_milestone_conv ON milestone_candidates(conv_rowid);
     -- 「你拍板的时刻」的原始素材:AI 以问号收尾地征询之后,你说的那句原话。
@@ -194,7 +195,8 @@ public final class ConversationIndex: @unchecked Sendable {
     CREATE TABLE IF NOT EXISTS decision_points (
         conv_rowid INTEGER NOT NULL,
         statement TEXT NOT NULL,
-        at REAL NOT NULL
+        at REAL NOT NULL,
+        message_id TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_decision_conv ON decision_points(conv_rowid);
     -- MCP 引用回流聚合（Task 5 写入；只用于记录与展示，本轮绝不进排序公式）
@@ -280,7 +282,7 @@ public final class ConversationIndex: @unchecked Sendable {
     ///      user:」——「## My request for Codex:」之后才是用户的话，无标记的整条
     ///      是文件清单）。真机 16 场被它把 /var/folders 临时路径灌进语料、创世句
     ///      被顶成 markdown 标题遭噪声正则误杀。存量行含着注入头，必须整体重建。
-    public static let dataPolicyVersion: Int32 = 21
+    public static let dataPolicyVersion: Int32 = 22
 
     private func migrateDataPolicyIfNeeded() throws {
         var current: Int32 = 0
@@ -376,24 +378,65 @@ public final class ConversationIndex: @unchecked Sendable {
     public func milestoneCandidates() -> [MindsMilestones.Candidate] {
         var out: [MindsMilestones.Candidate] = []
         try? queue.sync {
-            try db.query("SELECT approval, headline, at FROM milestone_candidates;",
+            try db.query("SELECT approval, headline, at, message_id FROM milestone_candidates;",
                          bind: { _ in }, row: { st in
                 let approval = String(cString: sqlite3_column_text(st, 0))
                 let headline = sqlite3_column_text(st, 1).map { String(cString: $0) }
                 out.append(.init(approval: approval, headline: headline,
-                                 at: Date(timeIntervalSince1970: sqlite3_column_double(st, 2))))
+                                 at: Date(timeIntervalSince1970: sqlite3_column_double(st, 2)),
+                                 messageID: String(cString: sqlite3_column_text(st, 3))))
             })
         }
         return out
+    }
+
+    /// 里程碑素材 + 它属于哪场对话（跳回原文要用）。
+    public func milestoneCandidatesWithConversation()
+        -> [(candidate: MindsMilestones.Candidate, conversationID: String)] {
+        var out: [(MindsMilestones.Candidate, String)] = []
+        try? queue.sync {
+            try db.query("""
+                SELECT m.approval, m.headline, m.at, m.message_id, c.id
+                FROM milestone_candidates m JOIN conversations c ON c.rowid = m.conv_rowid;
+                """, bind: { _ in }, row: { st in
+                let headline = sqlite3_column_text(st, 1).map { String(cString: $0) }
+                out.append((.init(approval: String(cString: sqlite3_column_text(st, 0)),
+                                  headline: headline,
+                                  at: Date(timeIntervalSince1970: sqlite3_column_double(st, 2)),
+                                  messageID: String(cString: sqlite3_column_text(st, 3))),
+                            String(cString: sqlite3_column_text(st, 4))))
+            })
+        }
+        return out.map { (candidate: $0.0, conversationID: $0.1) }
+    }
+
+    /// 拍板素材 + 它属于哪场对话。
+    public func decisionCandidatesWithConversation()
+        -> [(candidate: MindsMilestones.DecisionCandidate, conversationID: String)] {
+        var out: [(MindsMilestones.DecisionCandidate, String)] = []
+        try? queue.sync {
+            try db.query("""
+                SELECT d.statement, d.at, d.message_id, c.id
+                FROM decision_points d JOIN conversations c ON c.rowid = d.conv_rowid;
+                """, bind: { _ in }, row: { st in
+                out.append((.init(statement: String(cString: sqlite3_column_text(st, 0)),
+                                  at: Date(timeIntervalSince1970: sqlite3_column_double(st, 1)),
+                                  messageID: String(cString: sqlite3_column_text(st, 2))),
+                            String(cString: sqlite3_column_text(st, 3))))
+            })
+        }
+        return out.map { (candidate: $0.0, conversationID: $0.1) }
     }
 
     /// 「你拍板的时刻」的全部原始素材。
     public func decisionCandidates() -> [MindsMilestones.DecisionCandidate] {
         var out: [MindsMilestones.DecisionCandidate] = []
         try? queue.sync {
-            try db.query("SELECT statement, at FROM decision_points;", bind: { _ in }, row: { st in
+            try db.query("SELECT statement, at, message_id FROM decision_points;",
+                         bind: { _ in }, row: { st in
                 out.append(.init(statement: String(cString: sqlite3_column_text(st, 0)),
-                                 at: Date(timeIntervalSince1970: sqlite3_column_double(st, 1))))
+                                 at: Date(timeIntervalSince1970: sqlite3_column_double(st, 1)),
+                                 messageID: String(cString: sqlite3_column_text(st, 2))))
             })
         }
         return out
@@ -801,17 +844,20 @@ public final class ConversationIndex: @unchecked Sendable {
             sqlite3_bind_text(s, 2, it.userText, -1, SQLiteDB.transient)
         })
         for d in it.harvest.decisions {
-            try db.run("INSERT INTO decision_points(conv_rowid, statement, at) VALUES(?,?,?);",
-                       bind: { s in
+            try db.run("""
+                INSERT INTO decision_points(conv_rowid, statement, at, message_id)
+                VALUES(?,?,?,?);
+                """, bind: { s in
                 sqlite3_bind_int64(s, 1, newRowid)
                 sqlite3_bind_text(s, 2, d.statement, -1, SQLiteDB.transient)
                 sqlite3_bind_double(s, 3, d.at.timeIntervalSince1970)
+                sqlite3_bind_text(s, 4, d.messageID, -1, SQLiteDB.transient)
             })
         }
         for c in it.harvest.milestones {
             try db.run("""
-                INSERT INTO milestone_candidates(conv_rowid, approval, headline, at)
-                VALUES(?,?,?,?);
+                INSERT INTO milestone_candidates(conv_rowid, approval, headline, at, message_id)
+                VALUES(?,?,?,?,?);
                 """, bind: { s in
                 sqlite3_bind_int64(s, 1, newRowid)
                 sqlite3_bind_text(s, 2, c.approval, -1, SQLiteDB.transient)
@@ -819,6 +865,7 @@ public final class ConversationIndex: @unchecked Sendable {
                     sqlite3_bind_text(s, 3, h, -1, SQLiteDB.transient)
                 } else { sqlite3_bind_null(s, 3) }
                 sqlite3_bind_double(s, 4, c.at.timeIntervalSince1970)
+                sqlite3_bind_text(s, 5, c.messageID, -1, SQLiteDB.transient)
             })
         }
         for seg in it.segments {

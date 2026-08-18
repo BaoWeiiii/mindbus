@@ -25,6 +25,11 @@ struct MindsViz {
     var month: (cur: [ConversationIndex.FacetCount], prev: [ConversationIndex.FacetCount],
                 newEntities: [String], lastYear: Int) = ([], [], [], 0)
     var latestNight: (thread: ConversationIndex.UnfinishedThread, clock: String)?
+    /// 你点头/拍板的时刻。走 viz 而不是 md 文本:这一层是**特征**,
+    /// UI 要拿它当入口跳回原文,必须带着会话与消息 id——md 是给人读的格式,
+    /// 塞 id 进去既难看又要再解析一遍。
+    var milestones: [(m: MindsMilestones.Milestone, convID: String)] = []
+    var decisions: [(d: MindsMilestones.Decision, convID: String)] = []
 
     /// 本月 / 上月对话数——总览页环比只有这一项算得出来
     var thisMonth: Int { month.cur.reduce(0) { $0 + $1.count } }
@@ -56,6 +61,9 @@ struct MindsViz {
         v.weekendSplit = store.vizWeekendSplit()
         v.month = store.vizMonth()
         v.latestNight = store.vizLatestNight()
+        let (stones, calls) = store.vizSignedOff()
+        v.milestones = stones
+        v.decisions = calls
         return v
     }
 }

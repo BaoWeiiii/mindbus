@@ -60,46 +60,42 @@ enum PreviewRenderer {
     /// Minds 真内容页样张：临时目录造 minds.md + enriched.jsonl（一条待确认 + 一条已确认），
     /// 经 MINDBUS_MINDS_ROOT 注入让 MindsStore 读到假数据。渲 renderableContent 绕开
     /// ScrollView 盲区。
-    /// 「你点头的时刻」单卡样张
+    /// 「你点头的时刻」单卡样张（真机原话）
     private static var milestonesSample: some View {
-        let root = NSTemporaryDirectory() + "minds-milestones-sample"
-        try? FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
-        let md = """
-        # Minds
+        var viz = MindsViz()
+        viz.milestones = [
+            ("砍完推送(1b2c3d4),净删 573 行,801 测试全绿,已装机", "继续", "2026-08-16"),
+            ("看了零态和校准流两屏,拿\"数字先在、零处明着要\"这把尺子量,还能挑出不少毛病", "全部优化", "2026-08-14"),
+            ("线一:上架合规全套上线(2c3d4e5)", "继续", "2026-08-13"),
+            ("收到,dev 不充值——那正好把架构态度定了:prod 当唯一活管线,dev 当免费沙盒", "继续", "2026-08-12"),
+            ("风声扩展 P1 落地完毕:表 + 闸门 + 真实种子全链路跑通,准入判据实弹检验通过", "继续", "2026-08-11"),
+            ("迁移铺开第一波(B1+B2)完成:读族 + 投票读写全部切上 CloudBase,96/96 测绿", "确认", "2026-08-11"),
+        ].map { (MindsMilestones.Milestone(headline: $0.0, approval: $0.1,
+                                           at: day($0.2), messageID: "m"), "c") }
+        return MindsMilestonesCard(ctx: MindsContext(store: ConversationStore(), md: "# Minds",
+                                                     viz: viz, isLoading: false))
+            .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
+    }
 
-        ## MILESTONES
-        Work you signed off on. (mechanical, 307 of them)
-        - 2026-08-16 [继续] 砍完推送(1b2c3d4),净删 573 行,801 测试全绿,已装机
-        - 2026-08-14 [全部优化] 看了零态和校准流两屏,拿"数字先在、零处明着要"这把尺子量,还能挑出不少毛病
-        - 2026-08-13 [继续] 线一:上架合规全套上线(2c3d4e5)
-        - 2026-08-12 [继续] 收到,dev 不充值——那正好把架构态度定了:prod 当唯一活管线,dev 当免费沙盒
-        - 2026-08-11 [继续] 风声扩展 P1 落地完毕:表 + 闸门 + 真实种子全链路跑通,准入判据实弹检验通过
-        - 2026-08-11 [确认] 迁移铺开第一波(B1+B2)完成:读族 + 投票读写全部切上 CloudBase,96/96 测绿
-        """
-        return MindsMilestonesCard(ctx: MindsContext(store: ConversationStore(), md: md, viz: MindsViz(), isLoading: false))
-            .padding(28)
-            .frame(width: 900, alignment: .leading)
-            .background(MindsUI.page)
+    /// 样张用的日期
+    private static func day(_ s: String) -> Date {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current
+        return f.date(from: s) ?? Date(timeIntervalSince1970: 1_754_000_000)
     }
 
     /// 「你拍板的时刻」单卡样张（真机原话）
     private static var decisionsSample: some View {
-        let md = """
-        # Minds
-
-        ## DECISIONS
-        Calls you made. (mechanical, 68 of them)
-        - 2026-08-18 梯队不要计算,改成纯粹通过后台配置逻辑。就在【梯队公式】里配置,通过拖拽完成配置
-        - 2026-08-17 继续。另外我觉得不需要是否被证实、是否有争议那几个状态,ai 判定完也不需要人审
-        - 2026-08-16 好,全部进入设计,而且要保证纯代码层面能实现,而不依赖 llm
-        - 2026-08-16 全部冻,而且需要兜底,另外把目前的所有抓取内容全部审核通过
-        - 2026-08-15 这些不收
-        """
-        return MindsDecisionsCard(ctx: MindsContext(store: ConversationStore(), md: md,
-                                                    viz: MindsViz(), isLoading: false))
-            .padding(28)
-            .frame(width: 900, alignment: .leading)
-            .background(MindsUI.page)
+        var viz = MindsViz()
+        viz.decisions = [
+            ("梯队不要计算,改成纯粹通过后台配置逻辑。就在【梯队公式】里配置,通过拖拽完成配置", "2026-08-18"),
+            ("继续。另外我觉得不需要是否被证实、是否有争议那几个状态,ai 判定完也不需要人审", "2026-08-17"),
+            ("好,全部进入设计,而且要保证纯代码层面能实现,而不依赖 llm", "2026-08-16"),
+            ("全部冻,而且需要兜底,另外把目前的所有抓取内容全部审核通过", "2026-08-16"),
+            ("这些不收", "2026-08-15"),
+        ].map { (MindsMilestones.Decision(statement: $0.0, at: day($0.1), messageID: "m"), "c") }
+        return MindsDecisionsCard(ctx: MindsContext(store: ConversationStore(), md: "# Minds",
+                                                    viz: viz, isLoading: false))
+            .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
     }
 
     private static var mindsContentSample: some View {

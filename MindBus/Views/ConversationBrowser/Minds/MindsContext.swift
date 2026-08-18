@@ -128,6 +128,14 @@ struct MindsContext {
         store.selectedConversationId = id
     }
 
+    /// 跳回那一刻:打开对话并滚到那条消息。
+    /// 「你点头 / 拍板的时刻」是**入口**不是展示——看完就完了的话，
+    /// 这一层就只是好看的文字，没法用来找回当时的完整上下文。
+    func open(conversation id: String, locate messageID: String) {
+        if !messageID.isEmpty { store.pendingLocateMessageID = messageID }
+        open(conversation: id)
+    }
+
     func search(_ query: String) {
         store.searchQuery = query
         store.mindsSelected = false

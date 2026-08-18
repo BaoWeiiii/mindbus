@@ -327,6 +327,34 @@ public final class ConversationStore: ObservableObject {
         index?.latestNightConversation()
     }
 
+    /// 你点头 / 拍板的时刻，带着能跳回原文的会话 id。
+    /// 判据（学认可词、筛长度与疑问句）在这里现算——素材只是素材。
+    public nonisolated func vizSignedOff()
+        -> ([(m: MindsMilestones.Milestone, convID: String)],
+            [(d: MindsMilestones.Decision, convID: String)]) {
+        guard let index else { return ([], []) }
+        let rows = index.milestoneCandidatesWithConversation()
+        let approvals = MindsMilestones.learnApprovals(candidates: rows.map(\.candidate))
+        let stones = rows.compactMap { row -> (m: MindsMilestones.Milestone, convID: String)? in
+            guard let h = row.candidate.headline,
+                  MindsMilestones.isApproval(row.candidate.approval, approvals: approvals)
+            else { return nil }
+            return (MindsMilestones.Milestone(headline: h, approval: row.candidate.approval,
+                                              at: row.candidate.at,
+                                              messageID: row.candidate.messageID),
+                    row.conversationID)
+        }
+        let dRows = index.decisionCandidatesWithConversation()
+        let calls = dRows.compactMap { row -> (d: MindsMilestones.Decision, convID: String)? in
+            let c = row.candidate
+            guard MindsMilestones.decisionRange.contains(c.statement.count),
+                  !MindsMilestones.isQuestion(c.statement) else { return nil }
+            return (MindsMilestones.Decision(statement: c.statement, at: c.at,
+                                             messageID: c.messageID), row.conversationID)
+        }
+        return (stones.sorted { $0.m.at > $1.m.at }, calls.sorted { $0.d.at > $1.d.at })
+    }
+
     public func wrappedSwitchingAvg() -> Double {
         index?.projectSwitching().avgPerDay ?? 0
     }

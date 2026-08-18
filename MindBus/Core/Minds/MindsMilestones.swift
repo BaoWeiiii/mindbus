@@ -32,8 +32,10 @@ public enum MindsMilestones {
         /// 用户当时说的那句认可
         public let approval: String
         public let at: Date
-        public init(headline: String, approval: String, at: Date) {
-            self.headline = headline; self.approval = approval; self.at = at
+        public let messageID: String
+        public init(headline: String, approval: String, at: Date, messageID: String = "") {
+            self.headline = headline; self.approval = approval
+            self.at = at; self.messageID = messageID
         }
     }
 
@@ -60,8 +62,12 @@ public enum MindsMilestones {
         public let approval: String
         public let headline: String?
         public let at: Date
-        public init(approval: String, headline: String?, at: Date) {
-            self.approval = approval; self.headline = headline; self.at = at
+        /// 汇报那条消息的 id。这一层是**特征**不是展示——不能指回原文的话，
+        /// 它就只是一段好看的文字，没法拿来当入口、也没法给检索加权。
+        public let messageID: String
+        public init(approval: String, headline: String?, at: Date, messageID: String = "") {
+            self.approval = approval; self.headline = headline
+            self.at = at; self.messageID = messageID
         }
     }
 
@@ -75,6 +81,7 @@ public enum MindsMilestones {
     /// 全量路径里的「从当前位置往回找」找到的必然也是最近的那一条。
     public struct CandidateAccumulator {
         private var lastHeadline: String?
+        private var lastReportID = ""
         private var harvest = Harvest()
         /// 距离上一次「AI 在征询意见」还剩几条消息内的回应算数。
         /// 流式下靠倒数实现全量路径的 `messages[(i+1)..<(i+1+lookahead)]`。
@@ -86,18 +93,22 @@ public enum MindsMilestones {
             switch m.role {
             case .assistant:
                 let t = text(m)
-                if t.count >= minReportLength, let h = headline(of: t) { lastHeadline = h }
+                if t.count >= minReportLength, let h = headline(of: t) {
+                    lastHeadline = h
+                    lastReportID = m.id
+                }
                 if isSolicitation(t) { solicitationWindow = decisionLookahead }
             case .user:
                 let said = text(m).trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !said.isEmpty else { return }
                 if solicitationWindow > 0 {
-                    harvest.decisions.append(DecisionCandidate(statement: said, at: m.timestamp))
+                    harvest.decisions.append(DecisionCandidate(statement: said, at: m.timestamp,
+                                                              messageID: m.id))
                     solicitationWindow = 0        // 一次征询只认第一个回应
                 }
                 guard normalizedApproval(said).count <= maxApprovalLength else { return }
                 harvest.milestones.append(Candidate(approval: said, headline: lastHeadline,
-                                                    at: m.timestamp))
+                                                    at: m.timestamp, messageID: lastReportID))
             default:
                 break
             }
@@ -111,7 +122,11 @@ public enum MindsMilestones {
     public struct DecisionCandidate: Equatable, Sendable {
         public let statement: String
         public let at: Date
-        public init(statement: String, at: Date) { self.statement = statement; self.at = at }
+        /// 你说那句话的消息 id
+        public let messageID: String
+        public init(statement: String, at: Date, messageID: String = "") {
+            self.statement = statement; self.at = at; self.messageID = messageID
+        }
     }
 
     /// 一次遍历攒下的两类素材
@@ -125,7 +140,7 @@ public enum MindsMilestones {
     public static func decisions(candidates: [DecisionCandidate]) -> [Decision] {
         candidates.compactMap { c in
             guard decisionRange.contains(c.statement.count), !isQuestion(c.statement) else { return nil }
-            return Decision(statement: c.statement, at: c.at)
+            return Decision(statement: c.statement, at: c.at, messageID: c.messageID)
         }
     }
 
@@ -179,7 +194,7 @@ public enum MindsMilestones {
                                   approvals: Set<String>) -> [Milestone] {
         candidates.compactMap { c in
             guard let h = c.headline, isApproval(c.approval, approvals: approvals) else { return nil }
-            return Milestone(headline: h, approval: c.approval, at: c.at)
+            return Milestone(headline: h, approval: c.approval, at: c.at, messageID: c.messageID)
         }
     }
 
@@ -295,15 +310,16 @@ public enum MindsMilestones {
         /// 你说的那句话（原话，不做加工）
         public let statement: String
         public let at: Date
-        public init(statement: String, at: Date) {
-            self.statement = statement; self.at = at
+        public let messageID: String
+        public init(statement: String, at: Date, messageID: String = "") {
+            self.statement = statement; self.at = at; self.messageID = messageID
         }
     }
 
     /// 征询之后多少条消息内的回应算数。隔太远就不是对这次征询的回答了。
     static let decisionLookahead = 2
     static let minSolicitationLength = 150
-    static let decisionRange = 4...120
+    public static let decisionRange = 4...120
 
     /// 问号。中英两套写法都列上——那是**书写系统**的差别，
     /// 不是「中文词汇表」；任何用这两个符号的语言都被覆盖。
@@ -327,7 +343,7 @@ public enum MindsMilestones {
     /// 只看问号，不列疑问词：疑问词表是语言相关的（中文「什么/为什么」、
     /// 英文 what/why/how），而问号是书写系统级的。代价是漏掉不带问号的
     /// 疑问句，宁可漏一条也不要把整套判据绑死在一种语言上。
-    static func isQuestion(_ text: String) -> Bool {
+    public static func isQuestion(_ text: String) -> Bool {
         text.contains { questionMarks.contains($0) }
     }
 
