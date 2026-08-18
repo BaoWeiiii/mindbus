@@ -30,6 +30,8 @@ struct MindsContext {
 
     func bullets(_ section: String) -> [String] { doc.bullets(section) }
     func hasAny(_ names: String...) -> Bool { doc.hasAny(names) }
+    /// 你点头放行过的成果（日期 / 你说的那句 / 它汇报的首句）
+    var milestones: [(day: String, approval: String, headline: String)] { doc.milestones }
     func parseRecurring(_ line: String) -> (word: String, detail: String)? {
         doc.namedDetail(line).map { (word: $0.name, detail: $0.detail) }
     }

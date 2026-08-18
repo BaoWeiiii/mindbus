@@ -293,6 +293,9 @@ struct Strings {
     let mindsCatchphrasesHint: String
     let mindsSecRarities: String
     let mindsRaritiesHint: String
+    let mindsSecMilestones: String
+    let mindsMilestonesHint: String
+    let mindsMilestonesCount: String
     let mindsSecHeatmap: String
     let mindsHeatmapHint: String
     let mindsSecWorkRhythm: String
@@ -689,6 +692,9 @@ struct Strings {
         mindsCatchphrasesHint: "你总挂在嘴边的短句，原话照数",
         mindsSecRarities: "独一无二",
         mindsRaritiesHint: "最晚的深夜·只问过一次的话题·稀有词",
+        mindsSecMilestones: "你点头的时刻",
+        mindsMilestonesHint: "你说「继续」之前,它刚汇报完的那件事",
+        mindsMilestonesCount: "件放行过的成果",
         mindsSecHeatmap: "活跃地图",
         mindsHeatmapHint: "近一年每天的对话量,点击查看当天",
         mindsSecWorkRhythm: "工作节奏",
@@ -1067,6 +1073,9 @@ struct Strings {
         mindsCatchphrasesHint: "short messages you send again and again",
         mindsSecRarities: "Rarities",
         mindsRaritiesHint: "deepest night · asked once · rare words",
+        mindsSecMilestones: "Signed Off",
+        mindsMilestonesHint: "what it had just reported when you said OK",
+        mindsMilestonesCount: "signed off",
         mindsSecHeatmap: "Activity Map",
         mindsHeatmapHint: "a year of conversations · click any day",
         mindsSecWorkRhythm: "Work Rhythm",

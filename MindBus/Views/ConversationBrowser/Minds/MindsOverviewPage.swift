@@ -2,7 +2,10 @@ import SwiftUI
 import Charts
 import MindBusCore
 
-/// PAGE 01 · 你的总览：核心指标 → 活跃地图 → 工作节律 → 本月 / 周末的你。
+/// PAGE 01 · 你的总览：核心指标 → 你点头的时刻 → 活跃地图 → 工作节奏 → 本月 / 周末的你。
+///
+/// 「你点头的时刻」排在第二位而不是垫底：这一页别的栏目回答「你是个什么样的人」，
+/// 只有它回答「你做成过什么」。进来第一眼该看到后者。
 struct MindsOverviewPage: View {
     let ctx: MindsContext
     @ObservedObject private var l10n = L10n.shared
@@ -10,6 +13,7 @@ struct MindsOverviewPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MindsUI.moduleGap) {
             MindsSummaryMetrics(ctx: ctx)
+            MindsMilestonesCard(ctx: ctx)
             MindsActivityMap(ctx: ctx)
             MindsWorkRhythm(ctx: ctx)
             MindsTwoColumn {

@@ -25,6 +25,7 @@ enum PreviewRenderer {
             render(sidebarMindsSample, name: "sidebar-minds", size: CGSize(width: 220, height: 420), to: sub)
             render(MindsPlaceholderView(), name: "minds-placeholder", size: CGSize(width: 700, height: 300), to: sub)
             render(mindsContentSample, name: "minds-content", size: CGSize(width: 900, height: 3400), to: sub)
+            render(milestonesSample, name: "minds-milestones", size: CGSize(width: 900, height: 420), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -58,12 +59,43 @@ enum PreviewRenderer {
     /// Minds 真内容页样张：临时目录造 minds.md + enriched.jsonl（一条待确认 + 一条已确认），
     /// 经 MINDBUS_MINDS_ROOT 注入让 MindsStore 读到假数据。渲 renderableContent 绕开
     /// ScrollView 盲区。
+    /// 「你点头的时刻」单卡样张
+    private static var milestonesSample: some View {
+        let root = NSTemporaryDirectory() + "minds-milestones-sample"
+        try? FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        let md = """
+        # Minds
+
+        ## MILESTONES
+        Work you signed off on. (mechanical, 307 of them)
+        - 2026-08-16 [继续] 砍完推送(1b2c3d4),净删 573 行,801 测试全绿,已装机
+        - 2026-08-14 [全部优化] 看了零态和校准流两屏,拿"数字先在、零处明着要"这把尺子量,还能挑出不少毛病
+        - 2026-08-13 [继续] 线一:上架合规全套上线(2c3d4e5)
+        - 2026-08-12 [继续] 收到,dev 不充值——那正好把架构态度定了:prod 当唯一活管线,dev 当免费沙盒
+        - 2026-08-11 [继续] 风声扩展 P1 落地完毕:表 + 闸门 + 真实种子全链路跑通,准入判据实弹检验通过
+        - 2026-08-11 [确认] 迁移铺开第一波(B1+B2)完成:读族 + 投票读写全部切上 CloudBase,96/96 测绿
+        """
+        return MindsMilestonesCard(ctx: MindsContext(store: ConversationStore(), md: md, viz: MindsViz(), isLoading: false))
+            .padding(28)
+            .frame(width: 900, alignment: .leading)
+            .background(MindsUI.page)
+    }
+
     private static var mindsContentSample: some View {
         let root = NSTemporaryDirectory() + "minds-preview-sample"
         try? FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
         let md = """
         # Minds — mechanical self-description
         > Rebuilt automatically. (policy v14, rebuilt 2026-08-12)
+
+        ## MILESTONES
+        Work you signed off on — what the AI had just reported when you said OK. (mechanical, 307 of them)
+        - 2026-08-16 [继续] 砍完推送(1b2c3d4),净删 573 行,801 测试全绿,已装机
+        - 2026-08-14 [全部优化] 看了零态和校准流两屏,拿"数字先在、零处明着要"这把尺子量,还能挑出不少毛病
+        - 2026-08-13 [继续] 线一:上架合规全套上线(2c3d4e5)
+        - 2026-08-12 [继续] 收到,dev 不充值——那正好把架构态度定了:prod 当唯一活管线,dev 当免费沙盒
+        - 2026-08-11 [继续] 风声扩展 P1 落地完毕:表 + 闸门 + 真实种子全链路跑通,准入判据实弹检验通过
+        - 2026-08-11 [确认] 迁移铺开第一波(B1+B2)完成:读族 + 投票读写全部切上 CloudBase,96/96 测绿
 
         ## SANCTUARY
         What this library holds for you — kept on your disk, in duplicate. (mechanical)
