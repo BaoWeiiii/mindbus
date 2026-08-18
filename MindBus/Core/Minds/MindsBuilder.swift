@@ -60,8 +60,19 @@ public enum MindsBuilder {
     public static func build(from index: ConversationIndex, to url: URL = defaultMindsURL) {
         let now = Date()
         let overview = index.mapOverview()
+        // 项目的**产出量**：这个项目里你放行过几件事。场数和消息数量的是
+        // 「花了多少时间」，这一项量的是「产出了什么」——两者常常不同向
+        // （真机上消息最多的项目并不是放行最多的那个）。
+        let byProject = index.milestoneCandidatesByProject()
+        let projectApprovals = MindsMilestones.learnApprovals(candidates: byProject.map(\.candidate))
+        var signedOffByProject: [String: Int] = [:]
+        for row in byProject where row.candidate.headline != nil
+            && MindsMilestones.isApproval(row.candidate.approval, approvals: projectApprovals) {
+            signedOffByProject[row.cwd, default: 0] += 1
+        }
         let allProjects = projectRhythms(index: index,
-                                         projects: overview.byProject.filter { isRealProject($0.key) })
+                                         projects: overview.byProject.filter { isRealProject($0.key) },
+                                         signedOff: signedOffByProject)
         let projects = Array(allProjects.prefix(10))
         // VOCABULARY 从 v14 起按 user 语料数 tf——「你的高频词」必须是你说过的
         // vocabFreqs 在语料拉取之后算(共享同一份,不再独立拉)
@@ -1807,6 +1818,11 @@ public enum MindsBuilder {
         return ["## OVERVIEW", overviewHeadline(o), sourceLine].joined(separator: "\n")
     }
 
+    /// 测试入口：渲染是 private，但「0 不写这一段」这条规矩要能被验证。
+    static func renderProjectRhythmForTest(_ projects: [ProjectRhythm]) -> String {
+        renderProjectRhythm(projects)
+    }
+
     private static func renderProjectRhythm(_ projects: [ProjectRhythm]) -> String {
         var lines = ["## PROJECT RHYTHM",
                      "Top \(projects.count) projects by conversation count. (mechanical, \(projects.count) projects)"]
@@ -1814,7 +1830,9 @@ public enum MindsBuilder {
             lines.append("(none yet)")
         } else {
             for p in projects {
+                let produced = p.signedOff > 0 ? "\(p.signedOff) signed off, " : ""
                 lines.append("- \(p.cwd) — \(p.count) conversations, \(p.messages) messages, "
+                            + produced
                             + "active \(day(p.activeStart)) → \(day(p.activeEnd)), "
                             + "last touched \(day(p.lastTouched))")
             }
@@ -1886,9 +1904,26 @@ public enum MindsBuilder {
         /// 一问一答），Beacon 4 场却有 7914 条。只按场数画条形，条长与
         /// 实际投入成反比（2026-08-18 用户定案：条形按消息数，场数留作副信息）。
         let messages: Int
+        /// 这个项目里你**放行过**几件事（里程碑数）。
+        ///
+        /// 场数和消息数量的是「你花了多少时间」，这一项量的是「产出了什么」。
+        /// 覆盖率有限（真机 16% 的会话带这个信号）——它只在「长任务 + 你说继续」
+        /// 这种协作模式下产生，问答型对话不产生。所以 0 不代表没产出，
+        /// 只代表这个项目的推进方式不产生这个信号，渲染时因此整段略去而不是写 0。
+        let signedOff: Int
         let activeStart: Date
         let activeEnd: Date
         let lastTouched: Date
+
+        /// signedOff 给默认值：这一项是后加的，既有调用方（测试夹具）不必都改，
+        /// 缺了就是 0 —— 与「渲染时 0 整段略去」的规矩一致。
+        init(cwd: String, count: Int, messages: Int, signedOff: Int = 0,
+             activeStart: Date, activeEnd: Date, lastTouched: Date) {
+            self.cwd = cwd; self.count = count; self.messages = messages
+            self.signedOff = signedOff
+            self.activeStart = activeStart; self.activeEnd = activeEnd
+            self.lastTouched = lastTouched
+        }
     }
 
     /// 把 `mapOverview().byProject`（已按会话数降序、已排除空 cwd、已截前 20）里的每个
@@ -1922,13 +1957,15 @@ public enum MindsBuilder {
     }
 
     static func projectRhythms(index: ConversationIndex,
-                               projects: [ConversationIndex.FacetCount]) -> [ProjectRhythm] {
+                               projects: [ConversationIndex.FacetCount],
+                               signedOff: [String: Int] = [:]) -> [ProjectRhythm] {
         projects.compactMap { fc in
             let ids = index.conversationIDs(for: .project(fc.key), limit: Int.max)
             let metas = index.metadata(forIDs: ids)
             guard !metas.isEmpty else { return nil }
             return ProjectRhythm(cwd: fc.key, count: metas.count,
                                  messages: metas.reduce(0) { $0 + $1.messageCount },
+                                 signedOff: signedOff[fc.key] ?? 0,
                                  activeStart: metas.map(\.startAt).min()!,
                                  activeEnd: metas.map(\.startAt).max()!,
                                  lastTouched: metas.map(\.endAt).max()!)

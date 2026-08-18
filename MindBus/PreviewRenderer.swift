@@ -27,6 +27,7 @@ enum PreviewRenderer {
             render(mindsContentSample, name: "minds-content", size: CGSize(width: 900, height: 3400), to: sub)
             render(milestonesSample, name: "minds-milestones", size: CGSize(width: 900, height: 420), to: sub)
             render(decisionsSample, name: "minds-decisions", size: CGSize(width: 900, height: 340), to: sub)
+            render(projectsSample, name: "minds-projects", size: CGSize(width: 900, height: 400), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -81,6 +82,24 @@ enum PreviewRenderer {
     private static func day(_ s: String) -> Date {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current
         return f.date(from: s) ?? Date(timeIntervalSince1970: 1_754_000_000)
+    }
+
+    /// 项目页样张：核对「放行数」徽章没有把行布局挤坏（真机数字）
+    private static var projectsSample: some View {
+        let md = """
+        # Minds
+
+        ## PROJECT RHYTHM
+        Top 5 projects. (mechanical, 5 projects)
+        - /w/Atlas — 54 conversations, 6025 messages, 184 signed off, active 2026-06-01 → 2026-08-18, last touched 2026-08-18
+        - /w/mindbus — 12 conversations, 11079 messages, 17 signed off, active 2026-04-24 → 2026-08-18, last touched 2026-08-18
+        - /w/Beacon — 4 conversations, 7914 messages, 25 signed off, active 2026-07-01 → 2026-08-10, last touched 2026-08-10
+        - /w/Compass — 3 conversations, 7486 messages, 9 signed off, active 2026-07-05 → 2026-08-02, last touched 2026-08-02
+        - /w/Golf — 1 conversations, 1001 messages, active 2026-08-01 → 2026-08-01, last touched 2026-08-01
+        """
+        return MindsProjectsPage(ctx: MindsContext(store: ConversationStore(), md: md,
+                                                   viz: MindsViz(), isLoading: false))
+            .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
     }
 
     /// 「你拍板的时刻」单卡样张（真机原话）

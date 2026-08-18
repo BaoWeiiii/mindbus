@@ -71,6 +71,9 @@ public struct MindsDocument: Sendable {
         /// 消息总数。条形按它画——场数不代表投入（54 场 6027 条 vs 4 场 7914 条）。
         /// 旧文档没有这一段时为 0，调用方回退到场数。
         public let messages: Int
+        /// 这个项目里你放行过几件事。0 = 这个项目没产生这个信号
+        /// （它只在「长任务 + 你说继续」的协作模式下产生），不等于没产出。
+        public let signedOff: Int
         public let activeStart: Date?
         public let activeEnd: Date?
         /// 「最近活跃」列用它。md 里一直有，只是以前解析时被丢了。
@@ -89,6 +92,8 @@ public struct MindsDocument: Sendable {
         let count = Int(rest.split(separator: " ").first ?? "") ?? 0
         // `N messages` 是 2026-08-18 才加的段；旧文档缺它时给 0，读端不报错
         let messages = Self.captures(rest, #"(\d+) messages"#).first.flatMap { Int($0) } ?? 0
+        // `N signed off` 同样是后加的段：缺它给 0，且因为按名字取，不会串到别的数字上
+        let signedOff = Self.captures(rest, #"(\d+) signed off"#).first.flatMap { Int($0) } ?? 0
         let dates = Self.isoDates(in: rest)
         // `active A → B` 与 `last touched C` 分开取:三者都可能缺，
         // 按位置猜会在缺一个的时候把日期串位。
@@ -99,6 +104,7 @@ public struct MindsDocument: Sendable {
             name: (path as NSString).lastPathComponent,
             count: count,
             messages: messages,
+            signedOff: signedOff,
             activeStart: active.count >= 2 ? Self.day(from: active[0]) : dates.first.flatMap(Self.day(from:)),
             activeEnd: active.count >= 2 ? Self.day(from: active[1]) : nil,
             lastTouched: touched.first.flatMap(Self.day(from:)) ?? dates.last.flatMap(Self.day(from:)))

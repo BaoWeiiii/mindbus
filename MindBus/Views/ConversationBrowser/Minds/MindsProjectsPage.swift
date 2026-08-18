@@ -178,6 +178,29 @@ private struct MindsProjectRow: View {
                     .frame(maxHeight: .infinity, alignment: .center)
                 }
                 .frame(height: 18)
+                // 产出量:这个项目里你放行过几件事。条形量的是投入(消息数),
+                // 这个徽章量的是产出——真机上两者常常不同向。0 不显示:
+                // 那只说明这个项目的推进方式不产生这个信号,不代表没产出。
+                // 定宽占位:不占位的话有徽章的行条形被挤短,条形之间就没法比投入量了
+                // （2026-08-18 离屏渲染核对时抓到:Golf 无徽章,那一行条形
+                // 明显比别的长）。0 不显示数字,但位置留着。
+                Group {
+                    if row.signedOff > 0 {
+                        Text("\(row.signedOff)")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(MindsUI.accent)
+                            .mindsTabularNumbers()
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(MindsUI.accent.opacity(0.10), in: Capsule())
+                            .help(L10n.shared.s.mindsSignedOffTip)
+                    } else {
+                        // 必须是实体视图:EmptyView 上的 .frame 不产生布局尺寸,
+                        // 空着的话这一行的条形会独自变长(离屏渲染第一版就是这样)。
+                        // 高度也要掐死:Color 会贪婪地撑满可用高度,把整行顶高(第二版)。
+                        Color.clear.frame(height: 1)
+                    }
+                }
+                .frame(width: 46, alignment: .leading)
                 HStack(spacing: 6) {
                     Spacer(minLength: 0)
                     Text(row.span)

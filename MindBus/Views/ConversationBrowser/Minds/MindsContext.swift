@@ -59,6 +59,8 @@ struct MindsContext {
         let count: Int
         /// 消息总数（条形按它画）；旧文档缺这一段时回退成场数
         let messages: Int
+        /// 这个项目里你放行过几件事（产出量，区别于条形画的投入量）
+        let signedOff: Int
         /// 「05-15 至 08-10」
         let span: String
         let lastTouched: Date?
@@ -75,7 +77,7 @@ struct MindsContext {
         }
         return ProjectRow(path: row.path, name: row.name, count: row.count,
                           messages: row.messages > 0 ? row.messages : row.count,
-                          span: span, lastTouched: row.lastTouched,
+                          signedOff: row.signedOff, span: span, lastTouched: row.lastTouched,
                           active: row.isActive(now: now))
     }
 

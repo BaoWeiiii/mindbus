@@ -410,6 +410,26 @@ public final class ConversationIndex: @unchecked Sendable {
         return out.map { (candidate: $0.0, conversationID: $0.1) }
     }
 
+    /// 里程碑素材 + 它属于哪个项目。返回素材而不是计数——认可词表要看过
+    /// 全部对话才学得出来，判据只能在构建层做。
+    public func milestoneCandidatesByProject()
+        -> [(cwd: String, candidate: MindsMilestones.Candidate)] {
+        var out: [(String, MindsMilestones.Candidate)] = []
+        try? queue.sync {
+            try db.query("""
+                SELECT c.cwd, m.approval, m.headline, m.at
+                FROM milestone_candidates m JOIN conversations c ON c.rowid = m.conv_rowid;
+                """, bind: { _ in }, row: { st in
+                let headline = sqlite3_column_text(st, 2).map { String(cString: $0) }
+                out.append((sqlite3_column_text(st, 0).map { String(cString: $0) } ?? "",
+                            .init(approval: String(cString: sqlite3_column_text(st, 1)),
+                                  headline: headline,
+                                  at: Date(timeIntervalSince1970: sqlite3_column_double(st, 3)))))
+            })
+        }
+        return out.map { (cwd: $0.0, candidate: $0.1) }
+    }
+
     /// 拍板素材 + 它属于哪场对话。
     public func decisionCandidatesWithConversation()
         -> [(candidate: MindsMilestones.DecisionCandidate, conversationID: String)] {

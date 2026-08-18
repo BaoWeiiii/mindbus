@@ -349,3 +349,42 @@ extension MindsDocumentTests {
         XCTAssertTrue(MindsDocument(markdown: md).milestones.isEmpty)
     }
 }
+
+// MARK: - 项目的产出量（不是活动量）
+
+extension MindsDocumentTests {
+
+    /// `N conversations, M messages` 量的是你花了多少时间；
+    /// 「放行了几件」量的是这段时间产出了什么。后者才是你想知道的。
+    func testProjectRowCarriesSignedOffCount() {
+        let md = """
+        ## PROJECT RHYTHM
+        Top 2 projects. (mechanical, 2 projects)
+        - /w/alpha — 12 conversations, 900 messages, 7 signed off, active 2026-05-01 → 2026-08-01, last touched 2026-08-01
+        - /w/beta — 30 conversations, 4000 messages, active 2026-06-01 → 2026-07-01, last touched 2026-07-01
+        """
+        let rows = MindsDocument(markdown: md).projects()
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows[0].signedOff, 7)
+        // 旧文档没有这一段：给 0，读端不报错（同 `N messages` 当初的处理）
+        XCTAssertEqual(rows[1].signedOff, 0)
+        XCTAssertEqual(rows[1].messages, 4000, "缺 signed off 不能串位到别的数字")
+    }
+
+    /// 放行数为 0 的项目不写这一段——写「0 signed off」等于在说它没产出，
+    /// 而真相可能只是这个项目的推进方式不产生这个信号（真机覆盖率 16%）。
+    func testZeroSignedOffIsOmittedNotPrinted() {
+        let p = MindsBuilder.ProjectRhythm(
+            cwd: "/w/x", count: 3, messages: 90, signedOff: 0,
+            activeStart: Date(timeIntervalSince1970: 1_754_000_000),
+            activeEnd: Date(timeIntervalSince1970: 1_754_100_000),
+            lastTouched: Date(timeIntervalSince1970: 1_754_100_000))
+        XCTAssertFalse(MindsBuilder.renderProjectRhythmForTest([p]).contains("signed off"))
+        let q = MindsBuilder.ProjectRhythm(
+            cwd: "/w/y", count: 3, messages: 90, signedOff: 4,
+            activeStart: Date(timeIntervalSince1970: 1_754_000_000),
+            activeEnd: Date(timeIntervalSince1970: 1_754_100_000),
+            lastTouched: Date(timeIntervalSince1970: 1_754_100_000))
+        XCTAssertTrue(MindsBuilder.renderProjectRhythmForTest([q]).contains("4 signed off"))
+    }
+}
