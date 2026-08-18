@@ -293,6 +293,8 @@ struct Strings {
     let mindsCatchphrasesHint: String
     let mindsSecRarities: String
     let mindsRaritiesHint: String
+    let mindsSecDecisions: String
+    let mindsDecisionsHint: String
     let mindsSecMilestones: String
     let mindsMilestonesHint: String
     let mindsMilestonesCount: String
@@ -692,6 +694,8 @@ struct Strings {
         mindsCatchphrasesHint: "你总挂在嘴边的短句，原话照数",
         mindsSecRarities: "独一无二",
         mindsRaritiesHint: "最晚的深夜·只问过一次的话题·稀有词",
+        mindsSecDecisions: "你拍板的时刻",
+        mindsDecisionsHint: "它把选择摆到你面前时,你说的那句话",
         mindsSecMilestones: "你点头的时刻",
         mindsMilestonesHint: "你说「继续」之前,它刚汇报完的那件事",
         mindsMilestonesCount: "件放行过的成果",
@@ -1073,6 +1077,8 @@ struct Strings {
         mindsCatchphrasesHint: "short messages you send again and again",
         mindsSecRarities: "Rarities",
         mindsRaritiesHint: "deepest night · asked once · rare words",
+        mindsSecDecisions: "Your Calls",
+        mindsDecisionsHint: "what you said when it put the options in front of you",
         mindsSecMilestones: "Signed Off",
         mindsMilestonesHint: "what it had just reported when you said OK",
         mindsMilestonesCount: "signed off",

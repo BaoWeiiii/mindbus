@@ -75,32 +75,87 @@ public enum MindsMilestones {
     /// 全量路径里的「从当前位置往回找」找到的必然也是最近的那一条。
     public struct CandidateAccumulator {
         private var lastHeadline: String?
-        private var out: [Candidate] = []
+        private var harvest = Harvest()
+        /// 距离上一次「AI 在征询意见」还剩几条消息内的回应算数。
+        /// 流式下靠倒数实现全量路径的 `messages[(i+1)..<(i+1+lookahead)]`。
+        private var solicitationWindow = 0
         public init() {}
 
         public mutating func consume(_ m: Message, text: (Message) -> String) {
+            if solicitationWindow > 0 { solicitationWindow -= 1 }
             switch m.role {
             case .assistant:
                 let t = text(m)
                 if t.count >= minReportLength, let h = headline(of: t) { lastHeadline = h }
+                if isSolicitation(t) { solicitationWindow = decisionLookahead }
             case .user:
                 let said = text(m).trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !said.isEmpty,
-                      normalizedApproval(said).count <= maxApprovalLength else { return }
-                out.append(Candidate(approval: said, headline: lastHeadline, at: m.timestamp))
+                guard !said.isEmpty else { return }
+                if solicitationWindow > 0 {
+                    harvest.decisions.append(DecisionCandidate(statement: said, at: m.timestamp))
+                    solicitationWindow = 0        // 一次征询只认第一个回应
+                }
+                guard normalizedApproval(said).count <= maxApprovalLength else { return }
+                harvest.milestones.append(Candidate(approval: said, headline: lastHeadline,
+                                                    at: m.timestamp))
             default:
                 break
             }
         }
 
-        public func finish() -> [Candidate] { out }
+        public func finish() -> Harvest { harvest }
+    }
+
+    /// 一次征询之后你说的那句话（原话，不做加工）。
+    /// 长度、是不是疑问句都留给构建层判——那两个阈值最容易改。
+    public struct DecisionCandidate: Equatable, Sendable {
+        public let statement: String
+        public let at: Date
+        public init(statement: String, at: Date) { self.statement = statement; self.at = at }
+    }
+
+    /// 一次遍历攒下的两类素材
+    public struct Harvest: Equatable, Sendable {
+        public var milestones: [Candidate] = []
+        public var decisions: [DecisionCandidate] = []
+        public init() {}
+    }
+
+    /// 构建层筛选:太短/太长/疑问句都不是拍板。
+    public static func decisions(candidates: [DecisionCandidate]) -> [Decision] {
+        candidates.compactMap { c in
+            guard decisionRange.contains(c.statement.count), !isQuestion(c.statement) else { return nil }
+            return Decision(statement: c.statement, at: c.at)
+        }
     }
 
     /// 从一场对话里取出全部候选素材。扫描时逐场调用。
     public static func candidates(messages: [Message], text: (Message) -> String) -> [Candidate] {
+        harvest(messages: messages, text: text).milestones
+    }
+
+    /// 一次遍历取出两类素材。
+    public static func harvest(messages: [Message], text: (Message) -> String) -> Harvest {
         var acc = CandidateAccumulator()
         for m in messages { acc.consume(m, text: text) }
         return acc.finish()
+    }
+
+    /// 这条短消息是不是一个**编号**。
+    ///
+    /// AI 摆出「方案 1 / 方案 2」时你打的「1」「a」，判据上完全符合认可词
+    /// （短、反复出现、绝大多数跟在长汇报之后），但它是在**选择选项**，
+    /// 不是在认可成果——它前面那条消息是选项列表，首句取出来是
+    /// 「已使用内置 GPT Image 生成」这种没有信息的行（2026-08-18 真机现场）。
+    ///
+    /// 判据与语言无关：纯数字，或单个拉丁字母。说中文说英文的人
+    /// 打的编号都长这样，而真正的短认可词（ok / yes / 好 / 确认 / lgtm）
+    /// 一个都不符合。
+    static func isEnumerationToken(_ s: String) -> Bool {
+        let t = normalizedApproval(s)
+        guard !t.isEmpty else { return false }
+        if t.allSatisfy({ $0.isASCII && $0.isNumber }) { return true }
+        return t.count == 1 && (t.first?.isASCII ?? false) && (t.first?.isLetter ?? false)
     }
 
     /// 从候选素材里学出认可词表。判据与 `learnApprovals(conversations:text:)`
@@ -109,7 +164,7 @@ public enum MindsMilestones {
         var seen: [String: Int] = [:], afterReport: [String: Int] = [:]
         for c in candidates {
             let core = normalizedApproval(c.approval)
-            guard !core.isEmpty else { continue }
+            guard !core.isEmpty, !isEnumerationToken(core) else { continue }
             seen[core, default: 0] += 1
             if c.headline != nil { afterReport[core, default: 0] += 1 }
         }

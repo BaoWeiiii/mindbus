@@ -175,6 +175,9 @@ public enum MindsBuilder {
         let stones = MindsMilestones.milestones(candidates: candidates, approvals: approvals)
         surprise.milestones = stones
         surprise.milestonesTotal = stones.count
+        let calls = MindsMilestones.decisions(candidates: index.decisionCandidates())
+        surprise.decisions = calls
+        surprise.decisionsTotal = calls.count
 
         let pos = posProfile(corpus: corpusRows.map(\.text))
         surprise.phrases = repeatedPhrases(
@@ -299,6 +302,9 @@ public enum MindsBuilder {
         /// 你点头放行过的成果(已按判据筛过),以及总条数
         var milestones: [MindsMilestones.Milestone] = []
         var milestonesTotal = 0
+        /// 你在选择面前拍的板
+        var decisions: [MindsMilestones.Decision] = []
+        var decisionsTotal = 0
         var unfinished: [ConversationIndex.UnfinishedThread] = []
         var recurring: [ConversationIndex.RecurringEntity] = []
         var dormant: [ProjectRhythm] = []
@@ -1370,6 +1376,7 @@ public enum MindsBuilder {
             renderPeople(surprise.citedPeople),
             renderRepeatedBriefings(surprise.repeatedBriefings),
             renderMilestones(surprise.milestones, total: surprise.milestonesTotal),
+            renderDecisions(surprise.decisions, total: surprise.decisionsTotal),
             renderCatchphrases(phrases: surprise.catchphrases, politeness: surprise.politeness),
             renderLeverage(surprise.volume),
             renderProjectLeverage(surprise.projectLeverage),
@@ -1632,6 +1639,25 @@ public enum MindsBuilder {
         } else {
             for m in stones.sorted(by: { $0.at > $1.at }).prefix(milestonesShown) {
                 lines.append("- \(day(m.at)) [\(m.approval)] \(m.headline)")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    static let decisionsShown = 8
+
+    /// 「你拍板的时刻」：它把选择摆到你面前之后，你说的那句话。
+    ///
+    /// 与里程碑互补——里程碑是「你认可了什么成果」，这一栏是「你怎么做的选择」。
+    /// 判据同样机械：AI 那条以问号收尾且够长（=在征询），你的回应不是反问。
+    static func renderDecisions(_ items: [MindsMilestones.Decision], total: Int) -> String {
+        var lines = ["## DECISIONS",
+                     "Calls you made when it put the options in front of you. (mechanical, \(total) of them)"]
+        if items.isEmpty {
+            lines.append("(none yet)")
+        } else {
+            for d in items.sorted(by: { $0.at > $1.at }).prefix(decisionsShown) {
+                lines.append("- \(day(d.at)) \(d.statement)")
             }
         }
         return lines.joined(separator: "\n")

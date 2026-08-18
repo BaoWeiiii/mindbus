@@ -26,6 +26,7 @@ enum PreviewRenderer {
             render(MindsPlaceholderView(), name: "minds-placeholder", size: CGSize(width: 700, height: 300), to: sub)
             render(mindsContentSample, name: "minds-content", size: CGSize(width: 900, height: 3400), to: sub)
             render(milestonesSample, name: "minds-milestones", size: CGSize(width: 900, height: 420), to: sub)
+            render(decisionsSample, name: "minds-decisions", size: CGSize(width: 900, height: 340), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -76,6 +77,26 @@ enum PreviewRenderer {
         - 2026-08-11 [确认] 迁移铺开第一波(B1+B2)完成:读族 + 投票读写全部切上 CloudBase,96/96 测绿
         """
         return MindsMilestonesCard(ctx: MindsContext(store: ConversationStore(), md: md, viz: MindsViz(), isLoading: false))
+            .padding(28)
+            .frame(width: 900, alignment: .leading)
+            .background(MindsUI.page)
+    }
+
+    /// 「你拍板的时刻」单卡样张（真机原话）
+    private static var decisionsSample: some View {
+        let md = """
+        # Minds
+
+        ## DECISIONS
+        Calls you made. (mechanical, 68 of them)
+        - 2026-08-18 梯队不要计算,改成纯粹通过后台配置逻辑。就在【梯队公式】里配置,通过拖拽完成配置
+        - 2026-08-17 继续。另外我觉得不需要是否被证实、是否有争议那几个状态,ai 判定完也不需要人审
+        - 2026-08-16 好,全部进入设计,而且要保证纯代码层面能实现,而不依赖 llm
+        - 2026-08-16 全部冻,而且需要兜底,另外把目前的所有抓取内容全部审核通过
+        - 2026-08-15 这些不收
+        """
+        return MindsDecisionsCard(ctx: MindsContext(store: ConversationStore(), md: md,
+                                                    viz: MindsViz(), isLoading: false))
             .padding(28)
             .frame(width: 900, alignment: .leading)
             .background(MindsUI.page)

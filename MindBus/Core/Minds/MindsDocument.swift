@@ -326,4 +326,16 @@ public struct MindsDocument: Sendable {
             return (day, approval, headline)
         }
     }
+
+    /// 「你拍板的时刻」：`- 日期 你说的那句原话`
+    public var decisions: [(day: String, statement: String)] {
+        bullets("DECISIONS").compactMap { line in
+            let body = String(line.dropFirst(2))
+            guard let sp = body.firstIndex(of: " ") else { return nil }
+            let day = String(body[body.startIndex..<sp])
+            let statement = body[body.index(after: sp)...].trimmingCharacters(in: .whitespaces)
+            guard !statement.isEmpty, day.contains("-") else { return nil }
+            return (day, statement)
+        }
+    }
 }

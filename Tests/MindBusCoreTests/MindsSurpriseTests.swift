@@ -1336,3 +1336,15 @@ extension MindsSurpriseTests {
         XCTAssertFalse(map.isEmpty)
     }
 }
+
+extension MindsSurpriseTests {
+
+    /// 图片占位标记的第三种形态：`[Image #12]`。真机拍板第一条尾巴上就挂着它。
+    func testImagePlaceholderMarkersAreStripped() {
+        let t = Segmenter.strippingImageMarkers(
+            "梯队不要计算，改成后台配置[Image #12] 再看看 <image path=\"/x.png\"> </image> 好吗")
+        XCTAssertFalse(t.contains("Image"), t)
+        XCTAssertTrue(t.contains("梯队不要计算"), t)
+        XCTAssertTrue(t.contains("好吗"), t)
+    }
+}

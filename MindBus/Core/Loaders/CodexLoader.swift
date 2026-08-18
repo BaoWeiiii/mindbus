@@ -235,7 +235,7 @@ public enum CodexLoader {
                                     fileURL: fileURL)
         return IndexRow(lite: lite, segments: p.segments, entityText: p.entityText,
                         userText: p.userText, lastRole: p.lastMeaningfulRole,
-                        milestones: p.milestones)
+                        harvest: p.harvest)
     }
 
     public static func loadConversation(fileURL: URL,

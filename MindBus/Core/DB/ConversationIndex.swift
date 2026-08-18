@@ -110,7 +110,7 @@ public final class ConversationIndex: @unchecked Sendable {
         for table in ["conversations", "segments", "segments_fts", "segments_fts_uni",
                       "entities", "conversation_entities", "skipped_files",
                       "segments_fts_lex", "lexicon", "lexicon_meta", "mcp_refs", "user_corpus",
-                      "milestone_candidates",
+                      "milestone_candidates", "decision_points",
                       "vocab_uni", "vocab_lex"] {
             var exists = false
             try db.query("SELECT 1 FROM sqlite_master WHERE name = ? LIMIT 1;",
@@ -189,6 +189,14 @@ public final class ConversationIndex: @unchecked Sendable {
         at REAL NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_milestone_conv ON milestone_candidates(conv_rowid);
+    -- 「你拍板的时刻」的原始素材:AI 以问号收尾地征询之后,你说的那句原话。
+    -- 同样只存素材——长度范围与「是不是疑问句」两个阈值最容易改,留给构建层。
+    CREATE TABLE IF NOT EXISTS decision_points (
+        conv_rowid INTEGER NOT NULL,
+        statement TEXT NOT NULL,
+        at REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_decision_conv ON decision_points(conv_rowid);
     -- MCP 引用回流聚合（Task 5 写入；只用于记录与展示，本轮绝不进排序公式）
     CREATE TABLE IF NOT EXISTS mcp_refs (
         conv_id TEXT PRIMARY KEY,
@@ -272,7 +280,7 @@ public final class ConversationIndex: @unchecked Sendable {
     ///      user:」——「## My request for Codex:」之后才是用户的话，无标记的整条
     ///      是文件清单）。真机 16 场被它把 /var/folders 临时路径灌进语料、创世句
     ///      被顶成 markdown 标题遭噪声正则误杀。存量行含着注入头，必须整体重建。
-    public static let dataPolicyVersion: Int32 = 19
+    public static let dataPolicyVersion: Int32 = 20
 
     private func migrateDataPolicyIfNeeded() throws {
         var current: Int32 = 0
@@ -295,6 +303,7 @@ public final class ConversationIndex: @unchecked Sendable {
         DROP TABLE IF EXISTS mcp_refs;
         DROP TABLE IF EXISTS user_corpus;
         DROP TABLE IF EXISTS milestone_candidates;
+        DROP TABLE IF EXISTS decision_points;
         """)
         try db.exec(Self.schemaSQL)
         try db.exec("PRAGMA user_version = \(Self.dataPolicyVersion);")
@@ -373,6 +382,18 @@ public final class ConversationIndex: @unchecked Sendable {
                 let headline = sqlite3_column_text(st, 1).map { String(cString: $0) }
                 out.append(.init(approval: approval, headline: headline,
                                  at: Date(timeIntervalSince1970: sqlite3_column_double(st, 2))))
+            })
+        }
+        return out
+    }
+
+    /// 「你拍板的时刻」的全部原始素材。
+    public func decisionCandidates() -> [MindsMilestones.DecisionCandidate] {
+        var out: [MindsMilestones.DecisionCandidate] = []
+        try? queue.sync {
+            try db.query("SELECT statement, at FROM decision_points;", bind: { _ in }, row: { st in
+                out.append(.init(statement: String(cString: sqlite3_column_text(st, 0)),
+                                 at: Date(timeIntervalSince1970: sqlite3_column_double(st, 1))))
             })
         }
         return out
@@ -669,7 +690,7 @@ public final class ConversationIndex: @unchecked Sendable {
         -> [(path: String, mtime: Double)] {
         try upsert(rows.map { (lite: $0.lite, segments: $0.segments, mtime: $0.mtime,
                                entityText: $0.entityText, userText: $0.userText,
-                               lastRole: $0.lastRole, milestones: []) })
+                               lastRole: $0.lastRole, harvest: .init()) })
     }
 
     @discardableResult
@@ -677,11 +698,11 @@ public final class ConversationIndex: @unchecked Sendable {
         -> [(path: String, mtime: Double)] {
         try upsert(rows.map { (lite: $0.lite, segments: $0.segments, mtime: $0.mtime,
                                entityText: $0.entityText, userText: "", lastRole: "",
-                               milestones: []) })
+                               harvest: .init()) })
     }
 
     @discardableResult
-    public func upsert(_ rows: [(lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String, milestones: [MindsMilestones.Candidate])]) throws
+    public func upsert(_ rows: [(lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String, harvest: MindsMilestones.Harvest)]) throws
         -> [(path: String, mtime: Double)] {
         var duplicates: [(path: String, mtime: Double)] = []
         try queue.sync {
@@ -720,7 +741,7 @@ public final class ConversationIndex: @unchecked Sendable {
 
     /// 单条 upsert（调用方保证在 queue + transaction 内）。`lexicon`：本批共用的词表快照，
     /// 供第三路切分用（见 `upsert` 里 `loadLexiconInsideQueue()` 的注释）。
-    private func upsertOne(_ it: (lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String, milestones: [MindsMilestones.Candidate]),
+    private func upsertOne(_ it: (lite: ConversationLite, segments: [Segmenter.Segment], mtime: Double, entityText: String, userText: String, lastRole: String, harvest: MindsMilestones.Harvest),
                             lexicon: Set<String>) throws {
         let l = it.lite
         // 先删旧（含该会话的段与三路 fts），再插，保证幂等——否则重扫会让段随每次重扫翻倍
@@ -745,6 +766,8 @@ public final class ConversationIndex: @unchecked Sendable {
             try db.run("DELETE FROM conversation_entities WHERE conv_rowid = ?;",
                        bind: { sqlite3_bind_int64($0, 1, rid) })
             try db.run("DELETE FROM milestone_candidates WHERE conv_rowid = ?;",
+                       bind: { sqlite3_bind_int64($0, 1, rid) })
+            try db.run("DELETE FROM decision_points WHERE conv_rowid = ?;",
                        bind: { sqlite3_bind_int64($0, 1, rid) })
             try db.run("DELETE FROM user_corpus WHERE conv_rowid = ?;",
                        bind: { sqlite3_bind_int64($0, 1, rid) })
@@ -777,7 +800,15 @@ public final class ConversationIndex: @unchecked Sendable {
             sqlite3_bind_int64(s, 1, newRowid)
             sqlite3_bind_text(s, 2, it.userText, -1, SQLiteDB.transient)
         })
-        for c in it.milestones {
+        for d in it.harvest.decisions {
+            try db.run("INSERT INTO decision_points(conv_rowid, statement, at) VALUES(?,?,?);",
+                       bind: { s in
+                sqlite3_bind_int64(s, 1, newRowid)
+                sqlite3_bind_text(s, 2, d.statement, -1, SQLiteDB.transient)
+                sqlite3_bind_double(s, 3, d.at.timeIntervalSince1970)
+            })
+        }
+        for c in it.harvest.milestones {
             try db.run("""
                 INSERT INTO milestone_candidates(conv_rowid, approval, headline, at)
                 VALUES(?,?,?,?);
@@ -981,6 +1012,8 @@ public final class ConversationIndex: @unchecked Sendable {
                         try db.run("DELETE FROM conversation_entities WHERE conv_rowid = ?;",
                                    bind: { sqlite3_bind_int64($0, 1, r) })
                         try db.run("DELETE FROM milestone_candidates WHERE conv_rowid = ?;",
+                                   bind: { sqlite3_bind_int64($0, 1, r) })
+                        try db.run("DELETE FROM decision_points WHERE conv_rowid = ?;",
                                    bind: { sqlite3_bind_int64($0, 1, r) })
                         try db.run("DELETE FROM user_corpus WHERE conv_rowid = ?;",
                                    bind: { sqlite3_bind_int64($0, 1, r) })

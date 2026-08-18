@@ -524,7 +524,7 @@ public final class ConversationStore: ObservableObject {
             let mtime = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.modificationDate] as? Date)
                 .flatMap { $0 }?.timeIntervalSince1970 ?? 0
             _ = try? self.index?.upsert([(row.lite, row.segments, mtime, row.entityText,
-                                          row.userText, row.lastRole, row.milestones)])
+                                          row.userText, row.lastRole, row.harvest)])
             await MainActor.run {
                 // 列表行的 preview/计数可能变了,就地替换
                 if let i = self.allConversations.firstIndex(where: { $0.id == conversationID }) {

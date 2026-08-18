@@ -268,10 +268,105 @@ extension MindsMilestonesTests {
         let full = MindsMilestones.candidates(messages: msgs, text: plain)
         var acc = MindsMilestones.CandidateAccumulator()
         for m in msgs { acc.consume(m, text: plain) }
-        XCTAssertEqual(full, acc.finish())
+        XCTAssertEqual(full, acc.finish().milestones)
         XCTAssertEqual(full.map(\.approval), ["先看看这块", "继续", "好"])
         XCTAssertNil(full[0].headline, "第一条前面还没有汇报")
         XCTAssertNotNil(full[1].headline)
         XCTAssertNotNil(full[2].headline, "中间那条短回复不算汇报，仍挂在前面那条上")
+    }
+}
+
+// MARK: - 编号不是认可
+
+extension MindsMilestonesTests {
+
+    /// AI 摆出「方案 1 / 方案 2」时你打的「1」「a」，判据上完全符合认可词
+    /// （短、反复出现、跟在长汇报之后），但它是在**选择选项**而不是认可成果：
+    /// 它前面那条消息是选项列表，首句取出来是「已使用内置 GPT Image 生成」
+    /// 这种没有信息的行（真机 2026-08-18 现场）。
+    func testEnumerationTokensAreNotApprovals() {
+        var cands: [MindsMilestones.Candidate] = []
+        for i in 0..<8 {
+            for word in ["继续", "1", "a", "2"] {
+                cands.append(.init(approval: word,
+                                   headline: "第 \(i) 块做完了，测试全绿", at: Date()))
+            }
+        }
+        let learned = MindsMilestones.learnApprovals(candidates: cands)
+        XCTAssertTrue(learned.contains("继续"))
+        for n in ["1", "2", "a"] {
+            XCTAssertFalse(learned.contains(n), "编号不是认可，学出了: \(learned)")
+        }
+    }
+
+    /// 判据只掐掉「纯数字」和「单个字母」，正常的短认可词不受影响
+    func testShortRealApprovalsSurvive() {
+        for good in ["ok", "yes", "好", "确认", "lgtm", "go"] {
+            XCTAssertFalse(MindsMilestones.isEnumerationToken(good), good)
+        }
+        for bad in ["1", "22", "a", "B", "3."] {
+            XCTAssertTrue(MindsMilestones.isEnumerationToken(bad), bad)
+        }
+    }
+}
+
+// MARK: - 拍板素材与里程碑共用一次遍历
+
+extension MindsMilestonesTests {
+
+    private var solicitation: String {
+        String(repeating: "两条路：一是先补齐索引层，二是先把界面接上。", count: 8) + "你倾向哪种？"
+    }
+
+    /// 一次遍历同时攒两类素材：AI 征询之后你说的那句话，就是「你拍板的时刻」。
+    /// 长度与「是不是疑问句」留给构建层判——这两个阈值最容易改，
+    /// 改它们不该要求用户重建一次索引。
+    func testHarvestCollectsBothKinds() {
+        let report = String(repeating: "接入层改完了，压测通过。", count: 20)
+        let msgs = [
+            msg(.assistant, report),
+            msg(.user, "继续", minute: 1),
+            msg(.assistant, solicitation, minute: 2),
+            msg(.user, "走第二条，先把界面接上，索引层下一轮再说", minute: 3),
+        ]
+        var acc = MindsMilestones.CandidateAccumulator()
+        for m in msgs { acc.consume(m, text: plain) }
+        let h = acc.finish()
+        XCTAssertEqual(h.milestones.map(\.approval), ["继续"])
+        XCTAssertEqual(h.decisions.map(\.statement), ["走第二条，先把界面接上，索引层下一轮再说"])
+    }
+
+    /// 不以问号收尾的长消息不是征询，后面那句话也就不是拍板
+    func testNonSolicitationYieldsNoDecision() {
+        let msgs = [
+            msg(.assistant, String(repeating: "我把这块改完了，细节如下。", count: 20)),
+            msg(.user, "那就这样吧，先上线看看效果", minute: 1),
+        ]
+        var acc = MindsMilestones.CandidateAccumulator()
+        for m in msgs { acc.consume(m, text: plain) }
+        XCTAssertTrue(acc.finish().decisions.isEmpty)
+    }
+
+    /// 一次征询只认第一个回应；隔太远的不算对这次征询的回答
+    func testOnlyFirstAnswerWithinLookaheadCounts() {
+        let msgs = [
+            msg(.assistant, solicitation),
+            msg(.user, "走第二条", minute: 1),
+            msg(.user, "另外顺手把配色也换一下", minute: 2),
+        ]
+        var acc = MindsMilestones.CandidateAccumulator()
+        for m in msgs { acc.consume(m, text: plain) }
+        XCTAssertEqual(acc.finish().decisions.map(\.statement), ["走第二条"])
+    }
+
+    /// 构建层筛选：太短/太长/疑问句都不是拍板
+    func testDecisionFilterDropsQuestionsAndOutliers() {
+        let raw: [MindsMilestones.DecisionCandidate] = [
+            .init(statement: "走第二条，先把界面接上", at: Date()),
+            .init(statement: "那这样会不会更慢？", at: Date()),
+            .init(statement: "嗯", at: Date()),
+        ]
+        let out = MindsMilestones.decisions(candidates: raw)
+        XCTAssertEqual(out.map(\.statement), ["走第二条，先把界面接上"])
     }
 }

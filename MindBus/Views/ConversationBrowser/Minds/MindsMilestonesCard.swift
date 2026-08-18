@@ -66,3 +66,52 @@ struct MindsMilestonesCard: View {
         }
     }
 }
+
+
+/// 「你拍板的时刻」——它把选择摆到你面前时，你说的那句原话。
+///
+/// 与「你点头的时刻」互补：那一栏是「你认可了什么成果」，这一栏是
+/// 「你怎么做的选择」。原话照抄，不做任何加工——你当时的措辞本身就是信息。
+struct MindsDecisionsCard: View {
+    let ctx: MindsContext
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        Group {
+            if ctx.isLoading {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    MindsSkeletonBody(lines: 4).mindsCard()
+                }
+            } else if !ctx.decisions.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(ctx.decisions.enumerated()), id: \.offset) { i, d in
+                            if i > 0 {
+                                Rectangle().fill(MindsUI.border.opacity(0.55))
+                                    .frame(height: 1).padding(.vertical, 9)
+                            }
+                            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                Text(d.day)
+                                    .font(BrandFont.mono(11.5))
+                                    .foregroundStyle(MindsUI.textTertiary)
+                                    .frame(width: 74, alignment: .leading)
+                                Text(d.statement)
+                                    .font(BrandFont.text(d.statement, 13))
+                                    .foregroundStyle(MindsUI.textPrimary)
+                                    .lineLimit(2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }
+                    .mindsCard()
+                }
+            }
+        }
+    }
+
+    private var header: some View {
+        MindsSectionHeader(title: l10n.s.mindsSecDecisions, hint: l10n.s.mindsDecisionsHint)
+    }
+}

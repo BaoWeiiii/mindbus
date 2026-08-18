@@ -157,12 +157,7 @@ public enum Segmenter {
         }
         // Claude Code 把粘贴的图片写成「[Image: source: <本地路径>]」。那是客户端
         // 写进正文的路径,不是你打的字,而且路径里带着家目录用户名(policy v18)。
-        t = t.replacingOccurrences(of: #"\[Image: source:[^\]]*\]"#, with: "",
-                                   options: .regularExpression)
-        // Codex 的同类标记是 XML 形态:<image name=… path="/var/folders/…"> </image>
-        t = t.replacingOccurrences(of: #"</?image[^>]*>"#, with: "",
-                                   options: .regularExpression)
-            .trimmingCharacters(in: .whitespaces)
+        t = strippingImageMarkers(t).trimmingCharacters(in: .whitespaces)
         return t.isEmpty ? nil : t
     }
 
@@ -175,15 +170,27 @@ public enum Segmenter {
         "# In app browser:",
     ]
 
+    /// 剥掉客户端写进正文的图片标记。三种形态，都不是你打的字：
+    /// - Claude Code：`[Image: source: <本地路径>]`、`[Image #3]`
+    /// - Codex：`<image name=… path="/var/folders/…"> </image>`
+    /// 前两种还带着家目录用户名。
+    public static func strippingImageMarkers(_ text: String) -> String {
+        var t = text
+        for pattern in [#"\[Image: source:[^\]]*\]"#, #"\[Image #\d+\]"#, #"</?image[^>]*>"#] {
+            t = t.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+        }
+        return t
+    }
+
     /// 只取文本块、丢掉工具调用块的口径。
     ///
     /// 检索口径（`plainTextForSearch`）会把工具调用也算进去——搜「哪次跑了
     /// 这个命令」得搜得到。但「AI 汇报的首句」不能用它:真机上 12 条里程碑
     /// 抽样有 4 条取到了 [tool: Bash] {"command":…} 这种 JSON,还带着本地路径。
     public static func textBlocksOnly(of message: Message) -> String {
-        message.blocks.compactMap {
+        strippingImageMarkers(message.blocks.compactMap {
             if case .text(let t) = $0 { return t } else { return nil }
-        }.joined(separator: "\n")
+        }.joined(separator: "\n"))
     }
 
     /// 以 user 角色进场的系统产物：整条消息以已知系统模式开头，或全文由注入标记主导。
