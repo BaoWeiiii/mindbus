@@ -101,4 +101,69 @@ public enum MindsMilestones {
         }
         return out
     }
+
+    // MARK: - 你拍板的时刻
+
+    /// 一次拍板：AI 摆出选项 / 征询意见之后，你给出的那句实质回应。
+    public struct Decision: Equatable, Sendable {
+        /// 你说的那句话（原话，不做加工）
+        public let statement: String
+        public let at: Date
+        public init(statement: String, at: Date) {
+            self.statement = statement; self.at = at
+        }
+    }
+
+    /// AI 侧的「征询」标记。
+    ///
+    /// 注意这些模式匹配的是 **AI 的话**，不是你的话——它只用来定位「这里是个
+    /// 决策点」，不对你说的内容做任何价值判断。真机上 AI 摆出选项 65 次。
+    ///
+    /// 为什么不去判「你选了 A 还是 B」：真机实测你几乎不用编号选择（用
+    /// 「A」「第二个」这类说法的只有 2 处），你的做法是**用自己的话重述**，
+    /// 所以配对到具体选项做不到，也不必要——你那句回应本身就是决定。
+    static let solicitationMarkers = [
+        "方案 A", "方案 B", "方案一", "方案二", "选项 A", "选项 B",
+        "两个选择", "两个方案", "两个做法", "两个思路",
+        "三个选择", "三个方案", "三个做法", "三个思路",
+        "哪一种", "哪种", "你倾向", "你想要哪",
+    ]
+
+    /// 征询之后多少条消息内的回应算数。隔太远就不是对这次征询的回答了。
+    static let decisionLookahead = 2
+    static let minSolicitationLength = 150
+    static let decisionRange = 4...120
+
+    static func isSolicitation(_ report: String) -> Bool {
+        guard report.count >= minSolicitationLength else { return false }
+        if solicitationMarkers.contains(where: { report.contains($0) }) { return true }
+        // 「要么…要么…」是同一个语用形态，只是没法写成固定串
+        guard let first = report.range(of: "要么") else { return false }
+        return report[first.upperBound...].contains("要么")
+    }
+
+    /// 疑问句不是拍板——你在追问，不是在定。
+    /// 真机上剔掉的是「测试和验收呢？」「什么是语义地图渲染管线？」这类。
+    static func isQuestion(_ text: String) -> Bool {
+        if text.contains("？") || text.contains("?") { return true }
+        let openers = ["什么", "为什么", "怎么", "如何", "是不是", "能不能",
+                       "有没有", "哪些", "哪个", "多少", "在哪"]
+        return openers.contains { text.hasPrefix($0) }
+    }
+
+    public static func extractDecisions(messages: [Message],
+                                        text: (Message) -> String) -> [Decision] {
+        var out: [Decision] = []
+        for (i, m) in messages.enumerated() where m.role == .assistant {
+            guard isSolicitation(text(m)) else { continue }
+            let upper = min(i + 1 + decisionLookahead, messages.count)
+            guard i + 1 < upper else { continue }
+            guard let answer = messages[(i + 1)..<upper].first(where: { $0.role == .user })
+            else { continue }
+            let said = text(answer).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard decisionRange.contains(said.count), !isQuestion(said) else { continue }
+            out.append(Decision(statement: said, at: answer.timestamp))
+        }
+        return out
+    }
 }

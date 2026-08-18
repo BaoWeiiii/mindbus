@@ -107,3 +107,65 @@ final class MindsMilestonesTests: XCTestCase {
         XCTAssertTrue(MindsMilestones.extract(messages: ms, text: plain).isEmpty)
     }
 }
+
+// MARK: - 你拍板的时刻
+
+extension MindsMilestonesTests {
+
+    private func solicitation(_ body: String) -> String {
+        "关于这块我给两个方案，你倾向哪一种：\n\n方案 A：" + body
+            + String(repeating: "各自的代价与收益逐条摊开说明，便于你判断。", count: 8)
+            + "\n\n方案 B：另一条路线，改动更小但天花板也更低。"
+    }
+
+    func testDecisionCapturesTheAnswerToASolicitation() {
+        let ms = [msg(.assistant, solicitation("推倒重来"), minute: 0),
+                  msg(.user, "所有事情都要在今年 12 月做完。", minute: 1)]
+        let out = MindsMilestones.extractDecisions(messages: ms, text: plain)
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out[0].statement, "所有事情都要在今年 12 月做完。")
+    }
+
+    /// 追问不是拍板。真机上剔掉的是「测试和验收呢？」「什么是语义地图渲染管线？」
+    func testDecisionRejectsFollowUpQuestions() {
+        for q in ["测试和验收呢？按传统流程还漏了什么", "什么是语义地图渲染管线",
+                  "能不能换个思路做"] {
+            let ms = [msg(.assistant, solicitation("推倒重来"), minute: 0),
+                      msg(.user, q, minute: 1)]
+            XCTAssertTrue(MindsMilestones.extractDecisions(messages: ms, text: plain).isEmpty, q)
+        }
+    }
+
+    /// 没有征询就没有决策点——AI 只是在汇报时，用户说什么都不算「拍板」
+    func testDecisionNeedsASolicitationFirst() {
+        let ms = [msg(.assistant, report, minute: 0),
+                  msg(.user, "前后端分离", minute: 1)]
+        XCTAssertTrue(MindsMilestones.extractDecisions(messages: ms, text: plain).isEmpty)
+    }
+
+    /// 「要么…要么…」是同一个语用形态，只是写不成固定串
+    func testEitherOrCountsAsSolicitation() {
+        let body = "要么现在就把索引重建一遍，" + String(repeating: "详细权衡后再定夺方向。", count: 12)
+            + "要么等这一轮迭代做完再说。"
+        XCTAssertTrue(MindsMilestones.isSolicitation(body))
+        XCTAssertFalse(MindsMilestones.isSolicitation("要么现在做" + String(repeating: "补足长度的内容。", count: 20)),
+                       "只出现一次「要么」不算给选项")
+    }
+
+    /// 隔太远的回应不算对这次征询的回答
+    func testDecisionIgnoresFarAwayReplies() {
+        let ms = [msg(.assistant, solicitation("推倒重来"), minute: 0),
+                  msg(.assistant, "补充一点背景。", minute: 1),
+                  msg(.assistant, "再补充一点。", minute: 2),
+                  msg(.user, "前后端分离", minute: 3)]
+        XCTAssertTrue(MindsMilestones.extractDecisions(messages: ms, text: plain).isEmpty)
+    }
+
+    /// 太长的回应是在展开新需求，不是一句拍板
+    func testDecisionRejectsOverlongReplies() {
+        let long = String(repeating: "这里还有一大段新的需求要展开说明。", count: 12)
+        let ms = [msg(.assistant, solicitation("推倒重来"), minute: 0),
+                  msg(.user, long, minute: 1)]
+        XCTAssertTrue(MindsMilestones.extractDecisions(messages: ms, text: plain).isEmpty)
+    }
+}
