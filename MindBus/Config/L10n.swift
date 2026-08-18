@@ -229,6 +229,9 @@ struct Strings {
     let mProjColSpan: String
     let mProjColRecent: String
     /// 「你的语言」整行卡
+    /// 你引用过的人
+    let mindsSecPeople: String
+    let mindsPeopleHint: String
     let mindsSecLanguage: String
     let mindsLanguageHint: String
     /// 空态(不显示一排 0)
@@ -633,6 +636,8 @@ struct Strings {
         mProjColScale: "相对规模",
         mProjColSpan: "活跃期",
         mProjColRecent: "最近活跃",
+        mindsSecPeople: "你引用的人",
+        mindsPeopleHint: "跨项目搬出来的名字，你想法的来处",
         mindsSecLanguage: "你的语言",
         mindsLanguageHint: "你反复说的话，跨项目带着走的说法，你未必察觉",
         mindsEmptyRhythm: "继续使用一段时间后，这里会出现你的工作节律。",
@@ -1009,6 +1014,8 @@ struct Strings {
         mProjColScale: "SCALE",
         mProjColSpan: "ACTIVE PERIOD",
         mProjColRecent: "LAST TOUCHED",
+        mindsSecPeople: "People You Cite",
+        mindsPeopleHint: "names you bring up across projects — where your ideas come from",
         mindsSecLanguage: "Your Language",
         mindsLanguageHint: "phrases you carry from project to project, probably without noticing",
         mindsEmptyRhythm: "Keep using it for a while — your work rhythm will show up here.",

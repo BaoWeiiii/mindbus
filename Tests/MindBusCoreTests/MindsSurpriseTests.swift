@@ -972,3 +972,105 @@ extension MindsSurpriseTests {
         XCTAssertFalse(doc.contains("我们"), "中文口水词仍要被挡住：\(doc)")
     }
 }
+
+// MARK: - 你引用过的人（2026-08-18）
+
+extension MindsSurpriseTests {
+
+    /// 用真机实测到的数字当夹具。断言的是**策略**（跨项目 + 一致性），
+    /// 不是 NLTagger 的判断——那是系统 ML 模型，行为随 OS 版本变，
+    /// 写进断言等于测苹果。识别本身只做冒烟（见最后一条）。
+    private var realWorldDetections: [MindsBuilder.NameDetection] {
+        [.init(name: "乔布斯", taggedHits: 8),    // 一致性 8/8   = 100%
+         .init(name: "马斯克", taggedHits: 3),    // 3/3   = 100%
+         .init(name: "宫本茂", taggedHits: 17),   // 17/18 = 94%
+         .init(name: "贝索斯", taggedHits: 1),    // 1/3   = 33%
+         .init(name: "曹操", taggedHits: 29),     // 100% 但只 1 个项目
+         .init(name: "袁绍", taggedHits: 6),
+         .init(name: "小红", taggedHits: 6),      // 6/27  = 22% ←「小红书」
+         .init(name: "高亮", taggedHits: 4)]      // 4/16  = 25% ← UI 术语
+    }
+
+    /// 语料只用来算一致性的分母，按真机的总出现次数造
+    /// 按真机的项目分布造：曹操/袁绍只在一个项目（三国游戏），
+    /// 乔布斯跨 3 个、马斯克/宫本茂/贝索斯跨 2 个
+    private var realWorldCorpus: [(text: String, cwd: String)] {
+        func rep(_ w: String, _ n: Int) -> String { String(repeating: w + "。", count: n) }
+        return [(text: rep("乔布斯", 4) + rep("马斯克", 2) + rep("宫本茂", 9)
+                     + rep("贝索斯", 2) + rep("曹操", 29) + rep("袁绍", 8)
+                     + rep("小红书", 11) + rep("小红", 3)
+                     + rep("高亮显示", 6) + rep("高亮", 2), cwd: "/p/game"),
+                (text: rep("乔布斯", 2) + rep("马斯克", 1) + rep("宫本茂", 9)
+                     + rep("贝索斯", 1) + rep("小红书", 10) + rep("小红", 3)
+                     + rep("高亮显示", 6) + rep("高亮", 2), cwd: "/p/b"),
+                (text: rep("乔布斯", 2), cwd: "/p/c")]
+    }
+
+    func testCitedPeopleDropsProjectCharacters() {
+        let people = MindsBuilder.citedPeople(detections: realWorldDetections,
+                                              corpus: realWorldCorpus).map(\.name)
+        XCTAssertFalse(people.contains("曹操"), "29 次但只在 1 个项目——那是游戏角色数据：\(people)")
+        XCTAssertFalse(people.contains("袁绍"), people.description)
+    }
+
+    func testCitedPeopleDropsLowConsistencyFalsePositives() {
+        let people = MindsBuilder.citedPeople(detections: realWorldDetections,
+                                              corpus: realWorldCorpus).map(\.name)
+        XCTAssertFalse(people.contains("小红"), "27 次里只有 6 次被判人名(其余是小红书)：\(people)")
+        XCTAssertFalse(people.contains("高亮"), "UI 术语被误判成人名：\(people)")
+    }
+
+    func testCitedPeopleKeepsRealCitations() {
+        let people = MindsBuilder.citedPeople(detections: realWorldDetections,
+                                              corpus: realWorldCorpus).map(\.name)
+        XCTAssertTrue(people.contains("乔布斯"), people.description)
+        XCTAssertTrue(people.contains("马斯克"), people.description)
+        XCTAssertTrue(people.contains("宫本茂"), people.description)
+    }
+
+    /// 频次不是门槛——这正是这一节存在的理由：马斯克真机只说过 3 次，
+    /// 按任何频次口径都排不进任何榜
+    func testCitedPeopleHasNoFrequencyFloor() {
+        let people = MindsBuilder.citedPeople(detections: realWorldDetections,
+                                              corpus: realWorldCorpus)
+        let musk = people.first { $0.name == "马斯克" }
+        XCTAssertEqual(musk?.mentions, 3)
+        XCTAssertEqual(musk?.projects, 2)
+    }
+
+    /// 排序:跨项目多的在前(乔布斯 3 > 马斯克/宫本茂 2)
+    func testCitedPeopleRanksByProjectSpread() {
+        let people = MindsBuilder.citedPeople(detections: realWorldDetections,
+                                              corpus: realWorldCorpus)
+        XCTAssertEqual(people.first?.name, "乔布斯")
+    }
+
+    /// 一致性阈值是可调的策略,不是魔法数:贝索斯真机 33%,阈值抬到 0.5 就该出局
+    func testConsistencyThresholdIsWhatDecidesBezos() {
+        let loose = MindsBuilder.citedPeople(detections: realWorldDetections,
+                                             corpus: realWorldCorpus,
+                                             minConsistency: 0.3).map(\.name)
+        let strict = MindsBuilder.citedPeople(detections: realWorldDetections,
+                                              corpus: realWorldCorpus,
+                                              minConsistency: 0.5).map(\.name)
+        XCTAssertTrue(loose.contains("贝索斯"), loose.description)
+        XCTAssertFalse(strict.contains("贝索斯"), strict.description)
+    }
+
+    func testCitedPeopleRendersAndParsesBack() {
+        var s = MindsBuilder.SurpriseData()
+        s.citedPeople = [.init(name: "乔布斯", mentions: 8, projects: 3),
+                         .init(name: "马斯克", mentions: 3, projects: 2)]
+        let doc = MindsDocument(markdown: render(s))
+        let chips = doc.chipRow("PEOPLE YOU CITE")
+        XCTAssertEqual(chips.map(\.word), ["乔布斯", "马斯克"])
+        XCTAssertEqual(chips.first?.meta, "8×/3p")
+    }
+
+    /// 冒烟:识别这一层只保证「跑得起来、不崩、不返回空串」,不断言认出了谁
+    func testDetectPersonNamesSmoke() {
+        let found = MindsBuilder.detectPersonNames(
+            corpus: [(text: "乔布斯在发布会上说专注就是拒绝一百件事", cwd: "/p/a")])
+        XCTAssertTrue(found.allSatisfy { !$0.name.isEmpty && $0.taggedHits > 0 })
+    }
+}

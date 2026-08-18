@@ -18,6 +18,7 @@ struct MindsAIPage: View {
                 MindsLeverage(ctx: ctx)
             }
             MindsRepeatedPhrases(ctx: ctx)
+            MindsCitedPeople(ctx: ctx)
             MindsTwoColumn {
                 MindsCatchphrases(ctx: ctx)
             } right: {
@@ -399,6 +400,33 @@ struct MindsCommonWords: View {
                 VStack(alignment: .leading, spacing: 0) {
                     MindsSectionHeader(title: l10n.s.mindsSecVocabulary,
                                        hint: l10n.s.mindsVocabularyHint)
+                    FlowLayout(spacing: 8) {
+                        ForEach(Array(chips.enumerated()), id: \.element.word) { i, c in
+                            MindsTagChip(word: c.word, meta: ctx.vocabMeta(c.meta),
+                                         emphasis: i < 3) { ctx.search(c.word) }
+                        }
+                    }
+                    .mindsCard()
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 你引用的人
+
+/// 人名不按频次排，按跨项目数——马斯克真机只说过 3 次，但他跨 2 个项目出现。
+/// 「你搬出了谁」这件事，说一次和说十次的意义差别没有那么大。
+struct MindsCitedPeople: View {
+    let ctx: MindsContext
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let chips = ctx.doc.chipRow("PEOPLE YOU CITE")
+        return Group {
+            if !chips.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    MindsSectionHeader(title: l10n.s.mindsSecPeople, hint: l10n.s.mindsPeopleHint)
                     FlowLayout(spacing: 8) {
                         ForEach(Array(chips.enumerated()), id: \.element.word) { i, c in
                             MindsTagChip(word: c.word, meta: ctx.vocabMeta(c.meta),

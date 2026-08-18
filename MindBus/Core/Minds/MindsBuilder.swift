@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 
 /// 思脉底座 · 机械层：从索引统计生成 `minds.md`（design spec §2）。
 ///
@@ -157,6 +158,7 @@ public enum MindsBuilder {
         surprise.delegationVerbs = delegationVerbs(
             corpus: corpusRows.map { (text: $0.text, convID: $0.convID) }, limit: 8)
         surprise.researchDestinations = researchDestinations(corpus: corpus)
+        surprise.citedPeople = citedPeople(corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) })
         surprise.phrases = repeatedPhrases(
             corpus: corpusRows.map { (text: $0.text, cwd: $0.cwd) }, limit: 12)
 
@@ -310,6 +312,8 @@ public enum MindsBuilder {
         var delegationVerbs: [(verb: String, lines: Int, conversations: Int)] = []
         var phrases: [(phrase: String, times: Int, projects: Int)] = []
         var researchDestinations: [(dest: String, count: Int)] = []
+        /// 你引用过的人(2026-08-18)
+        var citedPeople: [CitedPerson] = []
         var firstWords: [(project: String, quote: String, convID: String, at: Date)] = []
         var shape: ConversationIndex.CollaborationShape?
         var weekendSplit: (weekday: [ConversationIndex.FacetCount], weekend: [ConversationIndex.FacetCount]) = ([], [])
@@ -846,6 +850,93 @@ public enum MindsBuilder {
                                   projects: projs[$0.key]?.count ?? 0, df: df[$0.key] ?? 0) }
     }
 
+    /// 你引用过的人。
+    ///
+    /// 为什么值得单开一节：人名的价值不在频次而在「你搬出了谁」。马斯克说 3 次、
+    /// 贝索斯说 3 次，按任何频次口径都排不进任何榜，但它们是你思想来源的证据。
+    ///
+    /// 三条判据全是机械的，2026-08-18 在真机语料上逐条验证过：
+    /// ① **系统 NER 认它是人名**（`NLTagger.nameType`，离线、零依赖）
+    /// ② **跨 ≥2 个项目**——这一条把「你引用的人」和「项目内容里的人」切得干干净净：
+    ///    曹操 29 次、袁绍 8 次、吕布/刘备/关羽/赵云 全部只在 1 个项目（那是三国
+    ///    游戏项目里的角色数据）；而宫本茂/乔布斯/马斯克/贝索斯 全部跨 ≥2 个项目。
+    /// ③ **NER 一致性**——同一个串每次出现有多大比例被判成人名。「小红」出现 27 次
+    ///    只有 6 次被判人名（其余是「小红书」）、「高亮」25%、「陈留」21%，
+    ///    都是误识别；真人名一致性 94-100%。
+    ///
+    /// 不用频次门槛：那正是这一节存在的理由。
+    public struct CitedPerson: Equatable, Sendable {
+        public let name: String
+        /// 你提到他的总次数
+        public let mentions: Int
+        /// 跨几个项目
+        public let projects: Int
+    }
+
+    /// NER 的原始产出。单独一层是为了让**策略**可测：`NLTagger` 是系统 ML 模型，
+    /// 同一句话在不同 OS 版本上判断可能不同，把它的输出写进断言等于测苹果。
+    /// 判据（跨项目、一致性）是我们的策略，必须钉住；识别本身只做冒烟。
+    public struct NameDetection: Equatable, Sendable {
+        public let name: String
+        /// 被判成人名的次数。**只有这一个数来自 NER**——
+        /// 跨项目数与总次数一律由策略层按语料实测：NER 只在部分出现处识别成功
+        /// （真机上贝索斯出现 3 次只被识别 1 次），拿识别命中处去算扩散度会
+        /// 系统性低估，把真人名挡在门外。
+        public let taggedHits: Int
+        public init(name: String, taggedHits: Int) {
+            self.name = name; self.taggedHits = taggedHits
+        }
+    }
+
+    static func detectPersonNames(corpus: [(text: String, cwd: String)]) -> [NameDetection] {
+        var hits: [String: Int] = [:]
+        let tagger = NLTagger(tagSchemes: [.nameType])
+        for (text, _) in corpus where !text.isEmpty {
+            tagger.string = text
+            tagger.setLanguage(.simplifiedChinese, range: text.startIndex..<text.endIndex)
+            tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word,
+                                 scheme: .nameType,
+                                 options: [.omitWhitespace, .omitPunctuation, .joinNames]) { tag, r in
+                guard tag == .personalName else { return true }
+                let n = String(text[r])
+                guard n.count >= 2 else { return true }
+                hits[n, default: 0] += 1
+                return true
+            }
+        }
+        return hits.map { NameDetection(name: $0.key, taggedHits: $0.value) }
+    }
+
+    /// 策略层：从 NER 产出里挑出「你引用的人」。纯函数，判据全部可测。
+    static func citedPeople(detections: [NameDetection],
+                            corpus: [(text: String, cwd: String)],
+                            minProjects: Int = 2,
+                            minConsistency: Double = 0.3,
+                            limit: Int = 8) -> [CitedPerson] {
+        var out: [CitedPerson] = []
+        for d in detections where !d.name.isEmpty {
+            // 总次数与跨项目数都按语料实测(含没被 NER 判成人名的那些出现处)
+            var total = 0
+            var projs = Set<String>()
+            for (text, cwd) in corpus {
+                let n = text.components(separatedBy: d.name).count - 1
+                guard n > 0 else { continue }
+                total += n
+                if !cwd.isEmpty { projs.insert(cwd) }
+            }
+            guard total > 0, projs.count >= minProjects,
+                  Double(d.taggedHits) / Double(total) >= minConsistency else { continue }
+            out.append(CitedPerson(name: d.name, mentions: total, projects: projs.count))
+        }
+        return out.sorted {
+            $0.projects != $1.projects ? $0.projects > $1.projects : $0.mentions > $1.mentions
+        }.prefix(limit).map { $0 }
+    }
+
+    static func citedPeople(corpus: [(text: String, cwd: String)]) -> [CitedPerson] {
+        citedPeople(detections: detectPersonNames(corpus: corpus), corpus: corpus)
+    }
+
     /// 技术名词也算「你的常用词」。
     ///
     /// 为什么要单开一条路：`userVocabularyStats` 只数个人词表里的词，而那份词表
@@ -956,6 +1047,7 @@ public enum MindsBuilder {
             renderQuestionShape(surprise.questionShape),
             renderDelegation(verbs: surprise.delegationVerbs, research: surprise.researchDestinations),
             renderPhrases(surprise.phrases),
+            renderPeople(surprise.citedPeople),
             renderRepeatedBriefings(surprise.repeatedBriefings),
             renderCatchphrases(phrases: surprise.catchphrases, politeness: surprise.politeness),
             renderLeverage(surprise.volume),
@@ -1136,6 +1228,20 @@ public enum MindsBuilder {
                             "why": "you dig for reasons first",
                             "what": "you start from definitions"]
             lines.append("- \(verdicts[top.kind] ?? "")")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// 你引用过的人。空态说清楚门槛,不装数据多。
+    private static func renderPeople(_ people: [CitedPerson]) -> String {
+        var lines = ["## PEOPLE YOU CITE",
+                     "People you bring up across projects — where your ideas come from. "
+                        + "(mechanical, \(people.count) people)"]
+        if people.isEmpty {
+            lines.append("(none yet — someone has to come up in at least two projects)")
+        } else {
+            lines.append("- " + people.map { "\($0.name) (\($0.mentions)×/\($0.projects)p)" }
+                .joined(separator: " · "))
         }
         return lines.joined(separator: "\n")
     }
