@@ -165,3 +165,20 @@ final class PersonalLexiconTests: XCTestCase {
                           "40 万字多样语料构建超 10 秒——扫描收尾会被拖死")
     }
 }
+
+// MARK: - 拉丁词表（2026-08-18）
+
+extension PersonalLexiconTests {
+
+    /// 虚词判据交给词性标注器，不写停用词表。这是能不能给说英文的人
+    /// 出词表的关键——频次判据在一份以中文和代码为主的语料上标定不出来。
+    func testLatinFunctionWordsAreRecognized() {
+        for f in ["the", "of", "a", "to", "and", "in", "that", "with", "it"] {
+            XCTAssertTrue(PersonalLexicon.isLatinFunctionWord(f), f)
+        }
+        // 名词绝不能被误杀:它们才是词表的正身
+        for c in ["user", "journey", "product", "manager", "cache", "latency", "rpc"] {
+            XCTAssertFalse(PersonalLexicon.isLatinFunctionWord(c), c)
+        }
+    }
+}
