@@ -340,6 +340,10 @@ struct DetailView: View {
                         .foregroundStyle(DSLight.gold)
                         .help(l10n.s.refBadgeHelp(n))
                     }
+                    if let conv {
+                        // 长对话的目录:够不上 3 个节点时它自己不显示
+                        OutlineButton(conversation: conv)
+                    }
                     moreMenu(for: conv)
                 }
                 .padding(.trailing, 8)

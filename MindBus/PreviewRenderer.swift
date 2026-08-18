@@ -28,6 +28,7 @@ enum PreviewRenderer {
             render(milestonesSample, name: "minds-milestones", size: CGSize(width: 900, height: 420), to: sub)
             render(decisionsSample, name: "minds-decisions", size: CGSize(width: 900, height: 340), to: sub)
             render(projectsSample, name: "minds-projects", size: CGSize(width: 900, height: 400), to: sub)
+            render(outlineSample, name: "outline", size: CGSize(width: 420, height: 420), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -82,6 +83,26 @@ enum PreviewRenderer {
     private static func day(_ s: String) -> Date {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current
         return f.date(from: s) ?? Date(timeIntervalSince1970: 1_754_000_000)
+    }
+
+    /// 长对话目录样张（真机节点形态：放行 / 拍板 / 时间断点交织）
+    private static var outlineSample: some View {
+        let base = Date(timeIntervalSince1970: 1_754_000_000)
+        let nodes: [ConversationOutline.Node] = [
+            .init(kind: .milestone, messageID: "1",
+                  text: "风声扩展 P1 落地完毕:表 + 闸门 + 真实种子全链路跑通", at: base),
+            .init(kind: .decision, messageID: "2",
+                  text: "走第二条,先把界面接上,索引层下一轮再说", at: base),
+            .init(kind: .gap, messageID: "3", text: "", at: base, gap: 5 * 3600),
+            .init(kind: .milestone, messageID: "4",
+                  text: "砍完推送(1b2c3d4),净删 573 行,801 测试全绿,已装机", at: base),
+            .init(kind: .gap, messageID: "5", text: "", at: base, gap: 26 * 3600),
+            .init(kind: .decision, messageID: "6",
+                  text: "全部冻,而且需要兜底,另外把抓取内容全部审核通过", at: base),
+            .init(kind: .milestone, messageID: "7", text: "线一:上架合规全套上线(2c3d4e5)", at: base),
+        ]
+        return OutlineListPreview(nodes: nodes).content
+            .frame(width: 388).padding(16).background(DSLight.sf)
     }
 
     /// 项目页样张：核对「放行数」徽章没有把行布局挤坏（真机数字）

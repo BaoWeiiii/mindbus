@@ -327,6 +327,26 @@ public final class ConversationStore: ObservableObject {
         index?.latestNightConversation()
     }
 
+    /// 某一场对话的目录。判据在 Core，这里只负责把素材取出来喂给它。
+    /// nonisolated：详情页在后台线程调用，别让它挂在主线程上。
+    public nonisolated func outlineNodes(conversationID: String,
+                                         messages: [Message]) -> [ConversationOutline.Node] {
+        guard let index else { return [] }
+        let mat = index.outlineMaterial(conversationID: conversationID)
+        let approvals = index.allMilestoneApprovals()
+        let stones = mat.milestones
+            .filter { MindsMilestones.isApproval($0.candidate.approval, approvals: approvals) }
+            .compactMap { m -> (messageID: String, text: String)? in
+                guard let h = m.candidate.headline else { return nil }
+                return (messageID: m.messageID, text: h)
+            }
+        let calls = mat.decisions
+            .filter { MindsMilestones.decisionRange.contains($0.statement.count)
+                      && !MindsMilestones.isQuestion($0.statement) }
+            .map { (messageID: $0.messageID, text: $0.statement) }
+        return ConversationOutline.build(messages: messages, milestones: stones, decisions: calls)
+    }
+
     /// 你点头 / 拍板的时刻，带着能跳回原文的会话 id。
     /// 判据（学认可词、筛长度与疑问句）在这里现算——素材只是素材。
     public nonisolated func vizSignedOff()
