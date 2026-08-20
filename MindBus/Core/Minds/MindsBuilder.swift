@@ -1168,6 +1168,63 @@ public enum MindsBuilder {
         return lines.joined(separator: "\n")
     }
 
+    /// 短语要跨几个项目才算「跟着你走」。也是能力阶梯上这一层的解锁条件。
+    public static let phraseMinProjects = 3
+
+    /// 「你可能忘了的」的时间下限（与 ConversationIndex.forgottenRelated 的
+    /// 默认参数同一个值）——库龄不足它,一切都还「记得」,这一层无从谈起。
+    public static let recallUnlockDays = 30
+
+    /// 多长的对话才值得有目录。OutlineButton 的真实门槛是节点 ≥3,
+    /// 但节点数无法从库的统计里预测;200 条消息是「滚不动了」的经验口径
+    /// （真机 30 场长对话的分析基线就是它）。
+    public static let outlineWorthMessages = 200
+
+    /// 一条待解锁的能力:kind 标识哪一层,now/needed 是卡住它的那个维度。
+    public struct PendingCapability: Equatable, Sendable {
+        public let kind: String
+        public let now: Int
+        public let needed: Int
+        public init(kind: String, now: Int, needed: Int) {
+            self.kind = kind; self.now = now; self.needed = needed
+        }
+        public static let allKinds = ["phrases", "contagion", "recall", "outline"]
+    }
+
+    /// 能力阶梯：对「保证对所有人有价值」的工程兑现。
+    ///
+    /// 十一条被否掉的信号 + 各层覆盖率共同证明:**单一信号不可能通用**——
+    /// 每个信号都依赖某种前提(跨项目/库龄/语言/交互习惯)。保证只能这样给:
+    ///
+    ///     保证 = 底座(无条件成立) + 阶梯(每层声明前提,满足即点亮)
+    ///
+    /// 底座是保管与找回,第 1 场对话起就成立,所以**不在**这张清单里——
+    /// 清单只列还没点亮的层和「还差多少」。全部点亮时返回空,界面随之收起。
+    ///
+    /// 阈值一律引用各层真实的门槛常量,不许另抄数字:抄的那份必然漂移。
+    public static func pendingCapabilities(conversations: Int, projects: Int,
+                                           daySpanDays: Int, longestConversation: Int)
+        -> [PendingCapability] {
+        var out: [PendingCapability] = []
+        if projects < phraseMinProjects {
+            out.append(.init(kind: "phrases", now: projects, needed: phraseMinProjects))
+        }
+        if conversations < contagionMinConversations {
+            out.append(.init(kind: "contagion", now: conversations,
+                             needed: contagionMinConversations))
+        } else if projects < contagionMinProjects {
+            out.append(.init(kind: "contagion", now: projects, needed: contagionMinProjects))
+        }
+        if daySpanDays < recallUnlockDays {
+            out.append(.init(kind: "recall", now: daySpanDays, needed: recallUnlockDays))
+        }
+        if longestConversation < outlineWorthMessages {
+            out.append(.init(kind: "outline", now: longestConversation,
+                             needed: outlineWorthMessages))
+        }
+        return out
+    }
+
     /// 一条代表句的长度区间。短于下界没有信息（「AI 味」本身），
     /// 长于上界就不是一句话而是一段话，摘出来也读不动。
     static let quoteLength = 10...70
@@ -1288,7 +1345,7 @@ public enum MindsBuilder {
         // 以更高的频次吃掉「AI 产品」,榜上只剩那一半。
         let cands = count.compactMap { (g, c) -> (String, Int, Int)? in
             let p = projects[g]?.count ?? 0
-            guard c >= 6, p >= 3 else { return nil }
+            guard c >= 6, p >= phraseMinProjects else { return nil }
             guard !isTruncatedFragment(rightNeighbors: rightOf[g] ?? [:]) else { return nil }
             return (g, c, p)
         }.sorted { $0.0.count > $1.0.count }

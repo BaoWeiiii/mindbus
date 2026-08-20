@@ -31,6 +31,7 @@ enum PreviewRenderer {
             render(openLoopsSample, name: "minds-open-loops", size: CGSize(width: 900, height: 330), to: sub)
             render(phraseQuotesSample, name: "minds-phrase-quotes", size: CGSize(width: 900, height: 420), to: sub)
             render(taughtSample, name: "minds-taught", size: CGSize(width: 900, height: 340), to: sub)
+            render(unlocksSample, name: "minds-unlocks", size: CGSize(width: 900, height: 300), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -67,6 +68,16 @@ enum PreviewRenderer {
     }
 
     /// 「悬着的事」样张（真机原话）
+    /// 「即将解锁」样张:新用户第 3 天的库长这样
+    private static var unlocksSample: some View {
+        var viz = MindsViz()
+        viz.pending = MindsBuilder.pendingCapabilities(conversations: 9, projects: 1,
+                                                       daySpanDays: 3, longestConversation: 60)
+        return MindsNextUnlocks(ctx: MindsContext(store: ConversationStore(), md: "# Minds",
+                                                  viz: viz, isLoading: false))
+            .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
+    }
+
     /// 「它教你的词」样张（真机数据）
     private static var taughtSample: some View {
         let md = """

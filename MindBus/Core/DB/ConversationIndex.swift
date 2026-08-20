@@ -415,6 +415,27 @@ public final class ConversationIndex: @unchecked Sendable {
         return out.map { (candidate: $0.0, conversationID: $0.1) }
     }
 
+    /// 能力阶梯要的四个库统计。projects 数的是原始 cwd——各层的真实门槛
+    /// (repeatedPhrases / contagion)数的就是它,阶梯必须与门槛同口径。
+    public func libraryStats()
+        -> (conversations: Int, projects: Int, daySpanDays: Int, longestConversation: Int) {
+        var convs = 0, projects = 0, span = 0, longest = 0
+        try? queue.sync {
+            try db.query("""
+                SELECT count(*), count(DISTINCT CASE WHEN cwd != '' THEN cwd END),
+                       CAST((COALESCE(max(start_at),0) - COALESCE(min(start_at),0)) / 86400 AS INT),
+                       COALESCE(max(message_count), 0)
+                FROM conversations;
+                """, bind: { _ in }, row: { st in
+                convs = Int(sqlite3_column_int64(st, 0))
+                projects = Int(sqlite3_column_int64(st, 1))
+                span = Int(sqlite3_column_int64(st, 2))
+                longest = Int(sqlite3_column_int64(st, 3))
+            })
+        }
+        return (convs, projects, span, longest)
+    }
+
     /// 词表词的文档频次（出现在多少场对话里）。判「这个词是不是库里到处都是」用。
     public func documentFrequencies() -> (df: [String: Int], total: Int) {
         var df: [String: Int] = [:]

@@ -22,6 +22,7 @@ struct MindsOverviewPage: View {
             } right: {
                 MindsWeekendPattern(ctx: ctx)
             }
+            MindsNextUnlocks(ctx: ctx)
         }
     }
 }
@@ -682,6 +683,55 @@ struct MindsWeekendPattern: View {
                         .frame(maxWidth: .infinity)
                 }
             }
+        }
+    }
+}
+
+// MARK: - 即将解锁
+
+/// 能力阶梯的界面呈现——「保证对所有人有价值」的另一半。
+///
+/// 十一条被否掉的信号证明单一信号不可能通用：每层发现都有前提
+/// （跨项目/库龄/长对话）。老用户各层自己亮起；新用户此前看到的是一堆
+/// **悄悄隐藏的空栏目**，没人告诉他差什么。这张卡把前提说出来：
+/// 底座（保管+检索）从第 1 场对话就在工作，其余的差多少、还差几步。
+/// 全部点亮时它自己消失——对成熟的库它一个像素都不占。
+struct MindsNextUnlocks: View {
+    let ctx: MindsContext
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let pending = ctx.viz.pending
+        return Group {
+            if !ctx.isLoading && !pending.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    MindsSectionHeader(title: l10n.s.mindsSecUnlocks, hint: l10n.s.mindsUnlocksHint)
+                    VStack(alignment: .leading, spacing: 9) {
+                        ForEach(Array(pending.enumerated()), id: \.offset) { _, c in
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Image(systemName: "lock")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(MindsUI.textTertiary)
+                                    .frame(width: 14)
+                                Text(label(c))
+                                    .font(BrandFont.text(label(c), 12.5))
+                                    .foregroundStyle(MindsUI.textSecondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }
+                    .mindsCard()
+                }
+            }
+        }
+    }
+
+    private func label(_ c: MindsBuilder.PendingCapability) -> String {
+        switch c.kind {
+        case "phrases":   return l10n.s.mindsUnlockPhrases(c.now, c.needed)
+        case "contagion": return l10n.s.mindsUnlockContagion(c.now, c.needed)
+        case "recall":    return l10n.s.mindsUnlockRecall(c.now, c.needed)
+        default:          return l10n.s.mindsUnlockOutline(c.now, c.needed)
         }
     }
 }

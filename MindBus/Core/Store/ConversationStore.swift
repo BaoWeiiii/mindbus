@@ -327,6 +327,16 @@ public final class ConversationStore: ObservableObject {
         index?.latestNightConversation()
     }
 
+    /// 能力阶梯:还没点亮的层和「还差多少」。
+    public nonisolated func vizPendingCapabilities() -> [MindsBuilder.PendingCapability] {
+        guard let index else { return [] }
+        let s = index.libraryStats()
+        return MindsBuilder.pendingCapabilities(conversations: s.conversations,
+                                                projects: s.projects,
+                                                daySpanDays: s.daySpanDays,
+                                                longestConversation: s.longestConversation)
+    }
+
     /// 「你可能忘了的」：与这场相关、但已经久到多半想不起来的旧对话。
     public nonisolated func forgottenRelated(to conversationID: String)
         -> [ConversationIndex.RelatedConversation] {

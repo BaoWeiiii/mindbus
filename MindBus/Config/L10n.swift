@@ -298,6 +298,12 @@ struct Strings {
     let mindsTaughtMeta: (Int, Int) -> String
     let mindsTaughtIt: String
     let mindsTaughtYou: String
+    let mindsSecUnlocks: String
+    let mindsUnlocksHint: String
+    let mindsUnlockPhrases: (Int, Int) -> String
+    let mindsUnlockContagion: (Int, Int) -> String
+    let mindsUnlockRecall: (Int, Int) -> String
+    let mindsUnlockOutline: (Int, Int) -> String
     let mindsSecOpenLoops: String
     let mindsOpenLoopsHint: String
     let forgottenHelp: String
@@ -712,6 +718,12 @@ struct Strings {
         mindsTaughtMeta: { "\($0) 天后你开始用 · \($1) 个项目" },
         mindsTaughtIt: "它说",
         mindsTaughtYou: "你说",
+        mindsSecUnlocks: "即将解锁",
+        mindsUnlocksHint: "这些发现需要更多语料——继续用,它们会自己亮起来",
+        mindsUnlockPhrases: { "你反复说的话(带原话) — 需要 \($1) 个项目,现在 \($0) 个" },
+        mindsUnlockContagion: { "它教你的词 — 需要 \($1) 场对话,现在 \($0) 场" },
+        mindsUnlockRecall: { "你可能忘了的 — 需要 \($1) 天库龄,现在 \($0) 天" },
+        mindsUnlockOutline: { "长对话目录 — 需要一场 \($1) 条消息的对话,目前最长 \($0) 条" },
         mindsSecOpenLoops: "悬着的事",
         mindsOpenLoopsHint: "它问了你、你再没回过——每条都还等着你定",
         forgottenHelp: "跟这场相关、但久到你多半忘了的旧对话",
@@ -1108,6 +1120,12 @@ struct Strings {
         mindsTaughtMeta: { "picked up \($0)d later · \($1) projects" },
         mindsTaughtIt: "it",
         mindsTaughtYou: "you",
+        mindsSecUnlocks: "Coming Up",
+        mindsUnlocksHint: "these need more history — keep going and they light up",
+        mindsUnlockPhrases: { "Phrases you repeat — needs \($1) projects, you have \($0)" },
+        mindsUnlockContagion: { "Words it taught you — needs \($1) conversations, you have \($0)" },
+        mindsUnlockRecall: { "You may have forgotten — needs \($1) days of history, you have \($0)" },
+        mindsUnlockOutline: { "Long-conversation outline — needs a \($1)-message conversation, longest is \($0)" },
         mindsSecOpenLoops: "Open Loops",
         mindsOpenLoopsHint: "it asked, you never answered — still waiting on you",
         forgottenHelp: "related work old enough that you have probably forgotten it",

@@ -28,6 +28,8 @@ struct MindsViz {
     /// 你点头/拍板的时刻。走 viz 而不是 md 文本:这一层是**特征**,
     /// UI 要拿它当入口跳回原文,必须带着会话与消息 id——md 是给人读的格式,
     /// 塞 id 进去既难看又要再解析一遍。
+    /// 还没点亮的能力层(空 = 全亮,卡片隐藏)
+    var pending: [MindsBuilder.PendingCapability] = []
     var milestones: [(m: MindsMilestones.Milestone, convID: String)] = []
     var decisions: [(d: MindsMilestones.Decision, convID: String)] = []
 
@@ -61,6 +63,7 @@ struct MindsViz {
         v.weekendSplit = store.vizWeekendSplit()
         v.month = store.vizMonth()
         v.latestNight = store.vizLatestNight()
+        v.pending = store.vizPendingCapabilities()
         let (stones, calls) = store.vizSignedOff()
         v.milestones = stones
         v.decisions = calls
