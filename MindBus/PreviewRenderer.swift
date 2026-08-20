@@ -32,6 +32,7 @@ enum PreviewRenderer {
             render(phraseQuotesSample, name: "minds-phrase-quotes", size: CGSize(width: 900, height: 420), to: sub)
             render(taughtSample, name: "minds-taught", size: CGSize(width: 900, height: 340), to: sub)
             render(unlocksSample, name: "minds-unlocks", size: CGSize(width: 900, height: 300), to: sub)
+            render(resumeSample, name: "minds-resume", size: CGSize(width: 900, height: 240), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -68,6 +69,20 @@ enum PreviewRenderer {
     }
 
     /// 「悬着的事」样张（真机原话）
+    /// 「接着上次」样张(真机形态:带悬着的问题)
+    private static var resumeSample: some View {
+        var viz = MindsViz()
+        viz.resume = ConversationIndex.ResumePoint(
+            id: "c1", title: "确定上传事件按钮的信息层级位置",
+            preview: "改完了——就是刚在弄的那个交易台原型,还没提交(原型还在迭代,先留在本地)。",
+            cwd: "/w/ResourceLoop",
+            endAt: Date().addingTimeInterval(-3 * 3600),
+            openQuestion: "要我把它归档提交、还是继续调形态?")
+        return MindsResumeCard(ctx: MindsContext(store: ConversationStore(), md: "# Minds",
+                                                 viz: viz, isLoading: false))
+            .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
+    }
+
     /// 「即将解锁」样张:新用户第 3 天的库长这样
     private static var unlocksSample: some View {
         var viz = MindsViz()

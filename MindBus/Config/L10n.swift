@@ -298,6 +298,9 @@ struct Strings {
     let mindsTaughtMeta: (Int, Int) -> String
     let mindsTaughtIt: String
     let mindsTaughtYou: String
+    let mindsSecResume: String
+    let mindsResumeHint: String
+    let mindsResumeWaiting: String
     let mindsSecUnlocks: String
     let mindsUnlocksHint: String
     let mindsUnlockPhrases: (Int, Int) -> String
@@ -718,6 +721,9 @@ struct Strings {
         mindsTaughtMeta: { "\($0) 天后你开始用 · \($1) 个项目" },
         mindsTaughtIt: "它说",
         mindsTaughtYou: "你说",
+        mindsSecResume: "接着上次",
+        mindsResumeHint: "最近一场停在哪——点开接着来",
+        mindsResumeWaiting: "它还在等你:",
         mindsSecUnlocks: "即将解锁",
         mindsUnlocksHint: "这些发现需要更多语料——继续用,它们会自己亮起来",
         mindsUnlockPhrases: { "你反复说的话(带原话) — 需要 \($1) 个项目,现在 \($0) 个" },
@@ -1120,6 +1126,9 @@ struct Strings {
         mindsTaughtMeta: { "picked up \($0)d later · \($1) projects" },
         mindsTaughtIt: "it",
         mindsTaughtYou: "you",
+        mindsSecResume: "Pick Up Where You Left Off",
+        mindsResumeHint: "your latest thread — click to continue",
+        mindsResumeWaiting: "still waiting on you:",
         mindsSecUnlocks: "Coming Up",
         mindsUnlocksHint: "these need more history — keep going and they light up",
         mindsUnlockPhrases: { "Phrases you repeat — needs \($1) projects, you have \($0)" },

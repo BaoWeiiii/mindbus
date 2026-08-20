@@ -327,6 +327,11 @@ public final class ConversationStore: ObservableObject {
         index?.latestNightConversation()
     }
 
+    /// 「接着上次」:最近一场对话停在哪(全覆盖底层,|库|≥1 恒非空)。
+    public nonisolated func vizResumePoint() -> ConversationIndex.ResumePoint? {
+        index?.latestThread()
+    }
+
     /// 能力阶梯:还没点亮的层和「还差多少」。
     public nonisolated func vizPendingCapabilities() -> [MindsBuilder.PendingCapability] {
         guard let index else { return [] }

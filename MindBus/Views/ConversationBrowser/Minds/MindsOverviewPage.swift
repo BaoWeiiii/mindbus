@@ -14,6 +14,7 @@ struct MindsOverviewPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MindsUI.moduleGap) {
             MindsSummaryMetrics(ctx: ctx)
+            MindsResumeCard(ctx: ctx)
             MindsOpenLoopsCard(ctx: ctx)
             MindsActivityMap(ctx: ctx)
             MindsWorkRhythm(ctx: ctx)
@@ -732,6 +733,64 @@ struct MindsNextUnlocks: View {
         case "contagion": return l10n.s.mindsUnlockContagion(c.now, c.needed)
         case "recall":    return l10n.s.mindsUnlockRecall(c.now, c.needed)
         default:          return l10n.s.mindsUnlockOutline(c.now, c.needed)
+        }
+    }
+}
+
+// MARK: - 接着上次
+
+/// 挖掘体系的全覆盖底层，放在总览最顶。
+///
+/// 其余每一层都有前提（跨项目/库龄/长对话），这一层只用结构不变量：
+/// 任何一场对话构造上必有「停在哪」和「何时」。所以它对任何非空库恒在
+/// ——第 1 场对话起,Minds 就保证给得出至少这一条。悬着的问题一并亮出:
+/// 那是「它还在等你什么」,点开就能接上。
+struct MindsResumeCard: View {
+    let ctx: MindsContext
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        Group {
+            if let r = ctx.viz.resume, !ctx.isLoading {
+                VStack(alignment: .leading, spacing: 0) {
+                    MindsSectionHeader(title: l10n.s.mindsSecResume, hint: l10n.s.mindsResumeHint)
+                    Button { ctx.open(conversation: r.id) } label: {
+                        VStack(alignment: .leading, spacing: 7) {
+                            HStack(spacing: 8) {
+                                Text(ctx.relativeDay(r.endAt))
+                                    .font(.system(size: 11.5)).foregroundStyle(MindsUI.textTertiary)
+                                Text((r.cwd as NSString).lastPathComponent)
+                                    .font(BrandFont.mono(11)).foregroundStyle(MindsUI.textTertiary)
+                                if !r.title.isEmpty {
+                                    Text(r.title)
+                                        .font(BrandFont.text(r.title, 11.5))
+                                        .foregroundStyle(MindsUI.textSecondary).lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            Text(r.preview)
+                                .font(BrandFont.text(r.preview, 13))
+                                .foregroundStyle(MindsUI.textPrimary)
+                                .lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if let q = r.openQuestion, !q.isEmpty {
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Text(l10n.s.mindsResumeWaiting)
+                                        .font(.system(size: 11.5, weight: .medium))
+                                        .foregroundStyle(MindsUI.accent)
+                                    Text(q)
+                                        .font(BrandFont.text(q, 12))
+                                        .foregroundStyle(MindsUI.accent)
+                                        .lineLimit(1)
+                                }
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .mindsCard()
+                }
+            }
         }
     }
 }

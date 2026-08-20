@@ -415,6 +415,46 @@ public final class ConversationIndex: @unchecked Sendable {
         return out.map { (candidate: $0.0, conversationID: $0.1) }
     }
 
+    /// 「接着上次」:最近一场对话停在哪。
+    ///
+    /// 这是挖掘体系的**全覆盖底层**——十一条否定证明内容信号都有前提
+    /// (跨项目/库龄/语言/习惯),而这一层只用结构不变量:任何一场对话
+    /// 构造上必有最后一句和时间戳。于是整个体系成为全函数:
+    /// 对任何 ≥1 场对话的库,挖掘非空;空库是唯一例外(没东西可挖,
+    /// 返回 nil 而不是编造)。preview 存的本来就是最后一条消息的文字,
+    /// open_question 是「它在等你什么」——三样拼起来就是接续点。
+    public struct ResumePoint: Equatable, Sendable {
+        public let id: String
+        public let title: String
+        public let preview: String
+        public let cwd: String
+        public let endAt: Date
+        public let openQuestion: String?
+        public init(id: String, title: String, preview: String, cwd: String,
+                    endAt: Date, openQuestion: String?) {
+            self.id = id; self.title = title; self.preview = preview
+            self.cwd = cwd; self.endAt = endAt; self.openQuestion = openQuestion
+        }
+    }
+
+    public func latestThread() -> ResumePoint? {
+        var out: ResumePoint?
+        try? queue.sync {
+            try db.query("""
+                SELECT id, COALESCE(title, ''), preview, cwd, end_at, open_question
+                FROM conversations WHERE message_count > 0
+                ORDER BY end_at DESC LIMIT 1;
+                """, bind: { _ in }, row: { st in
+                out = ResumePoint(
+                    id: SQLiteDB.text(st, 0), title: SQLiteDB.text(st, 1),
+                    preview: SQLiteDB.text(st, 2), cwd: SQLiteDB.text(st, 3),
+                    endAt: Date(timeIntervalSince1970: sqlite3_column_double(st, 4)),
+                    openQuestion: sqlite3_column_text(st, 5).map { String(cString: $0) })
+            })
+        }
+        return out
+    }
+
     /// 能力阶梯要的四个库统计。projects 数的是原始 cwd——各层的真实门槛
     /// (repeatedPhrases / contagion)数的就是它,阶梯必须与门槛同口径。
     public func libraryStats()

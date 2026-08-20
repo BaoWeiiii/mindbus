@@ -30,6 +30,8 @@ struct MindsViz {
     /// 塞 id 进去既难看又要再解析一遍。
     /// 还没点亮的能力层(空 = 全亮,卡片隐藏)
     var pending: [MindsBuilder.PendingCapability] = []
+    /// 接着上次(全覆盖底层:任何非空库恒有)
+    var resume: ConversationIndex.ResumePoint?
     var milestones: [(m: MindsMilestones.Milestone, convID: String)] = []
     var decisions: [(d: MindsMilestones.Decision, convID: String)] = []
 
@@ -64,6 +66,7 @@ struct MindsViz {
         v.month = store.vizMonth()
         v.latestNight = store.vizLatestNight()
         v.pending = store.vizPendingCapabilities()
+        v.resume = store.vizResumePoint()
         let (stones, calls) = store.vizSignedOff()
         v.milestones = stones
         v.decisions = calls
