@@ -67,3 +67,58 @@ final class VocabularyContagionTests: XCTestCase {
                                                        lexicon: ["供给质量"], limit: 5).isEmpty)
     }
 }
+
+// MARK: - 展开成两句原话 + 英文盲区
+
+extension VocabularyContagionTests {
+
+    /// 词是压缩的，句子才完整：「视觉语言 33d/4projects」看不出发生了什么，
+    /// 「它当时说…你后来说…」才是这次传染的故事。零新判据——
+    /// 首次出现本来就在算，顺手把那两句留下来。
+    func testCarriesFirstSentences() {
+        var convs = [
+            conv("/w/a", [(.assistant, "配色要成体系，我们从视觉语言这一层看", 0)]),
+            conv("/w/b", [(.user, "按视觉语言重新梳理一遍这套界面", 40)]),
+            conv("/w/c", [(.user, "视觉语言要统一", 60)]),
+        ]
+        convs += background(40)
+        let out = MindsBuilder.vocabularyContagion(conversations: convs,
+                                                   lexicon: ["视觉语言"], limit: 5)
+        XCTAssertEqual(out.first?.itSaid, "配色要成体系，我们从视觉语言这一层看")
+        XCTAssertEqual(out.first?.youSaid, "按视觉语言重新梳理一遍这套界面")
+    }
+
+    /// 英文词表词也要能命中——字符 n-gram 窗口 3..8 会把
+    /// 「visual language」（15 字符）整个排除，英文用户的这一层恒空。
+    func testLatinLexiconWordsAreDetected() {
+        var convs = [
+            conv("/w/a", [(.assistant, "let us fix the visual language of this app", 0)]),
+            conv("/w/b", [(.user, "apply the visual language rules here", 30)]),
+            conv("/w/c", [(.user, "visual language needs work", 50)]),
+        ]
+        convs += background(40)
+        let out = MindsBuilder.vocabularyContagion(conversations: convs,
+                                                   lexicon: ["visual language"], limit: 5)
+        XCTAssertEqual(out.map(\.word), ["visual language"], "英文词表词此前恒不命中")
+    }
+}
+
+extension VocabularyContagionTests {
+
+    /// 「你说的」必须走 user_corpus 同一套剥离口径——textBlocksOnly 只剥图片
+    /// 标记，Codex 文件引用头原样保留，真机上「公众号 you:」取到了
+    /// 「## 微信公众号.png: /Users/<name>/…」这行注入，带家目录路径，
+    /// 还会写进 minds.md 被 CLAUDE.md 注入（2026-08-20 现场）。
+    func testUserSideUsesStrippedCorpusReading() {
+        var convs = [
+            conv("/w/a", [(.assistant, "封面放公众号的话要注意尺寸规范", 0)]),
+            conv("/w/b", [(.user, "# Files mentioned by the user:\n## 公众号.png: /Users/somebody/LOGO/公众号.png\n## My request for Codex: 公众号封面怎么排版好", 30)]),
+            conv("/w/c", [(.user, "公众号那篇也同步一下", 50)]),
+        ]
+        convs += background(40)
+        let out = MindsBuilder.vocabularyContagion(conversations: convs,
+                                                   lexicon: ["公众号"], limit: 5)
+        XCTAssertEqual(out.first?.youSaid, "公众号封面怎么排版好",
+                       "注入头要剥掉，路径不能进 minds.md: \(out.first?.youSaid ?? "nil")")
+    }
+}

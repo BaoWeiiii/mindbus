@@ -389,4 +389,20 @@ public struct MindsDocument: Sendable {
             return (word, d, p)
         }
     }
+
+    /// 传染的「案发现场」：`- 词 — it: 它当时那句` / `- 词 — you: 你后来那句`
+    public var taughtQuotes: [(word: String, role: String, text: String)] {
+        bullets("WORDS IT TAUGHT YOU").compactMap { line in
+            let body = String(line.dropFirst(2))
+            guard let dash = body.range(of: " — ") else { return nil }
+            let word = String(body[body.startIndex..<dash.lowerBound])
+            let rest = String(body[dash.upperBound...])
+            for role in ["it", "you"] where rest.hasPrefix(role + ": ") {
+                let text = String(rest.dropFirst(role.count + 2)).trimmingCharacters(in: .whitespaces)
+                guard !text.isEmpty else { return nil }
+                return (word, role, text)
+            }
+            return nil
+        }
+    }
 }

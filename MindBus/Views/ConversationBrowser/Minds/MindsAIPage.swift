@@ -543,6 +543,33 @@ struct MindsWordsItTaught: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
+                        // 案发现场:它当时怎么说的、你后来怎么接的——
+                        // 词是压缩的,这两句才看得出「教」发生的经过
+                        let quotes = ctx.taughtQuotes
+                        if !quotes.isEmpty {
+                            Rectangle().fill(MindsUI.border.opacity(0.6))
+                                .frame(height: 1).padding(.vertical, 10)
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(Array(quotes.enumerated()), id: \.offset) { _, q in
+                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                        Text(q.word)
+                                            .font(BrandFont.text(q.word, 11, weight: .medium))
+                                            .foregroundStyle(MindsUI.accent)
+                                            .frame(width: 76, alignment: .leading)
+                                            .lineLimit(1)
+                                        Text(q.role == "it" ? l10n.s.mindsTaughtIt : l10n.s.mindsTaughtYou)
+                                            .font(.system(size: 10.5))
+                                            .foregroundStyle(MindsUI.textTertiary)
+                                            .frame(width: 30, alignment: .leading)
+                                        Text(q.text)
+                                            .font(BrandFont.text(q.text, 12))
+                                            .foregroundStyle(MindsUI.textPrimary)
+                                            .lineLimit(1)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                            }
+                        }
                     }
                     .mindsCard()
                 }

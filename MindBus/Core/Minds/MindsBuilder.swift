@@ -380,7 +380,7 @@ public enum MindsBuilder {
         /// 锚点展开成的原话:短语 → 你在不同项目里说过的完整句子
         var quotesByPhrase: [String: [(text: String, cwd: String)]] = [:]
         /// 它先说、你后来接过来的词
-        var contagion: [(word: String, gapDays: Int, projects: Int)] = []
+        var contagion: [Contagion] = []
         /// 短语展开成的原话：锚点 → 你在不同项目里说过的完整句子
         var phraseQuotes: [String: [(text: String, cwd: String)]] = [:]
         var researchDestinations: [(dest: String, count: Int)] = []
@@ -1006,27 +1006,74 @@ public enum MindsBuilder {
     /// （同 `phraseComponentMinConversations` 的道理）。新装的库因此先不设这道闸。
     static let contagionMinConversations = 30
 
+    /// 一次传染:它先说的词、你接过来的经过。两句原话是这次传染的「案发现场」
+    /// ——词是压缩的,句子才看得出发生了什么。
+    public struct Contagion: Equatable, Sendable {
+        public let word: String
+        public let gapDays: Int
+        public let projects: Int
+        /// 它第一次说这个词的那句
+        public let itSaid: String
+        /// 你第一次用这个词的那句
+        public let youSaid: String
+    }
+
+    /// 从一段文本里取出含某词的那句话。要求句子比词本身长——「视觉语言」
+    /// 单独成句没有信息,那不是语境是回声。
+    ///
+    /// 超长的句子**截窗口**而不是丢弃:真机的首现句常埋在长段落里,
+    /// 直接丢的话四个词的案发现场全空(2026-08-19 装机实测一行都没出来)。
+    static func sentence(containing word: String, in text: String) -> String? {
+        let needle = word.lowercased()
+        for line in text.split(separator: "\n") {
+            for piece in line.split(whereSeparator: { "。！？!?;；".contains($0) }) {
+                let s = piece.trimmingCharacters(in: .whitespaces)
+                guard s.lowercased().contains(needle), s.count > word.count + 2 else { continue }
+                if s.count <= 80 { return s }
+                // 围绕词截 80 字的窗口,断口加省略号
+                guard let r = s.range(of: word, options: .caseInsensitive) else { continue }
+                let lead = 26
+                var start = r.lowerBound
+                for _ in 0..<lead { if start > s.startIndex { start = s.index(before: start) } }
+                var end = start
+                for _ in 0..<80 { if end < s.endIndex { end = s.index(after: end) } }
+                let head = start > s.startIndex ? "…" : ""
+                let tail = end < s.endIndex ? "…" : ""
+                return head + String(s[start..<end]).trimmingCharacters(in: .whitespaces) + tail
+            }
+        }
+        return nil
+    }
+
     static func vocabularyContagion(conversations: [(messages: [Message], cwd: String)],
                                     lexicon: Set<String>,
                                     limit: Int,
                                     functionWords: Set<String> = [])
-        -> [(word: String, gapDays: Int, projects: Int)] {
+        -> [Contagion] {
         var aiFirst: [String: Date] = [:]
         var userFirst: [String: Date] = [:]
         var userProjects: [String: Set<String>] = [:]
         var conversationsWith: [String: Int] = [:]
+        var aiSentence: [String: String] = [:]
+        var userSentence: [String: String] = [:]
         let words = lexicon.filter { $0.count >= 3 }
-        // 从文本里取 n-gram 查词表,而不是拿每个词去 contains 整段文本:
+        // 从文本里取窗口查词表,而不是拿每个词去 contains 整段文本:
         // 后者是 O(词表 × 语料),真机 2324 词 × 数千条消息直接把测试从 12 秒
-        // 拖到 563 秒（2026-08-18 实测）。取 n-gram 是 O(语料 × 4)。
-        let lengths = Set(words.map(\.count)).filter { (3...8).contains($0) }.sorted()
+        // 拖到 563 秒（2026-08-18 实测）。
+        // 窗口按**词元**取,不按字符:字符窗口 3..8 对中文正好(词表词 ≤6 字),
+        // 但「visual language」有 15 个字符,英文词表词整个被排除——
+        // 英文用户的这一层恒空(2026-08-19 发现)。词元窗口 1..6 两边通吃:
+        // 中文一字一词元,英文一词一词元。
+        var canonical: [String: String] = [:]
+        for w in words { canonical[w.lowercased()] = w }
         func hits(in text: String) -> Set<String> {
             var out = Set<String>()
-            let chars = Array(text)
-            for n in lengths where chars.count >= n {
-                for i in 0...(chars.count - n) {
-                    let gram = String(chars[i..<i + n])
-                    if words.contains(gram) { out.insert(gram) }
+            let toks = phraseTokenRanges(text)
+            for n in 1...6 where toks.count >= n {
+                for i in 0...(toks.count - n) {
+                    let gram = String(text[toks[i].lowerBound..<toks[i + n - 1].upperBound])
+                        .trimmingCharacters(in: .whitespaces).lowercased()
+                    if let orig = canonical[gram] { out.insert(orig) }
                 }
             }
             return out
@@ -1034,15 +1081,32 @@ public enum MindsBuilder {
         for (messages, cwd) in conversations {
             var seenHere = Set<String>()
             for m in messages {
-                let text = Segmenter.textBlocksOnly(of: m)
+                // 「你说的」走 user_corpus 同一套剥离口径(注入头/图片标记/压平),
+                // 不能用 textBlocksOnly——那只剥图片标记,Codex 文件引用头会原样
+                // 留下,真机上取到过带家目录路径的注入行,还会写进 minds.md
+                // 被 CLAUDE.md 注入(2026-08-20 现场)。AI 侧没有注入问题,照旧。
+                let text: String
+                switch m.role {
+                case .user:
+                    guard let t = Segmenter.userTextOfSingle(m) else { continue }
+                    text = t
+                default:
+                    text = Segmenter.textBlocksOnly(of: m)
+                }
                 guard text.count >= 4 else { continue }
                 for w in hits(in: text) {
                     seenHere.insert(w)
                     switch m.role {
                     case .assistant:
-                        if aiFirst[w].map({ m.timestamp < $0 }) ?? true { aiFirst[w] = m.timestamp }
+                        if aiFirst[w].map({ m.timestamp < $0 }) ?? true {
+                            aiFirst[w] = m.timestamp
+                            aiSentence[w] = sentence(containing: w, in: text) ?? aiSentence[w]
+                        }
                     case .user:
-                        if userFirst[w].map({ m.timestamp < $0 }) ?? true { userFirst[w] = m.timestamp }
+                        if userFirst[w].map({ m.timestamp < $0 }) ?? true {
+                            userFirst[w] = m.timestamp
+                            userSentence[w] = sentence(containing: w, in: text) ?? userSentence[w]
+                        }
                         userProjects[w, default: []].insert(cwd)
                     default: break
                     }
@@ -1051,7 +1115,7 @@ public enum MindsBuilder {
             for w in seenHere { conversationsWith[w, default: 0] += 1 }
         }
         let docTotal = max(conversations.count, 1)
-        var out: [(word: String, gapDays: Int, projects: Int)] = []
+        var out: [Contagion] = []
         for (w, uf) in userFirst {
             guard let af = aiFirst[w], af < uf else { continue }
             let gap = Int(uf.timeIntervalSince(af) / 86400)
@@ -1059,11 +1123,13 @@ public enum MindsBuilder {
             guard gap >= contagionMinGapDays, projects >= contagionMinProjects,
                   docTotal < contagionMinConversations
                     || Double(conversationsWith[w] ?? 0) / Double(docTotal) <= contagionMaxDF,
-                  !edgeIsFunctionWord(w, functionWords: functionWords),
-                  // 纯拉丁的多词组合在这一层几乎都是虚词串(do not / is not)
-                  !w.allSatisfy({ $0.isASCII && ($0.isLetter || $0 == " ") })
+                  !edgeIsFunctionWord(w, functionWords: functionWords)
             else { continue }
-            out.append((word: w, gapDays: gap, projects: projects))
+            // 纯拉丁多词组合大多是虚词串(do not / is not)——但词表里的英文词
+            // 本身就是拉丁的,只拦「不在词表原形里」的组合没有意义了:
+            // 词表准入已经筛过一轮(凝固度+边界熵),这里不再重复拦。
+            out.append(Contagion(word: w, gapDays: gap, projects: projects,
+                                 itSaid: aiSentence[w] ?? "", youSaid: userSentence[w] ?? ""))
         }
         // 先按你带它走了几个项目（接得有多深），再按隔了多久（隔越久越说明是真学到）
         return Array(out.sorted {
@@ -1074,8 +1140,11 @@ public enum MindsBuilder {
     /// 传染词显示几个
     static let contagionShown = 10
 
+    /// 前几个词带上「案发现场」的两句原话。全带的话这一节撑成三十行。
+    static let contagionQuoted = 4
+
     /// 「它教你的词」：它先说、你后来接过来、并且带着走了几个项目。
-    static func renderContagion(_ items: [(word: String, gapDays: Int, projects: Int)]) -> String {
+    static func renderContagion(_ items: [Contagion]) -> String {
         var lines = ["## WORDS IT TAUGHT YOU",
                      "Words it used first — you picked them up later and carried them across projects. "
                         + "(mechanical, \(items.count))"]
@@ -1084,6 +1153,16 @@ public enum MindsBuilder {
         } else {
             for i in items {
                 lines.append("- \(i.word) — \(i.gapDays)d later, \(i.projects) projects")
+            }
+            // 词是压缩的,句子才看得出发生了什么:它当时怎么说的、你后来怎么接的。
+            // 挑**两句都在**的前几个——列表排序把常用词排前面,而案发现场
+            // 值得留给真概念(第一版 prefix(4) 取到的全是空句子的常用词)。
+            var quoted = 0
+            for i in items where quoted < contagionQuoted {
+                guard !i.itSaid.isEmpty, !i.youSaid.isEmpty else { continue }
+                lines.append("- \(i.word) — it: \(i.itSaid)")
+                lines.append("- \(i.word) — you: \(i.youSaid)")
+                quoted += 1
             }
         }
         return lines.joined(separator: "\n")

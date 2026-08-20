@@ -30,6 +30,8 @@ struct MindsContext {
 
     func bullets(_ section: String) -> [String] { doc.bullets(section) }
     func hasAny(_ names: String...) -> Bool { doc.hasAny(names) }
+    /// 传染的案发现场（词 / it 或 you / 那句原话）
+    var taughtQuotes: [(word: String, role: String, text: String)] { doc.taughtQuotes }
     /// 它先说、你后来接过来的词
     var wordsItTaughtYou: [(word: String, gapDays: Int, projects: Int)] { doc.wordsItTaughtYou }
     /// 悬着的事（日期 / 上下文 / 那个没被回答的问题）

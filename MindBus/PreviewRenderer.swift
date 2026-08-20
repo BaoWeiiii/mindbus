@@ -80,6 +80,10 @@ enum PreviewRenderer {
         - 副标题 — 43d later, 3 projects
         - 长期留存 — 87d later, 2 projects
         - 黑名单 — 108d later, 2 projects
+        - 视觉语言 — it: 配色要成体系,我们从视觉语言这一层看
+        - 视觉语言 — you: 按视觉语言重新梳理一遍这套界面
+        - 评估方法 — it: 先把评估方法定下来,再谈指标
+        - 评估方法 — you: 你写的评估方法太复杂了,稍微简单一点
         """
         return MindsWordsItTaught(ctx: MindsContext(store: ConversationStore(), md: md,
                                                     viz: MindsViz(), isLoading: false))
