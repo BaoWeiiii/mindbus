@@ -49,15 +49,10 @@ public final class MCPServer {
     the mechanically extracted essence (task, entities, closing) for you to re-evaluate with \
     current knowledge instead of re-reading hundreds of turns.
 
-    Call minds_read to see the user's mechanical profile and WEAK SPOTS — working preferences, \
-    collaboration style, current goals, self-reported tech stack. When you notice a gap you can \
-    fill from this conversation or from retrieval evidence, call minds_enrich with the spot, \
-    your statement, and the conversation_id(s) it came from.
+    Call minds_read to see the user's mechanical profile — active projects, vocabulary, \
+    working rhythm — every line counted from the archive, none of it generated.
 
-    memory_search, memory_browse, memory_open, memory_digest, and minds_read are read-only. \
-    minds_enrich is the only tool that writes, and only to a separate enrichment log — every \
-    statement must cite real conversation_id(s), and the user confirms or revokes it later in \
-    the MindBus app.
+    All five tools are read-only. Nothing here writes to the user's index or files.
     """
 
     private let openIndex: IndexOpener

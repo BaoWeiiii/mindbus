@@ -2,11 +2,12 @@ import SwiftUI
 import Charts
 import MindBusCore
 
-/// PAGE 01 · 你的总览：核心指标 → 悬着的事 → 活跃地图 → 工作节奏 → 本月 / 周末的你。
+/// PAGE 01 · 你的总览：核心指标 → 活跃地图 → 工作节奏 → 本月 / 周末的你 → 即将解锁 → 悬着的事。
 ///
 /// 「你点头 / 拍板的时刻」曾在这里各占一栏，已撤下：那两层是**探针**——
 /// 用来定位有价值的句子、给长对话切章节、量项目产出量，本身不是要给人看的
 /// 内容清单（用户 2026-08-18 定案）。信号仍在，只是不再单独成栏。
+/// 「接着上次」整卡撤下、「悬着的事」挪到页尾（用户 2026-09-01 定案）。
 struct MindsOverviewPage: View {
     let ctx: MindsContext
     @ObservedObject private var l10n = L10n.shared
@@ -14,8 +15,6 @@ struct MindsOverviewPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MindsUI.moduleGap) {
             MindsSummaryMetrics(ctx: ctx)
-            MindsResumeCard(ctx: ctx)
-            MindsOpenLoopsCard(ctx: ctx)
             MindsActivityMap(ctx: ctx)
             MindsWorkRhythm(ctx: ctx)
             MindsTwoColumn {
@@ -24,6 +23,7 @@ struct MindsOverviewPage: View {
                 MindsWeekendPattern(ctx: ctx)
             }
             MindsNextUnlocks(ctx: ctx)
+            MindsOpenLoopsCard(ctx: ctx)
         }
     }
 }
@@ -737,60 +737,3 @@ struct MindsNextUnlocks: View {
     }
 }
 
-// MARK: - 接着上次
-
-/// 挖掘体系的全覆盖底层，放在总览最顶。
-///
-/// 其余每一层都有前提（跨项目/库龄/长对话），这一层只用结构不变量：
-/// 任何一场对话构造上必有「停在哪」和「何时」。所以它对任何非空库恒在
-/// ——第 1 场对话起,Minds 就保证给得出至少这一条。悬着的问题一并亮出:
-/// 那是「它还在等你什么」,点开就能接上。
-struct MindsResumeCard: View {
-    let ctx: MindsContext
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        Group {
-            if let r = ctx.viz.resume, !ctx.isLoading {
-                VStack(alignment: .leading, spacing: 0) {
-                    MindsSectionHeader(title: l10n.s.mindsSecResume, hint: l10n.s.mindsResumeHint)
-                    Button { ctx.open(conversation: r.id) } label: {
-                        VStack(alignment: .leading, spacing: 7) {
-                            HStack(spacing: 8) {
-                                Text(ctx.relativeDay(r.endAt))
-                                    .font(.system(size: 11.5)).foregroundStyle(MindsUI.textTertiary)
-                                Text((r.cwd as NSString).lastPathComponent)
-                                    .font(BrandFont.mono(11)).foregroundStyle(MindsUI.textTertiary)
-                                if !r.title.isEmpty {
-                                    Text(r.title)
-                                        .font(BrandFont.text(r.title, 11.5))
-                                        .foregroundStyle(MindsUI.textSecondary).lineLimit(1)
-                                }
-                                Spacer(minLength: 0)
-                            }
-                            Text(r.preview)
-                                .font(BrandFont.text(r.preview, 13))
-                                .foregroundStyle(MindsUI.textPrimary)
-                                .lineLimit(2)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            if let q = r.openQuestion, !q.isEmpty {
-                                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                    Text(l10n.s.mindsResumeWaiting)
-                                        .font(.system(size: 11.5, weight: .medium))
-                                        .foregroundStyle(MindsUI.accent)
-                                    Text(q)
-                                        .font(BrandFont.text(q, 12))
-                                        .foregroundStyle(MindsUI.accent)
-                                        .lineLimit(1)
-                                }
-                            }
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .mindsCard()
-                }
-            }
-        }
-    }
-}

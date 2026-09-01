@@ -19,7 +19,7 @@ Usage:
   mindbus-bench run [--dataset PATH]            默认读 <benchRoot>/dataset.jsonl；报告写 <benchRoot>/report-<日期>.md
 """
 
-/// `~/.mindbus/bench`。`MINDBUS_BENCH_ROOT` 可覆盖——与 `MindsEnrichedLog.mindsRoot()`
+/// `~/.mindbus/bench`。`MINDBUS_BENCH_ROOT` 可覆盖——与 `MindsBuilder.mindsRoot()`
 /// 同模式：trim 后为空视同未设置（纯空白不该被当成合法目录名，否则后续操作在一个
 /// 诡异路径上悄悄失败），`~` 手工展开（这个值多半来自 shell 环境变量但 Swift 的
 /// `ProcessInfo.environment` 读到的是 shell 展开**之前**的原始值，`%`/`~` 这类

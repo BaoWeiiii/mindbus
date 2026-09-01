@@ -483,14 +483,13 @@ final class MemoryDigestToolTests: XCTestCase {
 
     // MARK: 注册 / schema / instructions
 
-    /// 思脉底座 Task 3 起目录扩到六个：四个只读记忆工具 + `minds_read`/`minds_enrich`
-    /// （思脉底座 design spec §4）。顺序固定——`minds_read`/`minds_enrich` 各自的
-    /// 注册测试（`MindsReadToolTests`/`MindsEnrichToolTests`）里也各自断言过一次
-    /// 完整顺序，这里保留是因为这条测试历史上就是"目录形状"的唯一断言点。
-    func testCatalogHasSixToolsWithDigestFourthAndMindsToolsLast() throws {
+    /// 目录 = 五个只读工具（`minds_enrich` 写工具已随增补层拆除，2026-09-01）。
+    /// 顺序固定——`MindsReadToolTests` 里也断言过一次完整顺序，这里保留是因为
+    /// 这条测试历史上就是"目录形状"的唯一断言点。
+    func testCatalogHasFiveToolsWithDigestFourthAndMindsReadLast() throws {
         XCTAssertEqual(MCPToolCatalog.all.map(\.name),
                        ["memory_search", "memory_browse", "memory_open", "memory_digest",
-                        "minds_read", "minds_enrich"])
+                        "minds_read"])
     }
 
     func testToolIsRegisteredWithSchema() throws {

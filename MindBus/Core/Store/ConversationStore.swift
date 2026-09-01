@@ -413,12 +413,11 @@ public final class ConversationStore: ObservableObject {
         }.sorted { $0.endAt > $1.endAt }
     }
 
-    /// CLAUDE.md 注入文本(spec §5 闸门):confirmed 条目全量 + 机械紧凑版。
+    /// CLAUDE.md 注入文本:机械层紧凑版,全部数出来的(增补层已随例外拆除)。
     /// 只做文本组装;写入动作由 GUI 按钮触发(人在环)。
     public func mindsInjectionText() -> String {
         guard let index else { return "" }
-        return MindsBuilder.renderForInjection(index: index,
-                                               entries: MindsEnrichedLog.entries())
+        return MindsBuilder.renderForInjection(index: index)
     }
 
     /// 搜索空结果时的救援建议:全库高频实体,可直接当下一次搜索词。

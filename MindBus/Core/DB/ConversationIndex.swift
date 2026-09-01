@@ -3135,26 +3135,7 @@ public final class ConversationIndex: @unchecked Sendable {
         return out
     }
 
-    /// 批量核对一组 id 是否真实存在于索引里，返回真实存在的子集（不保证与入参相同的
-    /// 顺序——调用方只关心"哪些存在"）。供 `MindsEnrichTool`（思脉底座 design spec
-    /// §3/§4）反幻觉校验用：`sources` 里每个 conversation_id 必须先经这个函数核实
-    /// 存在，才允许写进 `enriched.jsonl`——宿主模型编造的溯源 id 在这里被挡下来。
-    ///
-    /// 一次 `queue.sync` 内循环点查（复用 `liteRow`，与 `metadata(forIDs:)` 同一个
-    /// 形状），不是每个 id 各自开一次 `queue.sync`：`minds_enrich` 的 `sources` 在
-    /// 个人使用场景下只有几个 id（一条陈述配几条对话溯源），量级远达不到需要拼
-    /// `IN (...)` 子句、处理不定长占位符绑定的地步，逐个点查更简单。
-    public func conversationsExist(ids: [String]) -> Set<String> {
-        var out = Set<String>()
-        try? queue.sync {
-            for id in ids {
-                if try liteRow(id: id) != nil { out.insert(id) }
-            }
-        }
-        return out
-    }
-
-    /// **必须已在 `queue` 上**——两个公开入口各自 `queue.sync` 过一次，
+    /// **必须已在 `queue` 上**——公开入口自己 `queue.sync` 过一次，
     /// 这里再 sync 就是对串行队列的重入，直接自死锁。
     private func liteRow(id: String) throws -> ConversationLite? {
         var out: ConversationLite?

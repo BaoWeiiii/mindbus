@@ -32,7 +32,6 @@ enum PreviewRenderer {
             render(phraseQuotesSample, name: "minds-phrase-quotes", size: CGSize(width: 900, height: 420), to: sub)
             render(taughtSample, name: "minds-taught", size: CGSize(width: 900, height: 340), to: sub)
             render(unlocksSample, name: "minds-unlocks", size: CGSize(width: 900, height: 300), to: sub)
-            render(resumeSample, name: "minds-resume", size: CGSize(width: 900, height: 240), to: sub)
             render(emptyRescueSample, name: "empty-rescue", size: CGSize(width: 340, height: 300), to: sub)
             render(entityHeaderSample, name: "entity-header", size: CGSize(width: 340, height: 260), to: sub)
             render(FavoritesHomeView(store: ConversationStore(), onOpen: { _, _ in })
@@ -66,21 +65,6 @@ enum PreviewRenderer {
     private static func day(_ s: String) -> Date {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current
         return f.date(from: s) ?? Date(timeIntervalSince1970: 1_754_000_000)
-    }
-
-    /// 「悬着的事」样张（真机原话）
-    /// 「接着上次」样张(真机形态:带悬着的问题)
-    private static var resumeSample: some View {
-        var viz = MindsViz()
-        viz.resume = ConversationIndex.ResumePoint(
-            id: "c1", title: "确定上传事件按钮的信息层级位置",
-            preview: "改完了——就是刚在弄的那个交易台原型,还没提交(原型还在迭代,先留在本地)。",
-            cwd: "/w/ResourceLoop",
-            endAt: Date().addingTimeInterval(-3 * 3600),
-            openQuestion: "要我把它归档提交、还是继续调形态?")
-        return MindsResumeCard(ctx: MindsContext(store: ConversationStore(), md: "# Minds",
-                                                 viz: viz, isLoading: false))
-            .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
     }
 
     /// 「即将解锁」样张:新用户第 3 天的库长这样
@@ -317,18 +301,8 @@ enum PreviewRenderer {
         Your lexicon, counted in your own messages. (mechanical, 12 terms)
         - mind: 第一性原理 (39×/12p) · 上下文 (67×/11p) · 确定性 (8×/6p)
         - work: 主工作区 (31) · 类型检查 (18) · 继续推进 (16) · 工作树 (14) · 解析器 (12) · 子代理 (11)
-
-        <!-- weak-spots -->
-        ## WEAK SPOTS
         """
         try? md.write(toFile: root + "/minds.md", atomically: true, encoding: .utf8)
-        // 两条示例：goals 待确认（AI 徽标 + 确认/撤销按钮）、preferences 已确认（灰徽标）
-        let log = """
-        {"agent":"claude-code","id":"sample-1","kind":"enrich","sources":["00000000-0000-4000-8000-000000000001","00000000-0000-4000-8000-000000000002"],"spot":"spot:goals","text":"正在把 MindBus 从「AI 记忆引擎」重定位为「跨平台 AI 对话库」，近期主线是 MCP 工具与检索质量。","ts":1786400000}
-        {"agent":"claude-code","id":"sample-2","kind":"enrich","sources":["6270d5d0-0000-4000-8000-000000000000"],"spot":"spot:preferences","text":"独立开发者，时间最稀缺；偏好直接执行；给定文案照用不发挥；并行任务同时最多 3 个。","ts":1786300000}
-        {"kind":"confirm","target":"sample-2","ts":1786310000}
-        """
-        try? log.write(toFile: root + "/enriched.jsonl", atomically: true, encoding: .utf8)
         setenv("MINDBUS_MINDS_ROOT", root, 1)
         return MindsView(store: ConversationStore(indexPath: NSTemporaryDirectory() + "mb-preview-minds.sqlite")).renderableContent
             .frame(width: 840)

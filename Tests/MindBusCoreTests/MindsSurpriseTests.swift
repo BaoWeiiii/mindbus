@@ -872,7 +872,7 @@ final class MindsSurpriseTests: XCTestCase {
         let doc = render(s)
         XCTAssertTrue(doc.contains("## REPEATED BRIEFINGS"))
         XCTAssertTrue(doc.contains("said 6× across 4 conversations"))
-        XCTAssertTrue(doc.contains("minds_enrich"), "节说明要引导宿主模型走 enrich 管道")
+        XCTAssertFalse(doc.contains("minds_enrich"), "enrich 管道已拆除，节说明不得再引导")
     }
 
     // MARK: - 屏蔽机制

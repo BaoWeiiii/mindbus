@@ -138,7 +138,6 @@ struct Strings {
 
     // Minds · 真内容页
     let mindsSubtitle: String
-    let mindsTrustSuffix: String
     let mindsGroupForYou: String
     let mindsGroupForAI: String
     let mindsSecUnfinished: String
@@ -298,9 +297,6 @@ struct Strings {
     let mindsTaughtMeta: (Int, Int) -> String
     let mindsTaughtIt: String
     let mindsTaughtYou: String
-    let mindsSecResume: String
-    let mindsResumeHint: String
-    let mindsResumeWaiting: String
     let mindsSecUnlocks: String
     let mindsUnlocksHint: String
     let mindsUnlockPhrases: (Int, Int) -> String
@@ -337,23 +333,11 @@ struct Strings {
     let mindsPhrasesHint: String
     let mindsSecVocabulary: String
     let mindsSecAgentUsage: String
-    let mindsSecWeakSpots: String
     let mindsConversationsUnit: String
     let mindsToolsUnit: String
     let mindsDaysUnit: String
     let mindsAllLocal: String
     let mindsActiveNow: String
-    let mindsSpotPreferences: String
-    let mindsSpotStyle: String
-    let mindsSpotGoals: String
-    let mindsSpotStack: String
-    let mindsBadgeUnreviewed: String
-    let mindsBadgeConfirmed: String
-    let mindsConfirm: String
-    let mindsRevoke: String
-    let mindsSources: String
-    let mindsSpotEmpty: String
-    let mindsEnrichHint: String
     let mindsEntitiesHint: String
     let mindsVocabularyHint: String
     let mindsAgentUsageHint: String
@@ -579,8 +563,7 @@ struct Strings {
         sidebarWorkspace: "工作区",
         sidebarMinds: "Minds",
         mindsPlaceholder: "Minds 正在准备中",
-        mindsSubtitle: "关于你的一切，每一行都是数出来的，不是编的",
-        mindsTrustSuffix: "counted, not generated",
+        mindsSubtitle: "你日常的一点一滴",
         mindsGroupForYou: "给你的,你可能没意识到的",
         mindsGroupForAI: "给你的 AI 的,让它开口前就认识你",
         mindsSecUnfinished: "断了的线头",
@@ -721,9 +704,6 @@ struct Strings {
         mindsTaughtMeta: { "\($0) 天后你开始用 · \($1) 个项目" },
         mindsTaughtIt: "它说",
         mindsTaughtYou: "你说",
-        mindsSecResume: "接着上次",
-        mindsResumeHint: "最近一场停在哪——点开接着来",
-        mindsResumeWaiting: "它还在等你:",
         mindsSecUnlocks: "即将解锁",
         mindsUnlocksHint: "这些发现需要更多语料——继续用,它们会自己亮起来",
         mindsUnlockPhrases: { "你反复说的话(带原话) — 需要 \($1) 个项目,现在 \($0) 个" },
@@ -760,23 +740,11 @@ struct Strings {
         mindsPhrasesHint: "跨项目带着走的说法,你未必察觉",
         mindsSecVocabulary: "你的常用词",
         mindsSecAgentUsage: "被 AI 引用过的对话",
-        mindsSecWeakSpots: "数不出来的部分",
         mindsConversationsUnit: "场对话",
         mindsToolsUnit: "个工具",
         mindsDaysUnit: "天跨度",
         mindsAllLocal: "全部本地采集",
         mindsActiveNow: "活跃中",
-        mindsSpotPreferences: "工作偏好",
-        mindsSpotStyle: "协作风格",
-        mindsSpotGoals: "当前目标",
-        mindsSpotStack: "常用技术",
-        mindsBadgeUnreviewed: "AI 补充,待确认",
-        mindsBadgeConfirmed: "已确认",
-        mindsConfirm: "确认",
-        mindsRevoke: "撤销",
-        mindsSources: "证据",
-        mindsSpotEmpty: "还空着，等你的 AI 来补",
-        mindsEnrichHint: "这四格由你的 AI 来填：在 Claude Code 里说「读一下我的 Minds，把能补的空位用 minds_enrich 补上」。每条都要注明出自哪场对话，说不出出处的不收。",
         mindsEntitiesHint: "点击查看相关会话",
         mindsVocabularyHint: "从你说过的话里数出来的,点击可搜",
         mindsAgentUsageHint: "点击打开",
@@ -985,7 +953,6 @@ struct Strings {
         sidebarMinds: "Minds",
         mindsPlaceholder: "Minds is coming soon",
         mindsSubtitle: "Your mechanical self-description — every line is counted, not generated",
-        mindsTrustSuffix: "counted, not generated",
         mindsGroupForYou: "FOR YOU · patterns you might have missed",
         mindsGroupForAI: "FOR YOUR AI · the profile agents consume",
         mindsSecUnfinished: "Unfinished threads",
@@ -1126,9 +1093,6 @@ struct Strings {
         mindsTaughtMeta: { "picked up \($0)d later · \($1) projects" },
         mindsTaughtIt: "it",
         mindsTaughtYou: "you",
-        mindsSecResume: "Pick Up Where You Left Off",
-        mindsResumeHint: "your latest thread — click to continue",
-        mindsResumeWaiting: "still waiting on you:",
         mindsSecUnlocks: "Coming Up",
         mindsUnlocksHint: "these need more history — keep going and they light up",
         mindsUnlockPhrases: { "Phrases you repeat — needs \($1) projects, you have \($0)" },
@@ -1165,23 +1129,11 @@ struct Strings {
         mindsPhrasesHint: "turns of phrase you carry across projects",
         mindsSecVocabulary: "Your Concept Map",
         mindsSecAgentUsage: "Referenced by Agents",
-        mindsSecWeakSpots: "What Mechanics Cannot Know",
         mindsConversationsUnit: "conversations",
         mindsToolsUnit: "tools",
         mindsDaysUnit: "days",
         mindsAllLocal: "all captured locally",
         mindsActiveNow: "active",
-        mindsSpotPreferences: "Working preferences",
-        mindsSpotStyle: "Collaboration style",
-        mindsSpotGoals: "Current goals",
-        mindsSpotStack: "Tech stack (self-reported)",
-        mindsBadgeUnreviewed: "AI-added · unreviewed",
-        mindsBadgeConfirmed: "Confirmed",
-        mindsConfirm: "Confirm",
-        mindsRevoke: "Revoke",
-        mindsSources: "Sources",
-        mindsSpotEmpty: "Empty — waiting to be filled",
-        mindsEnrichHint: "These four slots are filled by your AI tools. In Claude Code, say: \"Read my Minds and fill what you can via minds_enrich.\" Every addition must cite source conversations — fabrication is rejected.",
         mindsEntitiesHint: "click to see related conversations",
         mindsVocabularyHint: "your personal lexicon, statistically grown · click to search",
         mindsAgentUsageHint: "click to open",

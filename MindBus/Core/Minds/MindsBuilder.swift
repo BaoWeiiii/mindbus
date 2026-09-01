@@ -13,9 +13,8 @@ import NaturalLanguage
 /// 为主，按它数出来的是 AI 的语言习惯，不是你的。
 ///
 /// 全部零 LLM——每一行都是某条 SQL 查询结果的直接转写，"陈述可证"是这一层存在的
-/// 全部理由。末节 WEAK SPOTS 是机械层证明不了的四个空位，只列出 `MindsEnrichedLog`
-/// 里已经补进来的条目（宿主模型 enrich、用户 confirm/revoke），这一层本身不生成
-/// 任何文字、不调用任何模型。
+/// 全部理由。曾有的 WEAK SPOTS 增补层（宿主模型经 minds_enrich 写自陈述）已整体
+/// 拆除（用户 2026-09-01 定案：不要例外，Minds 全线只留代码可证的内容）。
 ///
 /// 重建时机：`LoaderRuntime.indexAllSources` 收尾，顺序排在词表重建
 /// （`ConversationIndex.rebuildLexiconIfNeeded`）与 MCP 引用汇入
@@ -25,35 +24,40 @@ public enum MindsBuilder {
 
     // MARK: - 落盘路径
 
-    /// `~/.mindbus/minds/minds.md`。根目录解析复用 `MindsEnrichedLog.mindsRoot()`
-    /// （含 `MINDBUS_MINDS_ROOT` 覆盖 + `~` 展开 + 空白 trim）——`minds.md` 与
-    /// `enriched.jsonl` 同目录，解析逻辑只能有一处真相，两处各写一遍环境变量处理
-    /// 迟早会在某个边界条件上漂移（比如日后 trim 规则改了，只改了一处）。
-    public static var defaultMindsURL: URL {
-        MindsEnrichedLog.mindsRoot().appendingPathComponent("minds.md")
+    /// minds 根目录：`~/.mindbus/minds`。`MINDBUS_MINDS_ROOT` 可覆盖——
+    /// trim 后为空视同未设置（不 trim 的话纯空白会被当成合法目录名，后续操作在一个
+    /// 诡异路径上悄悄失败）；`~` 手工展开——这个值多半来自宿主配置文件、不经过
+    /// shell，原样传给 `FileManager` 只会被当成字面量目录名，路径永远不存在。
+    ///（原 `MindsEnrichedLog.mindsRoot()`——增补层拆除后解析逻辑的唯一真相挪到这里。）
+    static func mindsRoot() -> URL {
+        if let raw = ProcessInfo.processInfo.environment["MINDBUS_MINDS_ROOT"] {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return URL(fileURLWithPath: (trimmed as NSString).expandingTildeInPath, isDirectory: true)
+            }
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".mindbus", isDirectory: true)
+            .appendingPathComponent("minds", isDirectory: true)
     }
 
-    /// 五节机械内容与 WEAK SPOTS 之间的固定分隔标记，独占一行。
+    /// `~/.mindbus/minds/minds.md`。
+    public static var defaultMindsURL: URL {
+        mindsRoot().appendingPathComponent("minds.md")
+    }
+
+    /// 旧版本 minds.md 里机械五节与已拆除的 WEAK SPOTS 节之间的分隔标记。
     ///
-    /// 存在理由：`enriched.jsonl` 随时可能被 MCP 进程 append（用户/宿主模型经
-    /// `minds_enrich`/确认/撤销不会等下一轮扫描），而 `minds.md` 只在扫描收尾重建——
-    /// 两者之间必然有窗口期，磁盘上的 WEAK SPOTS 在窗口期内是过期的。未来的
-    /// `minds_read`（Task 3）读文件时以这一行为界：前半截（五节机械内容）照抄磁盘
-    /// 字节，后半截丢弃，改用 `renderWeakSpots(entries: MindsEnrichedLog.entries())`
-    /// 现查现渲染拼回去——磁盘文件本身仍是"上次扫描时"的快照，但读出去给外部 agent
-    /// 的内容永远新鲜。公开成常量而不是让 Task 3 另外硬编码同一个字符串字面量：
-    /// 分隔标记只能有一处真相。
-    public static let weakSpotsMarker = "<!-- weak-spots -->"
+    /// 增补层拆掉后 build 不再写这一行，常量仅供读取方（`MindsStore`/`MindsReadTool`）
+    /// 截断**旧文件**遗留的 WEAK SPOTS 内容——用户装上新版后、下一轮扫描重写 minds.md
+    /// 之前的窗口期里，读到的旧文件不该再把模型写的条目漏给界面或宿主模型。
+    public static let legacyWeakSpotsMarker = "<!-- weak-spots -->"
 
     // MARK: - 落盘入口
 
-    /// 查询索引统计 → 渲染六节 → 原子写 `url`。
+    /// 查询索引统计 → 渲染 → 原子写 `url`。
     ///
-    /// WEAK SPOTS 的条目来自 `MindsEnrichedLog.entries()`（默认路径，同样受
-    /// `MINDBUS_MINDS_ROOT` 覆盖）——`enriched.jsonl` 不存在时 `entries()` 返回空数组，
-    /// 四个空位落空态文案 `(empty — fill via minds_enrich)`，不是错误。
-    ///
-    /// 目标目录首次不存在时自动建出来（同 `MindsEnrichedLog.writeLine` 的手法），不能
+    /// 目标目录首次不存在时自动建出来，不能
     /// 指望调用方（扫描收尾）提前建好；写失败（磁盘满/权限问题）静默放弃——这只是
     /// 扫描收尾众多步骤之一，不该让 minds.md 写不出去拖垮整轮扫描，下一轮扫描收尾
     /// 会自然重试（幂等重建，没有"部分写入"的中间状态需要清理）。
@@ -78,7 +82,6 @@ public enum MindsBuilder {
         // vocabFreqs 在语料拉取之后算(共享同一份,不再独立拉)
         var vocabFreqs: [String: Int] = [:]
         let refs = index.topReferenced(limit: Int.max)
-        let entries = MindsEnrichedLog.entries()
 
         // 惊喜区数据（阈值集中在这里，渲染函数只收结果）：
         // 断点近 14 天；反复回来 ≥3 会话跨 ≥7 天、排除 Top-10 主项目词；
@@ -222,10 +225,9 @@ public enum MindsBuilder {
                 functionWordClasses.contains($0.value) ? $0.key.lowercased() : nil
             }))
 
-        let mechanical = renderDocument(overview: overview, projects: projects,
-                                        vocabulary: vocabulary, vocabStats: vocabStats,
-                                        refs: refs, surprise: surprise, builtAt: now)
-        let full = mechanical + "\n\n" + weakSpotsMarker + "\n" + renderWeakSpots(entries: entries)
+        let full = renderDocument(overview: overview, projects: projects,
+                                  vocabulary: vocabulary, vocabStats: vocabStats,
+                                  refs: refs, surprise: surprise, builtAt: now)
 
         guard let data = full.data(using: .utf8) else {
             NSLog("[minds] build failed: could not UTF-8 encode rendered document")
@@ -242,13 +244,10 @@ public enum MindsBuilder {
 
     // MARK: - CLAUDE.md 注入文本
 
-    /// confirmed 条目全量 + 机械层紧凑版（spec §5）：OVERVIEW 一行 + TOP ENTITIES 前 10 +
-    /// VOCABULARY 前 10。`unreviewed`/`revoked` 条目绝不出现——这是 CLAUDE.md 出口的
-    /// 闸门，人在环红线（spec §6"闸在 CLAUDE.md 出口"）就落在下面这一行 `filter` 上，
-    /// 不是靠调用方自觉只传 confirmed 条目进来（`entries` 参数本就是全量三态混合，
-    /// 过滤是这个函数自己不可外包的职责）。
-    public static func renderForInjection(index: ConversationIndex, entries: [MindsEntry]) -> String {
-        let confirmed = entries.filter { $0.status == .confirmed }
+    /// 机械层紧凑版：OVERVIEW 一行 + TOP ENTITIES 前 10 + VOCABULARY 前 10。
+    /// 全部数出来的——增补层（模型写的 confirmed 条目）已随例外拆除，注入文本
+    /// 与页面同一条纪律：只有代码可证的内容。
+    public static func renderForInjection(index: ConversationIndex) -> String {
         let overview = index.mapOverview()
         // 注入口径与展示同源(2026-08-16):说得多 + 不是口水词,不判断类型
         let corpusRows = index.userCorpusRows()
@@ -264,15 +263,6 @@ public enum MindsBuilder {
             .prefix(10).map { (word: $0.word, df: $0.tf) }
 
         var lines = ["# Minds", ""]
-        lines.append("## Confirmed")
-        if confirmed.isEmpty {
-            lines.append("(no confirmed entries yet)")
-        } else {
-            for e in confirmed {
-                lines.append("- [\(e.spot.rawValue)] \(e.text) (sources: \(e.sources.joined(separator: ", ")))")
-            }
-        }
-        lines.append("")
         lines.append("## Overview")
         lines.append(overviewHeadline(overview))
         lines.append("")
@@ -282,51 +272,6 @@ public enum MindsBuilder {
         lines.append("")
         lines.append("## Vocabulary")
         lines.append(vocabulary.isEmpty ? "(none yet)" : vocabulary.map(\.word).joined(separator: " · "))
-        return lines.joined(separator: "\n")
-    }
-
-    // MARK: - WEAK SPOTS（独立公共渲染入口——Task 3 的 minds_read 现场重渲染这一节）
-
-    private static let spotDescriptions: [MindsSpot: String] = [
-        .preferences: "working preferences",
-        .style: "collaboration style",
-        .goals: "current goals",
-        .stack: "tech stack (self-reported)",
-    ]
-
-    /// WEAK SPOTS 节的独立渲染入口（spec §2 第 6 节）：纯函数，只读传入的 `entries`，
-    /// 不碰索引、不碰文件——`minds_read`（Task 3）靠这一点才能在读取请求时现查
-    /// `MindsEnrichedLog.entries()` 现渲染，绕开 minds.md 磁盘快照相对 `enriched.jsonl`
-    /// 的过期窗口（见 `weakSpotsMarker` 的注释）。`build(from:to:)` 落盘时也调这同一份
-    /// 实现，磁盘内容与"现渲染"内容在扫描那一刻是逐字节一致的。
-    ///
-    /// 四个空位固定顺序（`MindsSpot.allCases`，即声明顺序：preferences/style/goals/stack）。
-    /// 每个空位下：`revoked` 条目整条不渲染（撤销的东西不该继续出现在给人看/给模型读
-    /// 的文档里，"曾经存在过"这件事本身还留在 `enriched.jsonl` 里可考古，但不进这份
-    /// 渲染）；`unreviewed` 条目带 `[unreviewed]` 前缀直出——不是不给看，是明确标出
-    /// "未经确认"，读的人/模型自己判断要不要采信（与全项目"置信度而非过滤"的哲学
-    /// 一致）；`confirmed` 条目直列，无前缀。空位（该 spot 下没有任何非 revoked 条目）
-    /// 写死文案 `(empty — fill via minds_enrich)`——这句本身也是 `minds_enrich` 工具
-    /// （Task 3）的用法提示，直接嵌在结果里比另开一段说明更醒目、更不会被跳过。
-    ///
-    /// 每条都带溯源与出处：`sources: id1, id2 · agent: xxx · yyyy-MM-dd`——design spec
-    /// §3 的三条强制字段（溯源/模型戳/可撤销）里前两个直接体现在渲染文本里，第三个
-    /// （可撤销）体现在"revoked 就从这份渲染里消失"这个行为本身。
-    public static func renderWeakSpots(entries: [MindsEntry]) -> String {
-        var lines = ["## WEAK SPOTS",
-                     "Things the mechanical layer cannot know. Fill via minds_enrich with sources."]
-        for spot in MindsSpot.allCases {
-            lines.append("### \(spot.rawValue) — \(spotDescriptions[spot] ?? spot.rawValue)")
-            let live = entries.filter { $0.spot == spot && $0.status != .revoked }
-            if live.isEmpty {
-                lines.append("(empty — fill via minds_enrich)")
-            } else {
-                for e in live {
-                    let prefix = e.status == .unreviewed ? "[unreviewed] " : ""
-                    lines.append("- \(prefix)\(e.text) (sources: \(e.sources.joined(separator: ", ")) · agent: \(e.agent) · \(day(e.createdAt)))")
-                }
-            }
-        }
         return lines.joined(separator: "\n")
     }
 
@@ -476,7 +421,6 @@ public enum MindsBuilder {
 
     /// 项目出生句:从最早会话的 user 语料里取第一条像「人话」的行
     /// (5-100 字、非系统注入、非结构化粘贴——复用 briefingNoise 过滤)。
-    /// enrich 管道:宿主模型 minds_read 读到这节 → 分析 → minds_enrich 写建议。
     /// 「反复交代」的最短跨度。低于它的重复基本是同一个任务周期内的上下文重复
     /// （会话被切分时用户重新粘贴前情），不是隔了一段时间还要再讲一遍的规矩。
     static let briefingMinSpanDays = 14
@@ -1668,8 +1612,7 @@ public enum MindsBuilder {
 
     // MARK: - 纯渲染（接受注入的统计数据结构，不碰索引/文件，供测试直接驱动）
 
-    /// 惊喜区（五节）+ 统计区（五节）（不含 WEAK SPOTS——那一节走独立的
-    /// `renderWeakSpots`，两者在 `build(from:to:)` 里用 `weakSpotsMarker` 拼接）。
+    /// 惊喜区（五节）+ 统计区（五节）——即整份 minds.md（增补节已拆除）。
     /// `builtAt` 显式传入而不是内部调 `Date()`：保持这个函数对给定输入的输出完全
     /// 确定，测试才能断言精确字符串。
     static func renderDocument(overview: ConversationIndex.MapOverview,
@@ -1958,7 +1901,7 @@ public enum MindsBuilder {
     private static func renderRepeatedBriefings(_ briefings: [RepeatedBriefing]) -> String {
         var lines = ["## REPEATED BRIEFINGS",
                      "Things you keep explaining from scratch — worth turning into a reusable prompt or skill. "
-                        + "Ask your AI to read these and suggest one via minds_enrich. (mechanical, \(briefings.count) groups)"]
+                        + "(mechanical, \(briefings.count) groups)"]
         if briefings.isEmpty {
             lines.append("(none — you rarely repeat yourself)")
         } else {

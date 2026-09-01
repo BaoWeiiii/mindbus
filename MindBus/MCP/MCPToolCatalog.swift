@@ -42,9 +42,8 @@ public struct MCPToolSpec {
 
 /// V1 只读三件套（L2 搜索/L0-L1 地图切面/L3 原文，MEMORY-LAYER-SPEC §4 与 §6）+
 /// `memory_digest`（机械精华包，供宿主用今天的知识重新解释旧结论——"答案贬值、
-/// 语境增值"的落地）+ 思脉底座 `minds_read`/`minds_enrich`（思脉底座 design spec
-/// §4：增值层不占检索三件套的封顶）。`minds_enrich` 是这份目录里第一个写工具，
-/// 其余五个全部只读。
+/// 语境增值"的落地）+ 思脉底座 `minds_read`（机械画像只读口）。五个工具全部只读——
+/// 曾经的写工具 `minds_enrich`（增补层）已随例外拆除（用户 2026-09-01 定案）。
 ///
 /// Swift 6 风险：`all` 是非 Sendable 静态量（`MCPToolSpec` 含 `Any`），Swift 5 语言模式下
 /// 全局/静态量的并发安全检查是警告级别且这里连警告都没触发；升到 Swift 6 语言模式后会
@@ -56,6 +55,5 @@ public enum MCPToolCatalog {
         MemoryOpenTool.spec,
         MemoryDigestTool.spec,
         MindsReadTool.spec,
-        MindsEnrichTool.spec,
     ]
 }

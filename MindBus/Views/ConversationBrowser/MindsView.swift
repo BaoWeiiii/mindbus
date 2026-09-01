@@ -83,15 +83,9 @@ struct MindsView: View {
             Text("Minds")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(MindsUI.textPrimary)
-            HStack(spacing: 12) {
-                Text(l10n.s.mindsSubtitle)
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(MindsUI.textSecondary)
-                // 信任锚：重建时间 + counted, not generated——机械层可信度的来源
-                Text("\(rebuildStamp)\(l10n.s.mindsTrustSuffix)")
-                    .font(BrandFont.mono(11))
-                    .foregroundStyle(MindsUI.textTertiary)
-            }
+            Text(l10n.s.mindsSubtitle)
+                .font(.system(size: 12.5))
+                .foregroundStyle(MindsUI.textSecondary)
         }
     }
 
@@ -102,13 +96,6 @@ struct MindsView: View {
         case .ai: MindsAIPage(ctx: ctx)
         case .projects: MindsProjectsPage(ctx: ctx)
         }
-    }
-
-    /// 从机械层首段抽 "(policy vN, rebuilt …)" 那行的日期；抽不到就只显示信任语。
-    private var rebuildStamp: String {
-        guard let range = minds.mechanicalMarkdown.range(
-            of: #"rebuilt \d{4}-\d{2}-\d{2}"#, options: .regularExpression) else { return "" }
-        return String(minds.mechanicalMarkdown[range]) + "  "
     }
 
     private var fileMissing: some View {

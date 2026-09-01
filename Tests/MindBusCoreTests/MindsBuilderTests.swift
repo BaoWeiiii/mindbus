@@ -1,14 +1,10 @@
 import XCTest
 @testable import MindBusCore
 
-/// 思脉底座 · 机械层：`MindsBuilder` 从索引统计生成 `minds.md` 六节 Markdown。
+/// 思脉底座 · 机械层：`MindsBuilder` 从索引统计生成 `minds.md`。
 ///
 /// 架构红线：全部用注入的临时路径，绝不碰真实 `~/.mindbus`——`setUpWithError` 把
-/// `MINDBUS_MINDS_ROOT` 指向一个每次测试独立的临时目录（同 `MindsEnrichedLogTests`
-/// 验证过的环境变量覆盖机制），`tearDown` 清理干净。`MindsBuilder.build(from:to:)`
-/// 内部会调用不接受显式 URL 的 `MindsEnrichedLog.entries()`（读 WEAK SPOTS 用），
-/// 所以哪怕测试只关心机械六节、不关心增补层，也必须做这层隔离——否则会读到/污染
-/// 运行测试这台机器上真实的 `~/.mindbus/minds/enriched.jsonl`。
+/// `MINDBUS_MINDS_ROOT` 指向一个每次测试独立的临时目录，`tearDown` 清理干净。
 final class MindsBuilderTests: XCTestCase {
     private var mindsRoot: String!
     private var refsLogURL: URL!
@@ -63,21 +59,16 @@ final class MindsBuilderTests: XCTestCase {
         return lite
     }
 
-    // MARK: - defaultMindsURL：根目录解析复用 MindsEnrichedLog.mindsRoot()
+    // MARK: - defaultMindsURL：根目录解析（MINDBUS_MINDS_ROOT 覆盖）
 
-    /// 与 `enriched.jsonl` 同一个环境变量、同一目录，只是文件名不同——这条测试锁住
-    /// "两个文件共用同一份根目录解析"这个设计本身（若有人手滑改成各写一份，
-    /// 覆盖后两者会指向不同目录，这条测试会先炸）。
-    func testDefaultMindsURLSharesRootWithEnrichedLog() {
+    func testDefaultMindsURLHonorsRootOverride() {
         let override = NSTemporaryDirectory() + "minds-url-override-\(UUID().uuidString)"
         setenv("MINDBUS_MINDS_ROOT", override, 1)
         XCTAssertEqual(MindsBuilder.defaultMindsURL.path, override + "/minds.md")
-        XCTAssertEqual(MindsBuilder.defaultMindsURL.deletingLastPathComponent().path,
-                       MindsEnrichedLog.defaultLogURL.deletingLastPathComponent().path)
     }
 
     /// 纯空白 override 等同于未设置——回落到真实默认值。只做字符串比对，不触发任何
-    /// 文件 I/O，所以不会碰到真实 `~/.mindbus`（同 `MindsEnrichedLogTests` 的写法）。
+    /// 文件 I/O，所以不会碰到真实 `~/.mindbus`。
     func testDefaultMindsURLBlankOverrideFallsBackToRealDefaultPath() {
         setenv("MINDBUS_MINDS_ROOT", "   ", 1)
         let expected = FileManager.default.homeDirectoryForCurrentUser
@@ -87,10 +78,10 @@ final class MindsBuilderTests: XCTestCase {
         XCTAssertEqual(MindsBuilder.defaultMindsURL.path, expected.path)
     }
 
-    // MARK: - weakSpotsMarker：字面量钉住（Task 3 的 minds_read 要拿这个常量做字符串切分）
+    // MARK: - legacyWeakSpotsMarker：字面量钉住（读取方拿它截断旧文件遗留的增补节）
 
-    func testWeakSpotsMarkerLiteralValue() {
-        XCTAssertEqual(MindsBuilder.weakSpotsMarker, "<!-- weak-spots -->")
+    func testLegacyWeakSpotsMarkerLiteralValue() {
+        XCTAssertEqual(MindsBuilder.legacyWeakSpotsMarker, "<!-- weak-spots -->")
     }
 
     // MARK: - rankVocabulary：纯排序函数，≥3 字优先 + df 降序（变异反证核心）
@@ -268,7 +259,7 @@ final class MindsBuilderTests: XCTestCase {
             try XCTUnwrap(text.range(of: heading)?.lowerBound)
         }
         XCTAssertEqual(positions, positions.sorted(), "统计区标题必须按固定顺序出现")
-        XCTAssertFalse(text.contains("WEAK SPOTS"), "renderDocument 不含 WEAK SPOTS——那一节走独立的 renderWeakSpots")
+        XCTAssertFalse(text.contains("WEAK SPOTS"), "增补节已拆除，渲染里不得再出现")
     }
 
     func testRenderDocumentHeaderCarriesPolicyVersionAndBuildDate() {
@@ -333,92 +324,21 @@ final class MindsBuilderTests: XCTestCase {
     /// 总次数覆盖全部引用（哪怕超过 5 条），但 Top 列表只列前 5——两个数字不该混淆。
 
 
-    // MARK: - renderWeakSpots：三态渲染 + 固定分隔标记
+    // MARK: - renderForInjection：CLAUDE.md 注入（机械紧凑版）
 
-    func testRenderWeakSpotsAllFourSpotsPresentInFixedOrderWhenEmpty() {
-        let text = MindsBuilder.renderWeakSpots(entries: [])
-        XCTAssertTrue(text.hasPrefix("## WEAK SPOTS"))
-        let order = ["### spot:preferences", "### spot:style", "### spot:goals", "### spot:stack"]
-        let positions = order.map { try! XCTUnwrap(text.range(of: $0)?.lowerBound) }
-        XCTAssertEqual(positions, positions.sorted())
-        XCTAssertEqual(text.components(separatedBy: "(empty — fill via minds_enrich)").count - 1, 4,
-                       "四个空位都要落空态文案")
-    }
-
-    func testRenderWeakSpotsConfirmedEntryRendersWithoutPrefix() {
-        let e = MindsEntry(id: "e1", spot: .goals, text: "推思脉底座上线", sources: ["conv-a"],
-                           agent: "claude-code", createdAt: date(2026, 8, 10), status: .confirmed)
-        let text = MindsBuilder.renderWeakSpots(entries: [e])
-        XCTAssertTrue(text.contains("- 推思脉底座上线"))
-        XCTAssertFalse(text.contains("[unreviewed] 推思脉底座上线"))
-    }
-
-    func testRenderWeakSpotsUnreviewedEntryRendersWithPrefix() {
-        let e = MindsEntry(id: "e1", spot: .preferences, text: "喜欢直接执行", sources: ["conv-a"],
-                           agent: "codex", createdAt: date(2026, 8, 10), status: .unreviewed)
-        let text = MindsBuilder.renderWeakSpots(entries: [e])
-        XCTAssertTrue(text.contains("[unreviewed] 喜欢直接执行"))
-    }
-
-    func testRenderWeakSpotsRevokedEntryDoesNotRender() {
-        let e = MindsEntry(id: "e1", spot: .stack, text: "曾经以为主力是 Rust", sources: ["conv-a"],
-                           agent: "codex", createdAt: date(2026, 8, 10), status: .revoked)
-        let text = MindsBuilder.renderWeakSpots(entries: [e])
-        XCTAssertFalse(text.contains("曾经以为主力是 Rust"), "revoked 条目不该出现在渲染里")
-        XCTAssertTrue(text.contains("(empty — fill via minds_enrich)"),
-                      "revoked 之后该 spot 底下没有别的条目——必须落空态文案，不是留空行")
-    }
-
-    /// 同一个 spot 下多条 confirmed/unreviewed 条目要全部列出（"合并渲染"不是"只留一条"）。
-    func testRenderWeakSpotsMultipleEntriesUnderSameSpotAllRender() {
-        let entries = [
-            MindsEntry(id: "e1", spot: .style, text: "review 喜欢逐条过", sources: ["c1"],
-                      agent: "a", createdAt: date(2026, 8, 1), status: .confirmed),
-            MindsEntry(id: "e2", spot: .style, text: "偏好小步提交", sources: ["c2"],
-                      agent: "a", createdAt: date(2026, 8, 2), status: .unreviewed),
-        ]
-        let text = MindsBuilder.renderWeakSpots(entries: entries)
-        XCTAssertTrue(text.contains("- review 喜欢逐条过"))
-        XCTAssertTrue(text.contains("[unreviewed] 偏好小步提交"))
-    }
-
-    func testRenderWeakSpotsEntryIncludesSourcesAgentAndDate() {
-        let e = MindsEntry(id: "e1", spot: .goals, text: "推 v1 发布", sources: ["conv-a", "conv-b"],
-                           agent: "claude-code", createdAt: date(2026, 8, 10), status: .confirmed)
-        let text = MindsBuilder.renderWeakSpots(entries: [e])
-        XCTAssertTrue(text.contains("sources: conv-a, conv-b"))
-        XCTAssertTrue(text.contains("agent: claude-code"))
-        XCTAssertTrue(text.contains("2026-08-10"))
-    }
-
-    // MARK: - renderForInjection：CLAUDE.md 出口闸门
-
-    /// 核心判别测试：`unreviewed`/`revoked` 条目绝不能出现在注入文本里——这是人在环
-    /// 红线（spec §6"闸在 CLAUDE.md 出口"）的数据面。用醒目、绝不会与其他渲染文字
-    /// 撞车的标记文本直接断言"完全不出现"，不是"格式不对"这种弱断言。
-    func testRenderForInjectionNeverLeaksUnreviewedOrRevokedText() throws {
+    /// 增补层拆除后注入文本必须是纯机械——不得再有 Confirmed 段或任何模型条目痕迹。
+    func testRenderForInjectionIsPureMechanical() throws {
         let index = try makeIndex()
-        let confirmed = MindsEntry(id: "e-confirmed", spot: .goals, text: "CONFIRMED-MARKER-TEXT",
-                                   sources: ["c1"], agent: "claude-code", createdAt: Date(), status: .confirmed)
-        let unreviewed = MindsEntry(id: "e-unreviewed", spot: .preferences, text: "UNREVIEWED-MARKER-TEXT",
-                                    sources: ["c2"], agent: "claude-code", createdAt: Date(), status: .unreviewed)
-        let revoked = MindsEntry(id: "e-revoked", spot: .style, text: "REVOKED-MARKER-TEXT",
-                                 sources: ["c3"], agent: "claude-code", createdAt: Date(), status: .revoked)
-
-        let output = MindsBuilder.renderForInjection(index: index, entries: [confirmed, unreviewed, revoked])
-
-        XCTAssertTrue(output.contains("CONFIRMED-MARKER-TEXT"), "confirmed 条目必须出现")
-        XCTAssertFalse(output.contains("UNREVIEWED-MARKER-TEXT"),
-                       "unreviewed 条目绝不能泄入 CLAUDE.md 注入文本——这是人在环闸门")
-        XCTAssertFalse(output.contains("REVOKED-MARKER-TEXT"), "revoked 条目绝不能泄入")
-        XCTAssertTrue(output.contains("[spot:goals] CONFIRMED-MARKER-TEXT (sources: c1)"))
+        let output = MindsBuilder.renderForInjection(index: index)
+        XCTAssertFalse(output.contains("## Confirmed"))
+        XCTAssertFalse(output.contains("spot:"))
     }
 
     func testRenderForInjectionIncludesOverviewOneLineAndCompactSections() throws {
         let index = try makeIndex()
         try upsertConversation(index, id: "c1", cwd: "/p", startAt: date(2026, 5, 1),
                                text: "AlphaWidget shipped")
-        let output = MindsBuilder.renderForInjection(index: index, entries: [])
+        let output = MindsBuilder.renderForInjection(index: index)
         XCTAssertTrue(output.contains("1 conversations across 1 tools"))
         XCTAssertTrue(output.contains("(mechanical, 1 conversations)"))
         XCTAssertTrue(output.contains("## Top entities"))
@@ -443,15 +363,9 @@ final class MindsBuilderTests: XCTestCase {
         let included = Array(allTop.prefix(10)).map(\.text)
         let excluded = Array(allTop.dropFirst(10)).map(\.text)
 
-        let output = MindsBuilder.renderForInjection(index: index, entries: [])
+        let output = MindsBuilder.renderForInjection(index: index)
         for text in included { XCTAssertTrue(output.contains(text), "\(text) 应在前 10 之内") }
         for text in excluded { XCTAssertFalse(output.contains(text), "\(text) 应被前 10 截断排除") }
-    }
-
-    func testRenderForInjectionEmptyConfirmedShowsPlaceholder() throws {
-        let index = try makeIndex()
-        let output = MindsBuilder.renderForInjection(index: index, entries: [])
-        XCTAssertTrue(output.contains("(no confirmed entries yet)"))
     }
 
     // MARK: - build(from:to:)：端到端（真实索引 + 落盘）
@@ -476,9 +390,8 @@ final class MindsBuilderTests: XCTestCase {
         MindsBuilder.build(from: index)
         let content = try String(contentsOf: MindsBuilder.defaultMindsURL, encoding: .utf8)
 
-        // 统计区 + WEAK SPOTS 顺序(2026-08-16 收敛:TOP ENTITIES/AGENT USAGE 已砍)
-        let headings = ["## OVERVIEW", "## PROJECT RHYTHM", "## VOCABULARY",
-                        MindsBuilder.weakSpotsMarker, "## WEAK SPOTS"]
+        // 统计区顺序(2026-08-16 收敛:TOP ENTITIES/AGENT USAGE 已砍;增补节 2026-09-01 拆除)
+        let headings = ["## OVERVIEW", "## PROJECT RHYTHM", "## VOCABULARY"]
         let positions = try headings.map { try XCTUnwrap(content.range(of: $0)?.lowerBound) }
         XCTAssertEqual(positions, positions.sorted())
 
@@ -492,11 +405,9 @@ final class MindsBuilderTests: XCTestCase {
         XCTAssertTrue(content.contains(
             "- /p/beta — 1 conversations, 1 messages, active 2026-06-01 → 2026-06-01, last touched 2026-06-01"))
 
-        // WEAK SPOTS：没写过 enriched.jsonl，四个空位都是空态
-        XCTAssertEqual(content.components(separatedBy: "(empty — fill via minds_enrich)").count - 1, 4)
-
-        // 分隔标记独占一行
-        XCTAssertTrue(content.components(separatedBy: "\n").contains(MindsBuilder.weakSpotsMarker))
+        // 增补节已拆除：全文不得再出现 WEAK SPOTS 或旧分隔标记
+        XCTAssertFalse(content.contains("WEAK SPOTS"))
+        XCTAssertFalse(content.contains(MindsBuilder.legacyWeakSpotsMarker))
     }
 
     /// 空库（0 会话）也要生成合法文件，不崩、各节落空态文案。
@@ -508,8 +419,7 @@ final class MindsBuilderTests: XCTestCase {
         XCTAssertTrue(content.contains("0 conversations across 0 tools. (mechanical, 0 conversations)"))
         XCTAssertTrue(content.contains("Top 0 projects by conversation count."))
         XCTAssertTrue(content.contains("Your lexicon, counted in your own messages"))
-        XCTAssertTrue(content.contains("## WEAK SPOTS"))
-        XCTAssertEqual(content.components(separatedBy: "(empty — fill via minds_enrich)").count - 1, 4)
+        XCTAssertFalse(content.contains("WEAK SPOTS"))
     }
 
     func testBuildCreatesMissingDirectory() throws {
@@ -535,20 +445,17 @@ final class MindsBuilderTests: XCTestCase {
                        "重建必须整体替换——旧的会话计数陈述不该继续留在文件里")
     }
 
-    /// `build` 内部用不接受显式 URL 的 `MindsEnrichedLog.entries()` 取 WEAK SPOTS 数据——
-    /// 这条测试通过真实写一条 enrich+confirm 记录到（env 覆盖后的）默认路径，验证
-    /// 这条隐式接线真的通了，不是只在签名上"看起来"读了增补层。
-    func testBuildPullsWeakSpotsFromRealEnrichedLogAndRespectsConfirmedState() throws {
+    /// 增补层拆除后，build 不得读取 enriched.jsonl——即便磁盘上留有旧日志文件，
+    /// 里面的模型条目也绝不能再进入 minds.md。
+    func testBuildIgnoresLeftoverEnrichedLog() throws {
         let index = try makeIndex()
-        let id = try XCTUnwrap(MindsEnrichedLog.appendEnrich(
-            spot: .goals, text: "推 minds 底座上线", sources: ["c1"], agent: "claude-code"))
-        MindsEnrichedLog.appendConfirm(target: id)
+        try FileManager.default.createDirectory(atPath: mindsRoot, withIntermediateDirectories: true)
+        let leftover = #"{"kind":"enrich","id":"e1","spot":"spot:goals","text":"MODEL-WRITTEN-LEFTOVER","sources":["c1"],"agent":"claude-code","ts":1700000000}"#
+        try Data((leftover + "\n").utf8).write(to: URL(fileURLWithPath: mindsRoot + "/enriched.jsonl"))
 
         MindsBuilder.build(from: index)
         let content = try String(contentsOf: MindsBuilder.defaultMindsURL, encoding: .utf8)
-
-        XCTAssertTrue(content.contains("- 推 minds 底座上线"))
-        XCTAssertFalse(content.contains("[unreviewed] 推 minds 底座上线"), "已 confirm 不该带 unreviewed 前缀")
+        XCTAssertFalse(content.contains("MODEL-WRITTEN-LEFTOVER"))
     }
 
     /// PROJECT RHYTHM 截前 10——用 11 个并列（各 1 会话）的项目，期望值从 `build()`
