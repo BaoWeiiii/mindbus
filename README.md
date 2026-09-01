@@ -23,6 +23,10 @@
 **你的 AI 工具记忆收纳箱。**
 
 你可以随时翻阅，收藏；不同的 AI 工具也可以随时调用，低成本获取历史记忆。
+<img width="1187" height="744" alt="home" src="https://github.com/user-attachments/assets/ea0066ec-cbea-4e0e-a49b-7c89f959e67f" />
+<img width="1187" height="744" alt="收藏" src="https://github.com/user-attachments/assets/10992eee-6304-4064-bc7e-f99ae0ed5817" />
+
+
 
 <img src="assets/screenshots/browser.png" alt="对话浏览器" width="840" />
 
@@ -43,7 +47,7 @@
 
 
 ### 我们的解决方案
-①全部存本地。完全丢不了，
+①全部存本地。完全丢不了，重要的内容还可以收藏！
 ②全部可视化。就像翻微信聊天记录一样，随便翻找，方便易用。
 ③一键继续干。AI 丢了上下文没事，换 AI 没事，打开 MindBus，一键接力，带着核心上下文，直接继续干起来！
 ③全部可调用。所有 Agent 可以按照 MCP，来随时找到你过去的宝贵对话。
