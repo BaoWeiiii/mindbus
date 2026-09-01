@@ -39,6 +39,7 @@ struct CodeBlockView: View {
                     .font(.system(size: 12, design: .monospaced))
                     .padding(10)
                     .textSelection(.enabled)
+                    .customContextMenuOnly()
             }
 
             if isFoldable {

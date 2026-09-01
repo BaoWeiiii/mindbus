@@ -293,6 +293,7 @@ struct MessageBlocksView: View, Equatable {
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(DSLight.t3)
                             .textSelection(.enabled)
+                            .customContextMenuOnly()
                     }
                 case .toolResult(let t):
                     blockDisclosure(icon: "arrow.turn.down.right", title: "result") {
@@ -300,6 +301,7 @@ struct MessageBlocksView: View, Equatable {
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(DSLight.t3)
                             .textSelection(.enabled)
+                            .customContextMenuOnly()
                     }
                 case .thinking(let t):
                     blockDisclosure(icon: "ellipsis.bubble", title: "thinking") {
@@ -308,6 +310,7 @@ struct MessageBlocksView: View, Equatable {
                             .lineSpacing(4)   // 折叠内容次级阅读面，行距略收
                             .foregroundStyle(DSLight.t3)
                             .textSelection(.enabled)
+                            .customContextMenuOnly()
                     }
                 case .image(let mediaType, let imgSource):
                     InlineImageView(mediaType: mediaType, source: imgSource)

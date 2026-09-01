@@ -498,6 +498,7 @@ struct TimelineMessageView: View, Equatable {
                 .lineSpacing(4)   // 次级阅读面行距（沿用原 thinking 折叠排版）
                 .foregroundStyle(DSLight.t3)
                 .textSelection(.enabled)
+                .customContextMenuOnly()
                 .padding(.leading, 35)   // 与标签文字对齐（箭头 10 + 间距 6 + 图标列 13 + 间距 6）
                 .padding(.vertical, 4)
         case .code(let lang, let text):
@@ -576,6 +577,7 @@ struct TextSegmentsView: View {
                     Text(Self.renderProse(p, highlightQuery: highlightQuery))
                         .lineSpacing(6)   // 中文行高 ≥1.85（设计系统 CJK 规则）
                         .textSelection(.enabled)
+                        .customContextMenuOnly()
                 }
             case .code(let lang, let body):
                 CodeBlockView(language: lang, code: body)
