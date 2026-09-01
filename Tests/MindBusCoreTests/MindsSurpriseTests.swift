@@ -481,7 +481,10 @@ final class MindsSurpriseTests: XCTestCase {
     }
 
     func testProjectSwitchingCountsDistinctCwdPerDay() throws {
-        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        // UTC 正午而不是 1_700_000_000（=UTC 22:13）：分天用的是机器本地日历，
+        // 22:13 起步加两小时会在 UTC runner 上跨过午夜、把 2 天算成 3 天
+        //（CI 首跑实炸）。正午 ±3h 在 UTC-8 ~ UTC+11 的任何时区都落同一天。
+        let base = Date(timeIntervalSince1970: 1_700_049_600)   // 2023-11-15 12:00 UTC
         try put("a1", cwd: "/p/alpha", start: base)
         try put("a2", cwd: "/p/beta", start: base.addingTimeInterval(3_600))
         try put("a3", cwd: "/p/alpha", start: base.addingTimeInterval(7_200))   // 同项目重复不加
