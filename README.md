@@ -27,9 +27,6 @@
 <img width="1187" height="744" alt="收藏" src="https://github.com/user-attachments/assets/10992eee-6304-4064-bc7e-f99ae0ed5817" />
 
 
-
-<img src="assets/screenshots/browser.png" alt="对话浏览器" width="840" />
-
 一只收纳箱，两头服务：**你**，和**你的 AI**。它治的都是具体的痛——
 
 ### 让人痛苦的地方
