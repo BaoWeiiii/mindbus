@@ -29,6 +29,10 @@ TEAM_ID="${TEAM_ID:-}"
 APPLE_ID="${APPLE_ID:-}"
 APPLE_PASSWORD="${APPLE_PASSWORD:-}"  # App-specific password
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"  # notarytool keychain profile(优先于 APPLE_ID/PASSWORD,密码不进环境)
+# App Store Connect API key 三件套(CI 用:无 keychain、无 Apple ID 密码,凭据可撤销)
+NOTARY_KEY_FILE="${NOTARY_KEY_FILE:-}"
+NOTARY_KEY_ID="${NOTARY_KEY_ID:-}"
+NOTARY_ISSUER_ID="${NOTARY_ISSUER_ID:-}"
 
 SIGN=false
 DMG=false
@@ -194,7 +198,7 @@ if [ "$SIGN" = true ]; then
     echo "✓ Signature verified"
 
     # ── Step 4: Notarization ──────────────────────────────
-    if [ -n "$NOTARY_PROFILE" ] || { [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ]; }; then
+    if [ -n "$NOTARY_PROFILE" ] || [ -n "$NOTARY_KEY_FILE" ] || { [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ]; }; then
         echo "▸ Submitting for notarization..."
 
         # Create zip for notarization
@@ -204,6 +208,12 @@ if [ "$SIGN" = true ]; then
         if [ -n "$NOTARY_PROFILE" ]; then
             xcrun notarytool submit "$NOTARIZE_ZIP" \
                 --keychain-profile "$NOTARY_PROFILE" \
+                --wait
+        elif [ -n "$NOTARY_KEY_FILE" ]; then
+            xcrun notarytool submit "$NOTARIZE_ZIP" \
+                --key "$NOTARY_KEY_FILE" \
+                --key-id "$NOTARY_KEY_ID" \
+                --issuer "$NOTARY_ISSUER_ID" \
                 --wait
         else
             xcrun notarytool submit "$NOTARIZE_ZIP" \
@@ -219,7 +229,7 @@ if [ "$SIGN" = true ]; then
 
         rm -f "$NOTARIZE_ZIP"
     else
-        echo "⚠ Skipping notarization (set NOTARY_PROFILE, or APPLE_ID + APPLE_PASSWORD)"
+        echo "⚠ Skipping notarization (set NOTARY_PROFILE / NOTARY_KEY_FILE 三件套 / APPLE_ID + APPLE_PASSWORD)"
     fi
 fi
 
