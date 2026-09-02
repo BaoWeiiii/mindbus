@@ -1,7 +1,7 @@
 import XCTest
 @testable import MindBusCore
 
-/// RM3 伪相关反馈（spec §7.60）：低重叠查询靠 top-8 段里的高 IDF 词把词汇鸿沟
+/// RM3 伪相关反馈：低重叠查询靠 top-8 段里的高 IDF 词把词汇鸿沟
 /// 桥过去。实测低带 R@20 +14pt；副作用 query drift 由 .adaptive 触发条件挡住。
 final class QueryExpansionTests: XCTestCase {
 

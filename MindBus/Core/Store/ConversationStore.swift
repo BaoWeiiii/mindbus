@@ -101,7 +101,7 @@ public final class ConversationStore: ObservableObject {
     /// 跨模块消息定位通道:收藏「打开原对话」设置,DetailView 加载完成后消费并清空。
     @Published public var pendingLocateMessageID: String? = nil
 
-    /// 侧栏收藏模块选中(规格 §5:与 Minds 同级、跨项目全局)。与 Minds/工具聚焦互斥。
+    /// 侧栏收藏模块选中（与 Minds 同级、跨项目全局）。与 Minds/工具聚焦互斥。
     @Published public var favoritesSelected: Bool = false {
         didSet { if favoritesSelected { mindsSelected = false } }
     }
@@ -237,7 +237,7 @@ public final class ConversationStore: ObservableObject {
     }
 
     /// 引用徽章数据:conv_id → 被 agent 读取次数。扫描收尾后刷新;量级极小整表缓存。
-    /// 「被 Claude Code 引用过 N 次」是中枢价值可见化的第一块(spec §3.6)。
+    /// 「被 Claude Code 引用过 N 次」是中枢价值可见化的第一块。
     @Published public private(set) var refCounts: [String: Int] = [:]
 
     public func refreshRefCounts() {
@@ -413,15 +413,8 @@ public final class ConversationStore: ObservableObject {
         }.sorted { $0.endAt > $1.endAt }
     }
 
-    /// CLAUDE.md 注入文本:机械层紧凑版,全部数出来的(增补层已随例外拆除)。
-    /// 只做文本组装;写入动作由 GUI 按钮触发(人在环)。
-    public func mindsInjectionText() -> String {
-        guard let index else { return "" }
-        return MindsBuilder.renderForInjection(index: index)
-    }
-
     /// 搜索空结果时的救援建议:全库高频实体,可直接当下一次搜索词。
-    /// spec §3.5「空结果救援——不返回空白页,给出切面建议」的 GUI 面;MCP 侧同款已上线。
+    /// 设计说明「空结果救援——不返回空白页,给出切面建议」的 GUI 面;MCP 侧同款已上线。
     public func rescueSuggestions() -> [String] {
         index?.topEntities(limit: 6).map(\.text) ?? []
     }
@@ -524,7 +517,7 @@ public final class ConversationStore: ObservableObject {
         // 复用共享连接：此前每敲一个字符都 sqlite3_open + 建表检查 + 三条 pragma，
         // 用完即弃，还要和首次建库的写者争锁。
         // .adaptive：命中充足（≥40 段）时零损失不动结果；命中稀少才做 RM3 扩展
-        // 补词汇鸿沟（spec §7.60）——GUI 场景优先保排序不漂移，只在真正搜不到时才扩。
+        // 补词汇鸿沟——GUI 场景优先保排序不漂移，只在真正搜不到时才扩。
         let ranked: [String]? = q.isEmpty ? nil : await Task.detached(priority: .userInitiated) {
             self.index?.search(q, expansion: .adaptive) ?? []
         }.value

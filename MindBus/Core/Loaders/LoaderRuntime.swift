@@ -19,7 +19,7 @@ public enum LoaderRuntime {
     static let indexingSessionBudget = 16 * 1024 * 1024
 
     /// 扫描支持的本地来源写入索引：仅 Claude Code / Claude / Codex 三个本地工具
-    /// （+ browser 全量替换，Web 采集单独维度）。并发。
+    /// （browser-vault 是旧版浏览器采集留下的只读目录，有文件才会有内容）。并发。
     /// loadAsync / runSyncSnapshot / 启动 warm-up 共用，单一真相来源。
     /// 注：Cursor/OpenClaw/Copilot 的 Loader 代码保留，但产品范围当前只支持上述三个，故不扫。
     public static func indexAllSources(into index: ConversationIndex) async {
@@ -43,12 +43,12 @@ public enum LoaderRuntime {
                     let n = VaultArchive.sweep(paths: archiveScope(of: index))
                     if n > 0 { NSLog("[vault] archived %d new conversation file(s)", n) }
                 }
-                // 个人词表：语料涨了就重学（spec §7.62——语料越多词表越准）。放在 sweep
+                // 个人词表：语料涨了就重学（——语料越多词表越准）。放在 sweep
                 // 之后纯粹是顺序上的收尾位置，两者无数据依赖。
                 await onUtilityQueue {
                     _ = index.rebuildLexiconIfNeeded()
                 }
-                // MCP 引用回流（spec §7 第5步/§2.2）：汇入 memory_open 记的 jsonl 到
+                // MCP 引用回流（第5步/§2.2）：汇入 memory_open 记的 jsonl 到
                 // 聚合表 mcp_refs。放在词表重建之后同样是顺序上的收尾位置，
                 // 与上面词表重建互不依赖，全量重算本身也是幂等的。
                 await onUtilityQueue {
@@ -60,17 +60,18 @@ public enum LoaderRuntime {
                     let renames = FolderIdentityTracker.track(
                         cwds: index.allMetadata().map(\.cwd))
                     if !renames.isEmpty {
-                        NSLog("[folders] auto-aliased %d renamed folder(s): %@", renames.count,
-                              renames.map { "\($0.old)→\($0.new)" }.joined(separator: ", "))
+                        NSLog("[folders] auto-aliased %d renamed folder(s)", renames.count)
                     }
                 }
-                // 思脉底座机械层（design spec §2）：六节统计陈述重建 minds.md。放在词表
+                // 思脉底座机械层：六节统计陈述重建 minds.md。放在词表
                 // 重建与 refs 汇入**之后**——VOCABULARY 节消费前者的产出（词表 df），
                 // AGENT USAGE 节消费后者的产出（mcp_refs 聚合表），颠倒顺序会让本轮
                 // 重建看到上一轮的旧数据。全量重建、幂等，代价与词表重灌同量级（毫秒级）。
                 await onUtilityQueue {
                     MindsBuilder.build(from: index)
                 }
+                // ~/.mindbus 权限兜底：目录 700 / 文件 600（见 MindBusHome）
+                await onUtilityQueue { MindBusHome.tightenPermissions() }
                 FormatTelemetry.shared.flushToLog()   // 「静默的未知」显式化
                 // 归还 malloc 空闲池(2026-08-14):首建的行级 JSON 反序列化把池水位
                 // 推到 GB 级,活对象释放后池不还 OS——Activity Monitor 的「内存」

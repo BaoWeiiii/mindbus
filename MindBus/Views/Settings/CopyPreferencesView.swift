@@ -31,6 +31,7 @@ struct CopyPreferencesView: View {
     @ObservedObject private var store = CopyPrefsStore.shared
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updater = UpdaterManager.shared
+    @ObservedObject private var loginItem = LoginItemManager.shared
 
     private let segW: CGFloat = 108
     private let segSpacing: CGFloat = 4
@@ -43,6 +44,9 @@ struct CopyPreferencesView: View {
             section(title: nil) { copyRelayCard }
             section(title: nil) { languageCard }
             section(title: nil) { exportCard }
+            if loginItem.available {
+                section(title: nil) { loginItemCard }
+            }
             if updater.available {
                 section(title: nil) { updateCard }
             }
@@ -141,7 +145,7 @@ struct CopyPreferencesView: View {
 
     // MARK: - 导出与备份卡(用户定案 2026-08-11:从侧栏挪进设置,参考稿形态)
 
-    /// 「能带走,人才敢住进来」(spec §3):不造导出向导的假仪式——
+    /// 「能带走,人才敢住进来」:不造导出向导的假仪式——
     /// 数据本就是纯文件,打开文件夹即是最诚实的导出。
     @ViewBuilder
     private var exportCard: some View {
@@ -180,6 +184,29 @@ struct CopyPreferencesView: View {
         case .system: return l10n.s.langSystem
         case .zhHans: return l10n.s.langZh
         case .en: return l10n.s.langEn
+        }
+    }
+
+    // MARK: - 登录项卡（默认关；此前向导静默注册且 App 内无处关闭）
+
+    @ViewBuilder
+    private var loginItemCard: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(l10n.s.launchAtLoginToggle)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(DSLight.t1)
+                Text(l10n.s.launchAtLoginHint)
+                    .font(.system(size: 12))
+                    .foregroundStyle(DSLight.t3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            Toggle("", isOn: Binding(get: { loginItem.enabled }, set: { loginItem.setEnabled($0) }))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .tint(DSLight.gold)
         }
     }
 

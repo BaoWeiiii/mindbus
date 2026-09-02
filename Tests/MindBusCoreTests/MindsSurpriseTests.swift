@@ -299,9 +299,9 @@ final class MindsSurpriseTests: XCTestCase {
     func testRepeatedBriefingsToleratesSmallEdits() {
         // 同一段交代的三个变体,各改 2-3 个字——3-gram Jaccard 应聚成一组
         let corpus = [
-            (text: "你是资深审查员,只看规格符合性,不要提出风格意见", convID: "c1", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 0 * 30 * 86_400)),
-            (text: "你是资深审查员,只看规格符合性,不要给出风格意见", convID: "c2", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 1 * 30 * 86_400)),
-            (text: "你是资深审查员,只看规格的符合性,不要提风格意见", convID: "c3", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 2 * 30 * 86_400)),
+            (text: "你是首席验收员,只看接口兼容性,不要提出命名意见", convID: "c1", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 0 * 30 * 86_400)),
+            (text: "你是首席验收员,只看接口兼容性,不要给出命名意见", convID: "c2", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 1 * 30 * 86_400)),
+            (text: "你是首席验收员,只看接口的兼容性,不要提命名意见", convID: "c3", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 2 * 30 * 86_400)),
         ]
         let groups = MindsBuilder.repeatedBriefings(corpus: corpus, limit: 5)
         XCTAssertEqual(groups.count, 1, "小改动的变体应聚为一组: \(groups)")
@@ -541,7 +541,7 @@ final class MindsSurpriseTests: XCTestCase {
         s.switching = (avgPerDay: 1.7, peak: (day: "2026-08-05", count: 5))
         s.volume = (userChars: 1_308_411, totalChars: 15_620_688)
         s.marathons = [ConversationIndex.Marathon(id: "m1", title: "继续", preview: "p",
-                                                  cwd: "/p/StrategyGame", messageCount: 5497,
+                                                  cwd: "/p/Kilo", messageCount: 5497,
                                                   spanHours: 1542.9)]
         s.fadedWords = [MindsBuilder.FadedWord(word: "协变量", totalCount: 38, silentDays: 92)]
         let doc = render(s)
@@ -550,7 +550,7 @@ final class MindsSurpriseTests: XCTestCase {
                                    + "(50% of your conversations, in one day)"), doc)
         XCTAssertTrue(doc.contains("you juggle 1.7 projects per active day — peak 5 on 2026-08-05"))
         XCTAssertTrue(doc.contains("you typed 1.3M characters; the conversations hold 15.6M — leverage 1:11"))
-        XCTAssertTrue(doc.contains("- 继续 — 5497 messages over 64 days, StrategyGame (id: m1)"))
+        XCTAssertTrue(doc.contains("- 继续 — 5497 messages over 64 days, Kilo (id: m1)"))
         XCTAssertTrue(doc.contains("- 协变量 — said 38 times, silent 92 days"))
         // 新四节都在统计区之前
         for header in ["## WORK RHYTHM", "## LEVERAGE", "## MARATHONS", "## FADED WORDS"] {
@@ -748,10 +748,10 @@ final class MindsSurpriseTests: XCTestCase {
         var s = MindsBuilder.SurpriseData()
         s.shape = ConversationIndex.CollaborationShape(
             turnBands: [7, 9, 16, 113], durationBands: [34, 46, 17, 48], avgCharsPerMessage: 38)
-        s.weekendSplit = (weekday: [.init(key: "StrategyGame", count: 54), .init(key: "Codex", count: 7)],
+        s.weekendSplit = (weekday: [.init(key: "Kilo", count: 54), .init(key: "Codex", count: 7)],
                           weekend: [.init(key: "mindbus", count: 3)])
         s.projectLeverage = [
-            ConversationIndex.ProjectLeverage(name: "homelab", userChars: 3_730, totalChars: 170_637, conversationCount: 5),
+            ConversationIndex.ProjectLeverage(name: "November", userChars: 3_730, totalChars: 170_637, conversationCount: 5),
             ConversationIndex.ProjectLeverage(name: "Codex", userChars: 70_255, totalChars: 148_600, conversationCount: 7),
         ]
         let doc = render(s)
@@ -760,8 +760,8 @@ final class MindsSurpriseTests: XCTestCase {
         XCTAssertTrue(doc.contains("23% under 2 min, 33% over 2 h"))
         XCTAssertTrue(doc.contains("your average message: 38 chars"))
         XCTAssertTrue(doc.contains("- weekend: mindbus 3"))
-        XCTAssertTrue(doc.contains("- weekdays: StrategyGame 54 · Codex 7"))
-        XCTAssertTrue(doc.contains("- homelab — 1:45"))
+        XCTAssertTrue(doc.contains("- weekdays: Kilo 54 · Codex 7"))
+        XCTAssertTrue(doc.contains("- November — 1:45"))
         XCTAssertTrue(doc.contains("- Codex — 1:2"))
         for h in ["## COLLABORATION SHAPE", "## WEEKEND SELF", "## LEVERAGE BY PROJECT"] {
             XCTAssertLessThan(doc.range(of: h)!.lowerBound, doc.range(of: "## OVERVIEW")!.lowerBound,
@@ -843,7 +843,7 @@ final class MindsSurpriseTests: XCTestCase {
     // MARK: - 观察项 A:反复交代的话
 
     func testRepeatedBriefingsClustersSimilarCrossConversation() {
-        let brief = "你是资深审查员,正在审查 Task N 的代码质量,请只看规格符合性"
+        let brief = "你是首席验收员,正在验收 Task N 的接口设计,请只看协议兼容性"
         let corpus: [(text: String, convID: String, startAt: Date)] = [
             (text: brief.replacingOccurrences(of: "N", with: "3"), convID: "a", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 0 * 30 * 86_400)),
             (text: brief.replacingOccurrences(of: "N", with: "4"), convID: "b", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 1 * 30 * 86_400)),
@@ -859,9 +859,9 @@ final class MindsSurpriseTests: XCTestCase {
     func testRepeatedBriefingsFiltersNoiseAndSameConversation() {
         let corpus: [(text: String, convID: String, startAt: Date)] = [
             // 编号行与 JSON 键值是粘贴残留,不算「你讲的话」
-            (text: "1. 地形倍率:road 1、plain 1、mountain 1.35", convID: "a", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 0 * 30 * 86_400)),
-            (text: "2. 地形倍率:road 1、plain 1、mountain 1.35", convID: "b", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 1 * 30 * 86_400)),
-            (text: "3. 地形倍率:road 1、plain 1、mountain 1.35", convID: "c", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 2 * 30 * 86_400)),
+            (text: "1. 天气倍率:sunny 1、rainy 1、stormy 1.35", convID: "a", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 0 * 30 * 86_400)),
+            (text: "2. 天气倍率:sunny 1、rainy 1、stormy 1.35", convID: "b", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 1 * 30 * 86_400)),
+            (text: "3. 天气倍率:sunny 1、rainy 1、stormy 1.35", convID: "c", startAt: Date(timeIntervalSince1970: 1_700_000_000 + 2 * 30 * 86_400)),
             // 同一会话内的三遍重复:times 够但 conversations=1,不算「反复交代」
             (text: "帮我把这个模块重构一下注意保持接口\n帮我把这个模块重构一下注意保持接口\n帮我把这个模块重构一下注意保持接口", convID: "x", startAt: Date(timeIntervalSince1970: 1_700_000_000)),
         ]
@@ -871,7 +871,7 @@ final class MindsSurpriseTests: XCTestCase {
     func testRenderRepeatedBriefings() {
         var s = MindsBuilder.SurpriseData()
         s.repeatedBriefings = [MindsBuilder.RepeatedBriefing(
-            sample: "你是 Senior Code Reviewer,正在审查 Task 4 的代码质量", times: 6, conversations: 4)]
+            sample: "你是 Lead Acceptance Tester,正在验收 Task 4 的接口设计", times: 6, conversations: 4)]
         let doc = render(s)
         XCTAssertTrue(doc.contains("## REPEATED BRIEFINGS"))
         XCTAssertTrue(doc.contains("said 6× across 4 conversations"))
@@ -1245,7 +1245,7 @@ extension MindsSurpriseTests {
     func testPronounPhrasesAreDropped() {
         var corpus = backgroundCorpus(80)
         for i in 0..<10 {
-            corpus.append((text: "我不知道这样对不对。我们自己看看。这些信息够吗。用户旅程要重梳。",
+            corpus.append((text: "我不知道这样行不行。我们自己试试。这些材料够吗。用户旅程要重排。",
                            cwd: "/p/\(i % 6)"))
         }
         let ps = MindsBuilder.repeatedPhrases(corpus: corpus, limit: 20,
@@ -1279,7 +1279,7 @@ extension MindsSurpriseTests {
     /// 粘贴前情造成的，不是隔了一段时间还要再讲一遍的规矩。
     func testBriefingsRejectSameTaskRepetition() {
         let base = Date(timeIntervalSince1970: 1_700_000_000)
-        let line = "你写的评估方法太复杂了，稍微简单一点，我只要短期和长期两套"
+        let line = "你给的打分规则太繁琐了，稍微精简一点，我只要粗粒和细粒两档"
         let corpus = (0..<3).map { i in
             (text: line, convID: "c\(i)", startAt: base.addingTimeInterval(Double(i) * 86_400))
         }

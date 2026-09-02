@@ -2,7 +2,7 @@ import XCTest
 @testable import MindBusMCP
 @testable import MindBusCore
 
-/// L0 地图 / L1 切面页。两条硬要求来自 MEMORY-LAYER-SPEC §1：
+/// L0 地图 / L1 切面页。两条硬要求来自 记忆层设计说明：
 /// ①每一层都要给出通向下一层的**可执行句柄**，且句柄能原样当下一次调用的参数；
 /// ②空结果不返回空——返回地图节选加切面建议。
 final class MemoryBrowseToolTests: XCTestCase {

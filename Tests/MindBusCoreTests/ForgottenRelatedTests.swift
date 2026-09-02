@@ -23,12 +23,12 @@ final class ForgottenRelatedTests: XCTestCase {
     func testRecallsOldRelatedAndSkipsRecent() throws {
         let index = try ConversationIndex(path: ":memory:")
         try index.upsert([
-            (lite: lite("now", "调度循环怎么做", daysAgo: 0), segments: seg("库存管理 调度策略 出租率怎么算"),
-             mtime: 1, entityText: "", userText: "库存管理 调度策略 出租率怎么算", lastRole: "user"),
-            (lite: lite("old", "以前的调度工作", daysAgo: 120), segments: seg("库存管理 调度策略 历史结论"),
-             mtime: 1, entityText: "", userText: "库存管理 调度策略 历史结论", lastRole: "user"),
-            (lite: lite("fresh", "昨天也聊了调度", daysAgo: 2), segments: seg("库存管理 调度策略 昨天"),
-             mtime: 1, entityText: "", userText: "库存管理 调度策略 昨天", lastRole: "user"),
+            (lite: lite("now", "调度循环怎么做", daysAgo: 0), segments: seg("库存管理 排班策略 周转率怎么算"),
+             mtime: 1, entityText: "", userText: "库存管理 排班策略 周转率怎么算", lastRole: "user"),
+            (lite: lite("old", "以前的调度工作", daysAgo: 120), segments: seg("库存管理 排班策略 历史结论"),
+             mtime: 1, entityText: "", userText: "库存管理 排班策略 历史结论", lastRole: "user"),
+            (lite: lite("fresh", "昨天也聊了调度", daysAgo: 2), segments: seg("库存管理 排班策略 昨天"),
+             mtime: 1, entityText: "", userText: "库存管理 排班策略 昨天", lastRole: "user"),
             (lite: lite("other", "毫无关系的一场", daysAgo: 200), segments: seg("宠物托运 黑猫投诉"),
              mtime: 1, entityText: "", userText: "宠物托运 黑猫投诉", lastRole: "user"),
         ])
@@ -43,8 +43,8 @@ final class ForgottenRelatedTests: XCTestCase {
         try index.upsert([
             (lite: lite("now", "全新话题", daysAgo: 0), segments: seg("宠物托运 航空箱 检疫证明"),
              mtime: 1, entityText: "", userText: "宠物托运 航空箱 检疫证明", lastRole: "user"),
-            (lite: lite("old", "旧的无关话题", daysAgo: 120), segments: seg("库存管理 调度策略"),
-             mtime: 1, entityText: "", userText: "库存管理 调度策略", lastRole: "user"),
+            (lite: lite("old", "旧的无关话题", daysAgo: 120), segments: seg("库存管理 排班策略"),
+             mtime: 1, entityText: "", userText: "库存管理 排班策略", lastRole: "user"),
         ])
         XCTAssertTrue(index.forgottenRelated(to: "now", olderThanDays: 30, limit: 5).isEmpty)
     }
@@ -53,12 +53,12 @@ final class ForgottenRelatedTests: XCTestCase {
     func testOlderRanksFirst() throws {
         let index = try ConversationIndex(path: ":memory:")
         try index.upsert([
-            (lite: lite("now", "现在", daysAgo: 0), segments: seg("库存管理 调度策略 出租率"),
-             mtime: 1, entityText: "", userText: "库存管理 调度策略 出租率", lastRole: "user"),
-            (lite: lite("a", "60 天前", daysAgo: 60), segments: seg("库存管理 调度策略 出租率"),
-             mtime: 1, entityText: "", userText: "库存管理 调度策略 出租率", lastRole: "user"),
-            (lite: lite("b", "300 天前", daysAgo: 300), segments: seg("库存管理 调度策略 出租率"),
-             mtime: 1, entityText: "", userText: "库存管理 调度策略 出租率", lastRole: "user"),
+            (lite: lite("now", "现在", daysAgo: 0), segments: seg("库存管理 排班策略 周转率"),
+             mtime: 1, entityText: "", userText: "库存管理 排班策略 周转率", lastRole: "user"),
+            (lite: lite("a", "60 天前", daysAgo: 60), segments: seg("库存管理 排班策略 周转率"),
+             mtime: 1, entityText: "", userText: "库存管理 排班策略 周转率", lastRole: "user"),
+            (lite: lite("b", "300 天前", daysAgo: 300), segments: seg("库存管理 排班策略 周转率"),
+             mtime: 1, entityText: "", userText: "库存管理 排班策略 周转率", lastRole: "user"),
         ])
         XCTAssertEqual(index.forgottenRelated(to: "now", olderThanDays: 30, limit: 5).map(\.id), ["b", "a"])
     }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// MindBus Design System — SwiftUI Color & Style Tokens
-/// 映射自 MINDBUS-DESIGN-SYSTEM.md，禁止硬编码颜色值
+/// 映射自 设计系统，禁止硬编码颜色值
 enum DS {
 
     // MARK: - Foundation（灰阶，占界面 ~85%）

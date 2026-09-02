@@ -158,7 +158,7 @@ extension MindsCrossLanguageTests {
         // 会话覆盖率都是 100%,成分过滤会把一切一起毙掉——真实语料不长这样。
         var corpus: [(text: String, cwd: String)] = (0..<10).map { i in
             (text: i % 2 == 0
-                ? "这个 AI 产品的调度还要再想想清楚"
+                ? "这个 AI 产品的命名还要再想想清楚"
                 : "我们把 AI 产品做成本地优先的东西",
              cwd: "/proj\(i % 5)")
         }

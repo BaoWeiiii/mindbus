@@ -1,7 +1,7 @@
 import SwiftUI
 import MindBusCore
 
-/// 收藏详情页(规格 §7-§11):默认「收藏内容」卡片流,可切「完整对话」只读回看。
+/// 收藏详情页:默认「收藏内容」卡片流,可切「完整对话」只读回看。
 /// 「打开原对话」才真正离开收藏模块进入可接力的标准页。
 struct FavoriteDetailView: View {
     @ObservedObject var store: ConversationStore
@@ -17,7 +17,7 @@ struct FavoriteDetailView: View {
     @State private var mode: Mode = .saved
     @State private var conversation: Conversation? = nil
     @State private var loadFailed = false
-    /// 卡片内上下文展开(同一时间只展开一张,规格 §9.4)。
+    /// 卡片内上下文展开(同一时间只展开一张,设计说明)。
     @State private var expandedKey: String? = nil
     /// 完整对话当前定位的收藏下标(0-based;「收藏 3/7」口径,原消息顺序)。
     @State private var focusIndex: Int = 0
@@ -33,7 +33,7 @@ struct FavoriteDetailView: View {
         store.allConversations.first { $0.id == conversationID }
     }
 
-    /// 有效收藏,按**原消息在对话中的顺序**(规格 §11.3;messages 可得时);
+    /// 有效收藏,按**原消息在对话中的顺序**（messages 可得时）;
     /// 原文不可用时退按 favoritedAt。
     private var orderedFavorites: [FavoriteRecord] {
         let recs = stars.activeRecords(conversationID: conversationID)
@@ -53,11 +53,12 @@ struct FavoriteDetailView: View {
         }
         .overlay(alignment: .bottom) { toastView }
         .onAppear(perform: load)
+        .safeLinkOpening()
     }
 
     private func load() {
         guard let lite else { loadFailed = true; return }
-        // 后台读原文;失败仍展示快照(规格 §13.5:原对话不可用不删收藏)
+        // 后台读原文;失败仍展示快照（原对话不可用不删收藏）
         Task.detached(priority: .userInitiated) {
             let conv = ConversationStore.loadFull(id: lite.id, fileURL: lite.fileURL,
                                                   source: lite.source)
@@ -135,7 +136,7 @@ struct FavoriteDetailView: View {
         return parts.joined(separator: " · ")
     }
 
-    /// 完整对话的「收藏 3/7 ↑↓」(规格 §11.2-11.4)。
+    /// 完整对话的「收藏 3/7 ↑↓」。
     private var favoriteStepper: some View {
         HStack(spacing: 6) {
             Text(l10n.s.favoritesPosition(focusIndex + 1, orderedFavorites.count))
@@ -206,7 +207,7 @@ struct FavoriteDetailView: View {
         }
     }
 
-    // MARK: 收藏内容模式(规格 §8)
+    // MARK: 收藏内容模式
 
     private var savedList: some View {
         ScrollViewReader { proxy in
@@ -218,7 +219,7 @@ struct FavoriteDetailView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.top, 60)
                     }
-                    // 原消息时间倒序:最新的原消息在上(规格 §8.1)
+                    // 原消息时间倒序:最新的原消息在上
                     ForEach(orderedFavorites.reversed()) { rec in
                         favoriteCard(rec)
                             .id(rec.key)
@@ -265,7 +266,7 @@ struct FavoriteDetailView: View {
                     cardMenu(rec)
                 }
 
-                // 正文:复用原渲染器(规格 §8.2 不转纯文本);原文不可用退快照
+                // 正文:复用原渲染器（不转纯文本）;原文不可用退快照
                 if let msg {
                     MessageBlocksView(message: msg, highlightQuery: "", isZh: l10n.isZh)
                 } else {
@@ -278,7 +279,7 @@ struct FavoriteDetailView: View {
                     }
                 }
 
-                // 上下文展开(规格 §9)
+                // 上下文展开
                 if expandedKey == rec.key, let msg {
                     contextExpansion(around: msg)
                 }
@@ -342,7 +343,7 @@ struct FavoriteDetailView: View {
         return lite?.source.displayName(isZh: l10n.isZh) ?? role
     }
 
-    // MARK: 卡片菜单(规格 §8.4)
+    // MARK: 卡片菜单
 
     private func cardMenu(_ rec: FavoriteRecord) -> some View {
         Menu {
@@ -381,7 +382,7 @@ struct FavoriteDetailView: View {
         NSPasteboard.general.setString(text, forType: .string)
     }
 
-    /// 删除确认:靠近卡片的小浮层,不用居中大弹窗(规格 §8.4)。
+    /// 删除确认:靠近卡片的小浮层,不用居中大弹窗。
     private func deleteConfirm(_ rec: FavoriteRecord) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(l10n.s.favoritesDeleteTitle)
@@ -413,7 +414,7 @@ struct FavoriteDetailView: View {
         .zIndex(10)
     }
 
-    // MARK: 取消/删除 + 撤销 Toast(规格 §8.3)
+    // MARK: 取消/删除 + 撤销 Toast
 
     private func unstarWithUndo(_ rec: FavoriteRecord) {
         stars.unstar(rec.key)
@@ -461,7 +462,7 @@ struct FavoriteDetailView: View {
         }
     }
 
-    // MARK: 上下文(规格 §9)
+    // MARK: 上下文
 
     private struct ContextTriple {
         let prev: Message?
@@ -471,7 +472,7 @@ struct FavoriteDetailView: View {
     }
 
     /// 语义轮次取上下文:往前找最近一条 user;往后找下一条**有文字**的 assistant;
-    /// 中间被跳过的工具/空消息折叠成计数(规格 §9.3)。
+    /// 中间被跳过的工具/空消息折叠成计数。
     private func contextTriple(around msg: Message) -> ContextTriple? {
         guard let msgs = conversation?.messages,
               let idx = msgs.firstIndex(where: { $0.id == msg.id }) else { return nil }
@@ -544,9 +545,9 @@ struct FavoriteDetailView: View {
             .padding(.horizontal, 13).padding(.vertical, 6)
     }
 
-    // MARK: 完整对话模式(规格 §11)
+    // MARK: 完整对话模式
 
-    /// 「定位到原对话」:先切完整对话 Tab 并定位(规格 §10——不立即离开收藏模块)。
+    /// 「定位到原对话」:先切完整对话 Tab 并定位（——不立即离开收藏模块）。
     private func locateInFull(_ rec: FavoriteRecord) {
         if let i = orderedFavorites.firstIndex(where: { $0.key == rec.key }) {
             focusIndex = i
@@ -588,7 +589,7 @@ struct FavoriteDetailView: View {
         }
     }
 
-    /// 完整对话里的一行:收藏消息带常驻标识,当前定位的强高亮(规格 §11.5)。
+    /// 完整对话里的一行:收藏消息带常驻标识,当前定位的强高亮。
     /// 只读回看——不给选择圈(onToggleSelect=nil)、不给收藏 starKey(避免与
     /// 定位高亮打架;收藏管理在「收藏内容」Tab 做)。
     private func fullRow(_ msg: Message) -> some View {
@@ -614,7 +615,7 @@ struct FavoriteDetailView: View {
             .animation(.easeOut(duration: 0.4), value: focusIndex)
     }
 
-    // MARK: 打开原对话(规格 §12)
+    // MARK: 打开原对话
 
     private func openOriginal() {
         // 定位:优先当前收藏序号对应的消息

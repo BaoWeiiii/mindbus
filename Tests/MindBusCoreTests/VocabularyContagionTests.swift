@@ -106,19 +106,19 @@ extension VocabularyContagionTests {
 extension VocabularyContagionTests {
 
     /// 「你说的」必须走 user_corpus 同一套剥离口径——textBlocksOnly 只剥图片
-    /// 标记，Codex 文件引用头原样保留，真机上「公众号 you:」取到了
-    /// 「## 微信公众号.png: /Users/<name>/…」这行注入，带家目录路径，
+    /// 标记，Codex 文件引用头原样保留，真机上「电子刊 you:」取到了
+    /// 「## 电子刊.png: /Users/<name>/…」这行注入，带家目录路径，
     /// 还会写进 minds.md 被 CLAUDE.md 注入（2026-08-20 现场）。
     func testUserSideUsesStrippedCorpusReading() {
         var convs = [
-            conv("/w/a", [(.assistant, "封面放公众号的话要注意尺寸规范", 0)]),
-            conv("/w/b", [(.user, "# Files mentioned by the user:\n## 公众号.png: /Users/somebody/LOGO/公众号.png\n## My request for Codex: 公众号封面怎么排版好", 30)]),
-            conv("/w/c", [(.user, "公众号那篇也同步一下", 50)]),
+            conv("/w/a", [(.assistant, "封面放电子刊的话要注意尺寸规范", 0)]),
+            conv("/w/b", [(.user, "# Files mentioned by the user:\n## 电子刊.png: /Users/somebody/LOGO/电子刊.png\n## My request for Codex: 电子刊封面怎么排版好", 30)]),
+            conv("/w/c", [(.user, "电子刊那篇也同步一下", 50)]),
         ]
         convs += background(40)
         let out = MindsBuilder.vocabularyContagion(conversations: convs,
-                                                   lexicon: ["公众号"], limit: 5)
-        XCTAssertEqual(out.first?.youSaid, "公众号封面怎么排版好",
+                                                   lexicon: ["电子刊"], limit: 5)
+        XCTAssertEqual(out.first?.youSaid, "电子刊封面怎么排版好",
                        "注入头要剥掉，路径不能进 minds.md: \(out.first?.youSaid ?? "nil")")
     }
 }

@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// 一条收藏记录。收藏对象是**单条原始消息**(规格 §2.1)——不是摘要不是笔记。
+/// 一条收藏记录。收藏对象是**单条原始消息**——不是摘要不是笔记。
 /// `contentSnapshot` 是收藏当刻抓的正文快照,仅作原消息不可用时的兜底展示,
-/// 不取代 messageID 引用(规格 §14)。
+/// 不取代 messageID 引用。
 public struct FavoriteRecord: Codable, Identifiable, Equatable {
     public var id: String { key }
     /// "conversationID#messageID"——与旧版键格式一致。
@@ -12,12 +12,12 @@ public struct FavoriteRecord: Codable, Identifiable, Equatable {
     public let role: String
     public let favoritedAt: Date
     public var contentSnapshot: String
-    /// 软删除时刻。非 nil = 已取消收藏但在撤销窗口内(规格 §8.3:8-10 秒可撤销;
+    /// 软删除时刻。非 nil = 已取消收藏但在撤销窗口内(设计说明:8-10 秒可撤销;
     /// 这里宽限到下次冷启动清理,撤销永远来得及)。
     public var softDeletedAt: Date? = nil
 }
 
-/// 首页的对话聚合单位(规格 §2.2:收藏对象是消息,浏览单位是对话)。
+/// 首页的对话聚合单位（收藏对象是消息,浏览单位是对话）。
 public struct FavoriteConversationSummary: Identifiable, Equatable {
     public var id: String { conversationID }
     public let conversationID: String
@@ -70,7 +70,7 @@ public final class StarredMessagesStore: ObservableObject {
         records.values.filter { $0.conversationID == conversationID && $0.softDeletedAt == nil }
     }
 
-    /// 首页聚合:每个含收藏的会话一条 summary(规格 §2.2 不重复展示)。
+    /// 首页聚合:每个含收藏的会话一条 summary（不重复展示）。
     public func summaries() -> [FavoriteConversationSummary] {
         var byConv: [String: [FavoriteRecord]] = [:]
         for r in records.values where r.softDeletedAt == nil {
@@ -108,7 +108,7 @@ public final class StarredMessagesStore: ObservableObject {
         persist()
     }
 
-    /// 取消收藏 = 软删(规格 §8.3:不弹确认,Toast 撤销)。
+    /// 取消收藏 = 软删（不弹确认,Toast 撤销）。
     public func unstar(_ key: String) {
         guard var r = records[key] else { return }
         r.softDeletedAt = Date()
@@ -124,7 +124,7 @@ public final class StarredMessagesStore: ObservableObject {
         persist()
     }
 
-    /// 彻底删除(规格 §8.4 的「删除此条消息」,经确认后;同样先软删可撤销,
+    /// 彻底删除(设计说明 的「删除此条消息」,经确认后;同样先软删可撤销,
     /// 撤销期后由 purge 清走——这里直接物理删供撤销期结束时调用)。
     public func purge(_ key: String) {
         records.removeValue(forKey: key)

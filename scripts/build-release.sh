@@ -285,11 +285,31 @@ if [ "$DMG" = true ]; then
 
     # DMG 也公证+装订:App 已 stapled 能跑,但未公证的 DMG 在部分系统上
     # 打开镜像时仍会弹一次提示——双层公证才是零弹窗。
-    if [ "$SIGN" = true ] && [ -n "$NOTARY_PROFILE" ]; then
+    # 凭据三选一,与 Step 4 的 App 公证完全一致(CI 走 NOTARY_KEY_FILE 三件套;
+    # 只认 NOTARY_PROFILE 的话 CI 产物就是「App 已公证 + DMG 仅签名」)。
+    if [ "$SIGN" = true ] && { [ -n "$NOTARY_PROFILE" ] || [ -n "$NOTARY_KEY_FILE" ] || { [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ]; }; }; then
         echo "▸ Notarizing DMG..."
-        xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+        if [ -n "$NOTARY_PROFILE" ]; then
+            xcrun notarytool submit "$DMG_PATH" \
+                --keychain-profile "$NOTARY_PROFILE" \
+                --wait
+        elif [ -n "$NOTARY_KEY_FILE" ]; then
+            xcrun notarytool submit "$DMG_PATH" \
+                --key "$NOTARY_KEY_FILE" \
+                --key-id "$NOTARY_KEY_ID" \
+                --issuer "$NOTARY_ISSUER_ID" \
+                --wait
+        else
+            xcrun notarytool submit "$DMG_PATH" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_PASSWORD" \
+                ${TEAM_ID:+--team-id "$TEAM_ID"} \
+                --wait
+        fi
         xcrun stapler staple "$DMG_PATH"
         echo "✓ DMG notarized and stapled"
+    elif [ "$SIGN" = true ]; then
+        echo "⚠ DMG not notarized (set NOTARY_PROFILE / NOTARY_KEY_FILE 三件套 / APPLE_ID + APPLE_PASSWORD)"
     fi
 
     echo "✓ DMG created: $DMG_PATH ($(du -h "$DMG_PATH" | cut -f1))"

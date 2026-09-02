@@ -235,7 +235,7 @@ public struct MindsDocument: Sendable {
         case hours(Int)
     }
 
-    /// "5497 messages over 64 days, Atlas" / "… over 5 h, X"
+    /// "5497 messages over 64 days, ProjectA" / "… over 5 h, X"
     public func marathonDetail(_ detail: String) -> (messages: Int, span: MarathonSpan, project: String)? {
         let d = Self.captures(detail, #"(\d+) messages over (\d+) days, (.+)"#)
         if d.count >= 3, let m = Int(d[0]), let n = Int(d[1]) {

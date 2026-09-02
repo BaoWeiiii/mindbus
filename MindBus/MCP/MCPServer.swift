@@ -28,8 +28,9 @@ public final class MCPServer {
     /// 没报就回这个；且**不要求**先 initialize——无状态客户端会直接发 tools/list。
     public static let fallbackProtocolVersion = "2025-11-25"
 
-    /// 与 App 同版本发布（同一个 bundle 里），但 CLI 读不到 Info.plist，故独立常量。
-    public static let serverVersion = "1.0.0"
+    /// 与 App 同版本发布（同一个 bundle 里），但 CLI 读不到 Info.plist，故独立常量——
+    /// 发版时与 Info.plist 的 CFBundleShortVersionString 一起改。
+    public static let serverVersion = "1.4.1"
 
     /// 宿主在握手时拿到的唯一一段说明。检索循环写死在这里，也写死在每个工具的
     /// description 里——在 agentic 检索里说明书是检索系统的一部分。
@@ -52,7 +53,9 @@ public final class MCPServer {
     Call minds_read to see the user's mechanical profile — active projects, vocabulary, \
     working rhythm — every line counted from the archive, none of it generated.
 
-    All five tools are read-only. Nothing here writes to the user's index or files.
+    All five tools are read-only: the index is opened read-only and conversation files are never \
+    modified. The only write is an append-only usage log (conversation id + timestamp) inside \
+    MindBus's own Application Support folder.
     """
 
     private let openIndex: IndexOpener

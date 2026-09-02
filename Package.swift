@@ -16,10 +16,9 @@ let package = Package(
         .executable(name: "mindbus-bench", targets: ["mindbus-bench"]),
         .library(name: "MindBusCore", targets: ["MindBusCore"]),
     ],
-    // 零外部依赖：App 不联网，因此不需要自动更新（Sparkle）与崩溃上报（Sentry）。
     dependencies: [
-        // 唯一外部依赖：Sparkle 自动更新（更新检查 opt-in，用户可关——
-        // 除此之外仍是零网络代码，grep URLSession MindBus/ 依然为空）
+        // 唯一外部依赖：Sparkle 自动更新（默认开启、设置一键关闭）——
+        // 除此之外仍是零网络代码，grep URLSession MindBus/ 依然为空
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
     ],
     targets: [
@@ -30,7 +29,7 @@ let package = Package(
                 .linkedLibrary("sqlite3")
             ]
         ),
-        // MCP 协议层与三个工具的渲染。逻辑全在库里，可执行文件只是 stdio 泵——
+        // MCP 协议层与五个只读工具的渲染。逻辑全在库里，可执行文件只是 stdio 泵——
         // 否则协议分支只能靠手工管道验证，测不到。
         .target(
             name: "MindBusMCP",
@@ -42,26 +41,29 @@ let package = Package(
             dependencies: ["MindBusMCP"],
             path: "MindBus/MCPMain"
         ),
+        // 评测管线的库层（评测集生成 / 跑分）。独立于 MindBusCore：它会起 `git` 子进程
+        // 读提交日志，这种能力不该被链进主 App 与 mindbus-mcp。
+        .target(
+            name: "MindBusBench",
+            dependencies: ["MindBusCore"],
+            path: "MindBus/Bench"
+        ),
         // `mindbus-bench`：评测管线 CLI（generate/run 两子命令）。依赖 `MindBusMCP`
-        // 而不只是 `MindBusCore`——是为了原样复用 `MCPIndexAccess.defaultIndexPath()`/
-        // `.message(for:path:)`（索引路径解析 + "打不开怎么办"文案的唯一真相已经在
-        // 那个 target 里，见其文件头注释），不为一句路径解析在这里另起一份、迟早漂移。
-        // `MindBusMCP` 本身只是协议/工具层，不带 AppKit/SwiftUI，链进纯 CLI 无副作用。
+        // 是为了原样复用 `MCPIndexAccess.defaultIndexPath()`/`.message(for:path:)`
+        // （索引路径解析 + "打不开怎么办"文案的唯一真相已经在那个 target 里），
+        // 不为一句路径解析在这里另起一份、迟早漂移。
         .executableTarget(
             name: "mindbus-bench",
-            dependencies: ["MindBusCore", "MindBusMCP"],
+            dependencies: ["MindBusCore", "MindBusMCP", "MindBusBench"],
             path: "MindBus/BenchMain"
         ),
         .executableTarget(
             name: "MindBus",
             dependencies: ["MindBusCore", .product(name: "Sparkle", package: "Sparkle")],
             path: "MindBus",
-            // Core/MCP/MCPMain 都在 MindBus/ 下但属于别的 target，必须排掉——
-            // 漏排 MCPMain 会把第二个 main.swift 编进 app，报重复入口。
-            // BenchMain 是 `mindbus-bench` CLI 的 target 目录（评测管线 Task 2 才建、
-            // 本轮尚不存在）——提前占位排除，防止那个 target 建好后有人忘记同步改这里，
-            // 让第三个 main.swift 也编进 app（bench 是开发者工具，不该进 app bundle）。
-            exclude: ["Assets.xcassets", "Core", "MCP", "MCPMain", "BenchMain"],
+            // Core/MCP/MCPMain/Bench/BenchMain 都在 MindBus/ 下但属于别的 target，必须排掉——
+            // 漏排任何一个带 main.swift 的目录都会把第二个入口编进 app，报重复入口。
+            exclude: ["Assets.xcassets", "Core", "MCP", "MCPMain", "Bench", "BenchMain"],
             resources: [
                 .copy("Resources/logo.png"),
                 .copy("Resources/menubar-logo.png"),
@@ -75,7 +77,8 @@ let package = Package(
         ),
         .testTarget(
             name: "MindBusCoreTests",
-            dependencies: ["MindBusCore", "MindBusMCP", .product(name: "Sparkle", package: "Sparkle")],
+            dependencies: ["MindBusCore", "MindBusMCP", "MindBusBench",
+                           .product(name: "Sparkle", package: "Sparkle")],
             path: "Tests/MindBusCoreTests"
         ),
     ]

@@ -97,7 +97,7 @@ public enum VaultArchive {
             do {
                 try CodexArchiveFilter.filter(source: bytesSource, to: tmp)
             } catch {
-                NSLog("[vault] codex filter failed for %@: %@", sourcePath, String(describing: error))
+                NSLog("[vault] codex filter failed for %@: %@", (sourcePath as NSString).lastPathComponent, String(describing: error))
                 return false
             }
             bytesSource = tmp
@@ -110,17 +110,18 @@ public enum VaultArchive {
         let tmpDest = dest.appendingPathExtension("tmp-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: tmpDest) }
         do {
-            try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(),
-                                                   withIntermediateDirectories: true)
+            // 目录 700、归档 600：副本不能比源目录（Claude Code 锁 700）更开放
+            try MindBusHome.ensureDirectory(dest.deletingLastPathComponent())
             guard ArchiveCodec.compressFile(source: bytesSource, to: tmpDest) else { return false }
             if FileManager.default.fileExists(atPath: dest.path) {
                 _ = try FileManager.default.replaceItemAt(dest, withItemAt: tmpDest)
             } else {
                 try FileManager.default.moveItem(at: tmpDest, to: dest)
             }
+            MindBusHome.restrict(dest)
             return true
         } catch {
-            NSLog("[vault] archive failed for %@: %@", sourcePath, String(describing: error))
+            NSLog("[vault] archive failed for %@: %@", (sourcePath as NSString).lastPathComponent, String(describing: error))
             return false
         }
     }

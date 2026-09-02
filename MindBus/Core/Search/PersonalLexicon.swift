@@ -2,7 +2,7 @@ import Foundation
 import NaturalLanguage
 
 /// 个人词表：从用户自己的语料里统计出高频、凝固、边界自由的 2–6 字中文词
-/// （spec §7.62；方法：Harris 1955 边界熵 + Church&Hanks 1990 PMI）。
+/// （方法：Harris 1955 边界熵 + Church&Hanks 1990 PMI）。
 ///
 /// 为什么值得存在：`库存经理` 这类只属于这个用户的领域词，通用词典与预训练模型里
 /// 都没有，而固定宽度 trigram 会把它切成 `收益经`/`益经理` 碎片——词表切分后的

@@ -372,7 +372,6 @@ struct TimelineMessageView: View, Equatable {
                         nodeHeights[idx] = newH
                         guard let h0 = pendingComp.removeValue(forKey: idx) else { return }
                         let d = newH - h0
-                        DiagLog.log("onChange idx=\(idx) h0=\(h0) newH=\(newH) d=\(d) sv=\(scrollHolder.scrollView != nil)")   // DIAGTEMP
                         guard abs(d) > 0.5, let sv = scrollHolder.scrollView else { return }
                         let cv = sv.contentView
                         var o = cv.bounds.origin
@@ -380,8 +379,6 @@ struct TimelineMessageView: View, Equatable {
                         o.y += d
                         cv.scroll(to: o)
                         sv.reflectScrolledClipView(cv)
-                        DiagLog.log("comp idx=\(idx) before=\(before) target=\(o.y) actual=\(cv.bounds.origin.y) flipped=\(cv.isFlipped) docH=\(sv.documentView?.frame.height ?? -1)")   // DIAGTEMP
-                        DispatchQueue.main.async { DiagLog.log("nextloop actual=\(cv.bounds.origin.y)") }   // DIAGTEMP
                     }
             }
         }
@@ -426,7 +423,6 @@ struct TimelineMessageView: View, Equatable {
             // 高度落定的同一布局事务里做（晚一拍的 async 补偿会先上屏一帧
             // 「弹到上面」的画面再跳回——闪烁）。
             pendingComp[node.blockIndex] = nodeHeights[node.blockIndex] ?? 0
-            DiagLog.log("click idx=\(node.blockIndex) h=\(nodeHeights[node.blockIndex] ?? -1) sv=\(scrollHolder.scrollView != nil)")   // DIAGTEMP
             if isExpanded {
                 expanded.remove(node.blockIndex)
             } else {
@@ -660,7 +656,6 @@ private struct EnclosingScrollProbe: NSViewRepresentable {
         let v = NSView()
         Task { @MainActor [weak v] in
             holder.scrollView = v?.enclosingScrollView
-            DiagLog.log("probe make found=\(v?.enclosingScrollView != nil)")   // DIAGTEMP
         }
         return v
     }
@@ -672,11 +667,4 @@ private struct EnclosingScrollProbe: NSViewRepresentable {
             }
         }
     }
-}
-
-// DIAGTEMP —— 展开方向诊断日志，修完即删
-import os.log
-enum DiagLog {
-    static let l = Logger(subsystem: "ai.mindbus.diag", category: "timeline")
-    static func log(_ s: String) { l.error("\(s, privacy: .public)") }
 }

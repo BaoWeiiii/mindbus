@@ -35,7 +35,7 @@ struct FavoritesRootView: View {
 
 // MARK: - 首页
 
-/// 收藏首页:中栏对话聚合列表 + 右栏最近收藏,各自独立滚动(规格 §6)。
+/// 收藏首页:中栏对话聚合列表 + 右栏最近收藏,各自独立滚动。
 struct FavoritesHomeView: View {
     @ObservedObject var store: ConversationStore
     /// 打开详情(convID, 可选的定位收藏 key)。
@@ -90,7 +90,7 @@ struct FavoritesHomeView: View {
         if let filter = projectFilter {
             out = out.filter { $0.folderKey == filter }
         }
-        // 搜索(聚合口径:标题/项目/快照命中都算该会话命中,规格 §6.3)
+        // 搜索(聚合口径:标题/项目/快照命中都算该会话命中,设计说明)
         let q = debouncedQuery.trimmingCharacters(in: .whitespaces)
         if !q.isEmpty {
             out = out.filter { row in
@@ -191,7 +191,7 @@ struct FavoritesHomeView: View {
         .frame(height: 40)
         .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
         .onChange(of: searchQuery) { q in
-            // 150ms 防抖(规格 §6.3)
+            // 150ms 防抖
             searchDebounce?.cancel()
             searchDebounce = Task {
                 try? await Task.sleep(nanoseconds: 150_000_000)
@@ -248,7 +248,7 @@ struct FavoritesHomeView: View {
         .background(DSLight.sf, in: RoundedRectangle(cornerRadius: 8))
     }
 
-    /// 对话聚合卡(规格 §6.5):项目标签+时间 / 标题 / 摘要 / N 条收藏 · 来源。
+    /// 对话聚合卡:项目标签+时间 / 标题 / 摘要 / N 条收藏 · 来源。
     /// 不展示原对话的消息总数/时长——那是原对话属性,不是收藏页主信息。
     private func conversationCard(_ row: Row) -> some View {
         Button {
@@ -282,7 +282,7 @@ struct FavoritesHomeView: View {
         .buttonStyle(.plain)
     }
 
-    /// 搜索态优先展示命中片段(规格 §6.3),平时展示最近收藏摘要。
+    /// 搜索态优先展示命中片段,平时展示最近收藏摘要。
     private func matchOrLatestPreview(_ row: Row) -> String {
         let q = debouncedQuery.trimmingCharacters(in: .whitespaces)
         if !q.isEmpty {
@@ -369,7 +369,7 @@ struct FavoritesHomeView: View {
         }
     }
 
-    /// 最近收藏卡(规格 §6.6):对话/项目 · 来源 + 时间 / 摘要两行。
+    /// 最近收藏卡:对话/项目 · 来源 + 时间 / 摘要两行。
     /// 点击 → 详情页定位到该条并短暂高亮。
     private func recentCard(_ rec: FavoriteRecord) -> some View {
         let lite = store.allConversations.first { $0.id == rec.conversationID }

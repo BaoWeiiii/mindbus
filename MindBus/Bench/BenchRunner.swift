@@ -1,8 +1,9 @@
 import Foundation
+import MindBusCore
 
 /// 跑分器：配置矩阵 × 评测集 → R@k/MRR 三张表的 Markdown 报告（方法学唯一真相同
-/// `BenchDataset.swift`：`docs/superpowers/plans/2026-08-11-bench-pipeline.md` Task 2
-/// 节；出处 `MEMORY-LAYER-SPEC.md` §7.59「评测集」/ §7.60「查询扩展」/ §7.61「情境
+/// `BenchDataset.swift`：评测管线计划
+/// 节；出处 记忆层设计说明「评测集」/ §7.60「查询扩展」/ §7.61「情境
 /// 先验」）。
 ///
 /// **为什么放 MindBusCore**：与 `BenchDataset` 同样的理由——测试要能 `@testable

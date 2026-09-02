@@ -1,7 +1,7 @@
 import Foundation
 import NaturalLanguage
 
-/// 思脉底座 · 机械层：从索引统计生成 `minds.md`（design spec §2）。
+/// 思脉底座 · 机械层：从索引统计生成 `minds.md`。
 ///
 /// 结构分两半（2026-08-12 重构，源于用户实锤「里面看起来有价值的信息太少」）：
 /// **惊喜区在前**——信息价值 = 意外度，Top-N 频次对用户本人意外度趋零（词是他自己
@@ -62,6 +62,15 @@ public enum MindsBuilder {
     /// 扫描收尾众多步骤之一，不该让 minds.md 写不出去拖垮整轮扫描，下一轮扫描收尾
     /// 会自然重试（幂等重建，没有"部分写入"的中间状态需要清理）。
     public static func build(from index: ConversationIndex, to url: URL = defaultMindsURL) {
+        // 零变化短路：索引指纹与上次成功构建一致且产物仍在 → 整轮跳过。
+        // 此前每次扫描收尾都无条件全量重建，活跃会话期间 FSEvents 每 2s 触发一轮。
+        let fingerprint = index.changeFingerprint()
+        let fingerprintURL = url.deletingLastPathComponent().appendingPathComponent(".minds-fingerprint")
+        if FileManager.default.fileExists(atPath: url.path),
+           let previous = try? String(contentsOf: fingerprintURL, encoding: .utf8),
+           previous == fingerprint {
+            return
+        }
         let now = Date()
         let overview = index.mapOverview()
         // 项目的**产出量**：这个项目里你放行过几件事。场数和消息数量的是
@@ -211,14 +220,12 @@ public enum MindsBuilder {
             if !qs.isEmpty { surprise.quotesByPhrase[p.phrase] = qs }
         }
 
-        // 词汇的传染方向。要角色和时间戳,索引里的段是合并的,只能回原文件解析
-        // ——真机 141 场约 7 秒,Minds 本来就是后台重建,这个代价换得起。
-        surprise.contagion = vocabularyContagion(
-            conversations: index.allMetadata().compactMap { lite in
-                guard let conv = LoaderRuntime.fullParse(url: lite.fileURL, source: lite.source)
-                else { return nil }
-                return (messages: conv.messages, cwd: lite.cwd)
-            },
+        // 词汇的传染方向。要角色和时间戳,索引里的段是合并的,只能回原文件解析。
+        // 逐会话流式解析并按 (路径, mtime, 词表) 缓存每场的中间结果：此前把全库完整
+        // 消息同时驻留在一个数组里再统计，绕过了 loader 层全部峰值防线，而且活跃会话
+        // 期间每轮刷新都全量重解析。现在只有变过的会话才重新解析。
+        surprise.contagion = contagionAcrossLibrary(
+            metadata: index.allMetadata(),
             lexicon: index.loadLexicon(),
             limit: contagionShown,
             functionWords: Set(pos.compactMap {
@@ -233,12 +240,14 @@ public enum MindsBuilder {
             NSLog("[minds] build failed: could not UTF-8 encode rendered document")
             return
         }
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                                  withIntermediateDirectories: true)
+        try? MindBusHome.ensureDirectory(url.deletingLastPathComponent())
         do {
             try data.write(to: url, options: .atomic)
+            MindBusHome.restrict(url)
+            try? fingerprint.write(to: fingerprintURL, atomically: true, encoding: .utf8)
+            MindBusHome.restrict(fingerprintURL)
         } catch {
-            NSLog("[minds] build failed to write %@: %@", url.path, String(describing: error))
+            NSLog("[minds] build failed to write %@: %@", url.lastPathComponent, String(describing: error))
         }
     }
 
@@ -994,13 +1003,26 @@ public enum MindsBuilder {
                                     limit: Int,
                                     functionWords: Set<String> = [])
         -> [Contagion] {
-        var aiFirst: [String: Date] = [:]
-        var userFirst: [String: Date] = [:]
-        var userProjects: [String: Set<String>] = [:]
-        var conversationsWith: [String: Int] = [:]
-        var aiSentence: [String: String] = [:]
-        var userSentence: [String: String] = [:]
         let words = lexicon.filter { $0.count >= 3 }
+        var canonical: [String: String] = [:]
+        for w in words { canonical[w.lowercased()] = w }
+        let summaries = conversations.map {
+            (summary: contagionSummary(messages: $0.messages, canonical: canonical), cwd: $0.cwd)
+        }
+        return mergeContagion(summaries, limit: limit, functionWords: functionWords)
+    }
+
+    /// 单场会话对「词汇传染」的贡献：每个词表词的 AI 首现 / 你首现（时间戳 + 那句话）。
+    struct ContagionSummary {
+        var aiFirst: [String: (at: Date, sentence: String)] = [:]
+        var userFirst: [String: (at: Date, sentence: String)] = [:]
+        /// 你说过的词（合并时按会话 cwd 计项目数）
+        var userWords: Set<String> = []
+        /// 会话里出现过的词（合并时计 DF）
+        var seen: Set<String> = []
+    }
+
+    static func contagionSummary(messages: [Message], canonical: [String: String]) -> ContagionSummary {
         // 从文本里取窗口查词表,而不是拿每个词去 contains 整段文本:
         // 后者是 O(词表 × 语料),真机 2324 词 × 数千条消息直接把测试从 12 秒
         // 拖到 563 秒（2026-08-18 实测）。
@@ -1008,8 +1030,6 @@ public enum MindsBuilder {
         // 但「visual language」有 15 个字符,英文词表词整个被排除——
         // 英文用户的这一层恒空(2026-08-19 发现)。词元窗口 1..6 两边通吃:
         // 中文一字一词元,英文一词一词元。
-        var canonical: [String: String] = [:]
-        for w in words { canonical[w.lowercased()] = w }
         func hits(in text: String) -> Set<String> {
             var out = Set<String>()
             let toks = phraseTokenRanges(text)
@@ -1022,42 +1042,60 @@ public enum MindsBuilder {
             }
             return out
         }
-        for (messages, cwd) in conversations {
-            var seenHere = Set<String>()
-            for m in messages {
-                // 「你说的」走 user_corpus 同一套剥离口径(注入头/图片标记/压平),
-                // 不能用 textBlocksOnly——那只剥图片标记,Codex 文件引用头会原样
-                // 留下,真机上取到过带家目录路径的注入行,还会写进 minds.md
-                // 被 CLAUDE.md 注入(2026-08-20 现场)。AI 侧没有注入问题,照旧。
-                let text: String
+        var s = ContagionSummary()
+        for m in messages {
+            // 「你说的」走 user_corpus 同一套剥离口径(注入头/图片标记/压平),
+            // 不能用 textBlocksOnly——那只剥图片标记,Codex 文件引用头会原样
+            // 留下,真机上取到过带家目录路径的注入行,还会写进 minds.md。AI 侧没有注入问题,照旧。
+            let text: String
+            switch m.role {
+            case .user:
+                guard let t = Segmenter.userTextOfSingle(m) else { continue }
+                text = t
+            default:
+                text = Segmenter.textBlocksOnly(of: m)
+            }
+            guard text.count >= 4 else { continue }
+            for w in hits(in: text) {
+                s.seen.insert(w)
                 switch m.role {
-                case .user:
-                    guard let t = Segmenter.userTextOfSingle(m) else { continue }
-                    text = t
-                default:
-                    text = Segmenter.textBlocksOnly(of: m)
-                }
-                guard text.count >= 4 else { continue }
-                for w in hits(in: text) {
-                    seenHere.insert(w)
-                    switch m.role {
-                    case .assistant:
-                        if aiFirst[w].map({ m.timestamp < $0 }) ?? true {
-                            aiFirst[w] = m.timestamp
-                            aiSentence[w] = sentence(containing: w, in: text) ?? aiSentence[w]
-                        }
-                    case .user:
-                        if userFirst[w].map({ m.timestamp < $0 }) ?? true {
-                            userFirst[w] = m.timestamp
-                            userSentence[w] = sentence(containing: w, in: text) ?? userSentence[w]
-                        }
-                        userProjects[w, default: []].insert(cwd)
-                    default: break
+                case .assistant:
+                    if s.aiFirst[w].map({ m.timestamp < $0.at }) ?? true {
+                        s.aiFirst[w] = (m.timestamp, sentence(containing: w, in: text) ?? s.aiFirst[w]?.sentence ?? "")
                     }
+                case .user:
+                    if s.userFirst[w].map({ m.timestamp < $0.at }) ?? true {
+                        s.userFirst[w] = (m.timestamp, sentence(containing: w, in: text) ?? s.userFirst[w]?.sentence ?? "")
+                    }
+                    s.userWords.insert(w)
+                default: break
                 }
             }
-            for w in seenHere { conversationsWith[w, default: 0] += 1 }
         }
+        return s
+    }
+
+    static func mergeContagion(_ summaries: [(summary: ContagionSummary, cwd: String)],
+                               limit: Int, functionWords: Set<String>) -> [Contagion] {
+        var aiFirst: [String: Date] = [:]
+        var userFirst: [String: Date] = [:]
+        var userProjects: [String: Set<String>] = [:]
+        var conversationsWith: [String: Int] = [:]
+        var aiSentence: [String: String] = [:]
+        var userSentence: [String: String] = [:]
+        for (s, cwd) in summaries {
+            for (w, v) in s.aiFirst where aiFirst[w].map({ v.at < $0 }) ?? true {
+                aiFirst[w] = v.at
+                if !v.sentence.isEmpty || aiSentence[w] == nil { aiSentence[w] = v.sentence }
+            }
+            for (w, v) in s.userFirst where userFirst[w].map({ v.at < $0 }) ?? true {
+                userFirst[w] = v.at
+                if !v.sentence.isEmpty || userSentence[w] == nil { userSentence[w] = v.sentence }
+            }
+            for w in s.userWords { userProjects[w, default: []].insert(cwd) }
+            for w in s.seen { conversationsWith[w, default: 0] += 1 }
+        }
+        let conversations = summaries
         let docTotal = max(conversations.count, 1)
         var out: [Contagion] = []
         for (w, uf) in userFirst {
@@ -1079,6 +1117,50 @@ public enum MindsBuilder {
         return Array(out.sorted {
             $0.projects != $1.projects ? $0.projects > $1.projects : $0.gapDays > $1.gapDays
         }.prefix(limit))
+    }
+
+    /// 进程级缓存：file_path → (mtime, 词表指纹, 单场摘要)。每轮扫描收尾整体替换，
+    /// 顺带淘汰已删除的会话。
+    private static var contagionCache: [String: (mtime: Double, lexKey: Int, summary: ContagionSummary)] = [:]
+    private static let contagionCacheLock = NSLock()
+
+    static func contagionAcrossLibrary(metadata: [ConversationLite], lexicon: Set<String>,
+                                       limit: Int, functionWords: Set<String>) -> [Contagion] {
+        let words = lexicon.filter { $0.count >= 3 }
+        var canonical: [String: String] = [:]
+        for w in words { canonical[w.lowercased()] = w }
+        var hasher = Hasher()
+        for w in words.sorted() { hasher.combine(w) }
+        let lexKey = hasher.finalize()
+
+        contagionCacheLock.lock()
+        let cache = contagionCache
+        contagionCacheLock.unlock()
+        var fresh: [String: (mtime: Double, lexKey: Int, summary: ContagionSummary)] = [:]
+        var summaries: [(summary: ContagionSummary, cwd: String)] = []
+        summaries.reserveCapacity(metadata.count)
+        for lite in metadata {
+            let path = lite.fileURL.path
+            let mtime = ((try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate]) as? Date)?
+                .timeIntervalSince1970 ?? -1
+            if let c = cache[path], c.mtime == mtime, c.lexKey == lexKey {
+                summaries.append((c.summary, lite.cwd))
+                fresh[path] = c
+                continue
+            }
+            // 单场解析完立即统计并释放整份消息，不与其他会话同时驻留
+            let summary: ContagionSummary? = autoreleasepool {
+                guard let conv = LoaderRuntime.fullParse(url: lite.fileURL, source: lite.source) else { return nil }
+                return contagionSummary(messages: conv.messages, canonical: canonical)
+            }
+            guard let summary else { continue }
+            summaries.append((summary, lite.cwd))
+            fresh[path] = (mtime, lexKey, summary)
+        }
+        contagionCacheLock.lock()
+        contagionCache = fresh
+        contagionCacheLock.unlock()
+        return mergeContagion(summaries, limit: limit, functionWords: functionWords)
     }
 
     /// 传染词显示几个
@@ -1873,7 +1955,8 @@ public enum MindsBuilder {
             for p in ps.prefix(phrasesWithQuotes) {
                 guard let qs = quotes[p.phrase], !qs.isEmpty else { continue }
                 for q in qs {
-                    lines.append("- \(p.phrase) — [\((q.cwd as NSString).lastPathComponent)] \(q.text)")
+                    lines.append("- \(p.phrase) — [\(friendlyProjectTail((q.cwd as NSString).lastPathComponent))] "
+                                 + String(flattened(q.text).prefix(200)))
                 }
             }
         }
@@ -1929,8 +2012,12 @@ public enum MindsBuilder {
             for t in items {
                 // 上下文用标题,没标题退回项目名——只有一句「要我开始吗？」
                 // 说不清悬的是什么事
-                let ctx = (t.title?.isEmpty == false ? t.title! : (t.cwd as NSString).lastPathComponent)
-                lines.append("- \(day(t.endAt)) [\(ctx)] \(t.preview)")
+                let rawCtx = (t.title?.isEmpty == false
+                              ? t.title! : friendlyProjectTail((t.cwd as NSString).lastPathComponent))
+                // 自由文本一律压平 + 截断：open_question 是 assistant 尾句，注入者可控；
+                // 这份文件每个新会话开头都经 minds_read 进模型上下文，不设上限不行。
+                let ctx = String(flattened(rawCtx).prefix(80))
+                lines.append("- \(day(t.endAt)) [\(ctx)] \(String(flattened(t.preview).prefix(200)))")
             }
         }
         return lines.joined(separator: "\n")
@@ -2203,8 +2290,8 @@ public enum MindsBuilder {
         let count: Int
         /// 项目下所有会话的消息总数。
         ///
-        /// 场数不能单独代表投入：真机上 Atlas 54 场共 6027 条消息（一下午的
-        /// 一问一答），Beacon 4 场却有 7914 条。只按场数画条形，条长与
+        /// 场数不能单独代表投入：真机上项目 A 54 场共 6027 条消息（一下午的
+        /// 一问一答），项目 B 4 场却有 7914 条。只按场数画条形，条长与
         /// 实际投入成反比（2026-08-18 用户定案：条形按消息数，场数留作副信息）。
         let messages: Int
         /// 这个项目里你**放行过**几件事（里程碑数）。
@@ -2240,7 +2327,7 @@ public enum MindsBuilder {
     /// 又聊了很久"这种场景，是比"最后一场何时**开始**"更准确的"最近碰过"定义。
     ///
     /// 用 `conversationIDs(for:limit:)` + `metadata(forIDs:)` 而不是新开一条聚合 SQL：
-    /// 任务简报明确指了这条路径，且项目数至多 10 个、每个项目的会话数在个人库量级下
+    /// 设计上选了这条路径：项目数至多 10 个、每个项目的会话数在个人库量级下
     /// 是几十到几百条，走 Swift 端 `min`/`max` 比新写一条 `GROUP BY cwd` 聚合 SQL
     /// 更省一次 schema 决策，性能差异在这个量级下可忽略。
     /// 家目录本身、以及工具自己的缓存目录，都不是「项目」。
@@ -2275,7 +2362,7 @@ public enum MindsBuilder {
         }
     }
 
-    /// VOCABULARY 排序规则（任务简报）：**≥3 字词优先**（组内按 df 降序），不足 `limit`
+    /// VOCABULARY 排序规则：**≥3 字词优先**（组内按 df 降序），不足 `limit`
     /// 再用 <3 字词按 df 降序补齐；同组同 df 按词本身升序兜底，保证输出确定——
     /// `frequencies` 是字典，Swift 字典遍历顺序不稳定，SQL 点查也不保证同 df 词之间
     /// 的相对顺序，不加这个兜底会让同一份输入在不同进程/不同次运行给出不同的展示顺序。

@@ -1,7 +1,7 @@
 import XCTest
 @testable import MindBusCore
 
-/// 收藏存储 v2:记录化、软删撤销、v1 迁移、聚合口径(规格 §14)。
+/// 收藏存储 v2:记录化、软删撤销、v1 迁移、聚合口径。
 @MainActor
 final class StarredMessagesStoreTests: XCTestCase {
 
@@ -63,7 +63,7 @@ final class StarredMessagesStoreTests: XCTestCase {
         XCTAssertTrue(reloaded.isStarred("c1#m1"))
     }
 
-    /// 聚合口径(规格 §14):同会话多条收藏 → 一条 summary;count/lastAt/preview 正确。
+    /// 聚合口径:同会话多条收藏 → 一条 summary;count/lastAt/preview 正确。
     func testSummariesAggregateByConversation() {
         let (store, _) = makeStore()
         store.star(conversationID: "c1", messageID: "m1", role: "a", snapshot: "第一条")

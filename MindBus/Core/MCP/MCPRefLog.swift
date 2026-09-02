@@ -49,7 +49,7 @@ public enum MCPRefLog {
     /// 截断清空。`O_CREAT` 由内核保证「文件不存在则创建、存在则直接打开」是
     /// 单一原子操作，天然没有这个窗口。
     /// 发起读取的宿主名（initialize 的 clientInfo.name，MCPServer 握手时设置）。
-    /// spec §2.2 要的是「被**哪个 Agent** 读取过几次」——日志 append-only 不可回填，
+    /// 设计说明 要的是「被**哪个 Agent** 读取过几次」——日志 append-only 不可回填，
     /// 这个字段每晚加一天，无归属的历史就多一天。无状态客户端（2026-07-28 起可以
     /// 不握手）拿不到名字时保持默认。进程级可变量在单线程 stdio 泵下安全。
     public static var agentName = "unknown"

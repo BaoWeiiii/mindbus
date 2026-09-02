@@ -31,7 +31,7 @@ final class MCPProtocolTests: XCTestCase {
     }
 
     /// initialize 的 clientInfo.name 要写进 MCPRefLog.agentName——引用日志的
-    /// agent 归属唯一来源（spec §2.2「被哪个 Agent 读取过」）。
+    /// agent 归属唯一来源（「被哪个 Agent 读取过」）。
     func testInitializeCapturesClientNameForRefLog() throws {
         let saved = MCPRefLog.agentName
         addTeardownBlock { MCPRefLog.agentName = saved }

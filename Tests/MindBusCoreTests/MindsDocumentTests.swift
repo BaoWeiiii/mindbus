@@ -20,7 +20,7 @@ final class MindsDocumentTests: XCTestCase {
 
     ## DORMANT PROJECTS
     Heavy investments untouched for 30+ days. (mechanical, 1 projects)
-    - StrategyGame — 54 conversations, last touched 2026-07-18
+    - Kilo — 54 conversations, last touched 2026-07-18
 
     ## QUESTION SHAPE
     Openers, counted. (mechanical)
@@ -61,7 +61,7 @@ final class MindsDocumentTests: XCTestCase {
         let lines = doc.lines("DORMANT PROJECTS")
         XCTAssertEqual(lines.count, 2)
         XCTAssertTrue(lines[0].hasPrefix("Heavy investments"))
-        XCTAssertTrue(lines[1].hasPrefix("- StrategyGame"))
+        XCTAssertTrue(lines[1].hasPrefix("- Kilo"))
     }
 
     func testBulletsDropProseLine() {
@@ -324,10 +324,10 @@ extension MindsDocumentTests {
     /// 段落渲染 + 读端解析：一条里程碑 = 日期 + 你说的那句认可 + AI 汇报的首句。
     func testMilestonesSectionRoundTrip() {
         let stones = [
-            MindsMilestones.Milestone(headline: "风声扩展 P1 落地完毕：表 + 闸门全链路跑通",
+            MindsMilestones.Milestone(headline: "缓存分层 P1 落地完毕：表 + 开关全链路跑通",
                                       approval: "继续",
                                       at: Date(timeIntervalSince1970: 1_754_000_000)),
-            MindsMilestones.Milestone(headline: "上架合规全套上线", approval: "确认",
+            MindsMilestones.Milestone(headline: "灰度开关全套上线", approval: "确认",
                                       at: Date(timeIntervalSince1970: 1_754_100_000)),
         ]
         let md = MindsBuilder.renderMilestones(stones, total: 307)
@@ -339,7 +339,7 @@ extension MindsDocumentTests {
         XCTAssertEqual(parsed.count, 2)
         // 最近的排在最前
         XCTAssertEqual(parsed.first?.approval, "确认")
-        XCTAssertEqual(parsed.last?.headline, "风声扩展 P1 落地完毕：表 + 闸门全链路跑通")
+        XCTAssertEqual(parsed.last?.headline, "缓存分层 P1 落地完毕：表 + 开关全链路跑通")
     }
 
     /// 没有素材时不能装作有——空段落要明说
@@ -401,7 +401,7 @@ extension MindsDocumentTests {
                 endAt: Date(timeIntervalSince1970: 1_754_000_000)),
             ConversationIndex.UnfinishedThread(
                 id: "c2", title: nil, preview: "要我把它归档提交、还是继续调形态？",
-                cwd: "/w/ResourceLoop", endAt: Date(timeIntervalSince1970: 1_753_000_000)),
+                cwd: "/w/Beta", endAt: Date(timeIntervalSince1970: 1_753_000_000)),
         ]
         let md = MindsBuilder.renderOpenLoops(items)
         XCTAssertTrue(md.contains("## OPEN LOOPS"), md)
@@ -411,7 +411,7 @@ extension MindsDocumentTests {
         XCTAssertEqual(rows[0].question, "要我开始吗？")
         XCTAssertEqual(rows[0].context, "构建本地 AI 记忆系统的设计方案")
         // 没标题时退回项目名——总得让人知道这是哪儿的事
-        XCTAssertEqual(rows[1].context, "ResourceLoop")
+        XCTAssertEqual(rows[1].context, "Beta")
     }
 
     func testOpenLoopsEmptyIsHonest() {

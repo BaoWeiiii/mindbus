@@ -1,12 +1,14 @@
+#if DEBUG
 import SwiftUI
 import AppKit
 import Charts
 import MindBusCore
 
-/// 临时开发工具：把 SwiftUI 视图离屏渲染成 PNG，用于在没有屏幕录制权限的环境里
-/// 校验视觉效果。用 `MindBus --render-preview <输出目录>` 触发。
+/// 设计校验用的离屏渲染工具：把各界面的 SwiftUI 视图渲染成 PNG，用于在没有屏幕录制
+/// 权限的环境里核对视觉效果，也用来出 README 截图。用 `MindBus --render-preview <输出目录>` 触发。
 ///
-/// ⚠️ 这是设计校验用的脚手架，验证完应当删除，不要进入正式发布。
+/// 只编进 DEBUG 构建（由 `#if DEBUG` 控制）。下面所有样本数据必须是纯虚构的——
+/// 项目名、对话原话、统计数字、会话 id、git 哈希一律现编，禁止用真机语料改名充数。
 @MainActor
 enum PreviewRenderer {
 
@@ -19,12 +21,12 @@ enum PreviewRenderer {
             let sub = dir.appendingPathComponent(lang == .zhHans ? "zh" : "en", isDirectory: true)
             try? FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
 
-            render(browserHeroSample, name: "browser-hero", size: CGSize(width: 1160, height: 560), to: sub)
+            renderHeroComposite(name: "browser-hero", to: sub)
             render(listRowsSample, name: "list-rows", size: CGSize(width: 340, height: 260), to: sub)
             render(sidebarSample, name: "sidebar", size: CGSize(width: 220, height: 420), to: sub)
             render(sidebarMindsSample, name: "sidebar-minds", size: CGSize(width: 220, height: 420), to: sub)
             render(MindsPlaceholderView(), name: "minds-placeholder", size: CGSize(width: 700, height: 300), to: sub)
-            render(mindsContentSample, name: "minds-content", size: CGSize(width: 900, height: 3400), to: sub)
+            render(mindsContentSample, name: "minds-content", size: CGSize(width: 900, height: 2400), to: sub)
             render(projectsSample, name: "minds-projects", size: CGSize(width: 900, height: 400), to: sub)
             render(outlineSample, name: "outline", size: CGSize(width: 420, height: 420), to: sub)
             render(forgottenSample, name: "forgotten", size: CGSize(width: 400, height: 240), to: sub)
@@ -60,6 +62,12 @@ enum PreviewRenderer {
     }
 
     // MARK: - 样本视图
+    //
+    // 虚构的样本库：六个开源味的小项目，路径统一 /Users/dev/Projects/<Name>。
+    //   Lighthouse — SwiftUI 天气小组件      Papyrus — Markdown 笔记工具
+    //   Orbit      — 个人日程 CLI            Mosaic  — 照片墙静态站
+    //   Sundial    — 番茄钟                  mindbus — 本项目
+    // 所有对话原话、数字、日期都围绕这六个项目现编，与任何真实语料无关。
 
     /// 样张用的日期
     private static func day(_ s: String) -> Date {
@@ -77,234 +85,239 @@ enum PreviewRenderer {
             .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
     }
 
-    /// 「它教你的词」样张（真机数据）
+    /// 「它教你的词」样张（虚构样本）
     private static var taughtSample: some View {
         let md = """
         # Minds
 
         ## WORDS IT TAUGHT YOU
         Words it used first. (mechanical, 6)
-        - 视觉语言 — 33d later, 4 projects
-        - 半透明 — 43d later, 4 projects
-        - 评估方法 — 93d later, 3 projects
-        - 副标题 — 43d later, 3 projects
-        - 长期留存 — 87d later, 2 projects
-        - 黑名单 — 108d later, 2 projects
-        - 视觉语言 — it: 配色要成体系,我们从视觉语言这一层看
-        - 视觉语言 — you: 按视觉语言重新梳理一遍这套界面
-        - 评估方法 — it: 先把评估方法定下来,再谈指标
-        - 评估方法 — you: 你写的评估方法太复杂了,稍微简单一点
+        - 信息层级 — 29d later, 4 projects
+        - 缓动曲线 — 36d later, 3 projects
+        - 半开区间 — 52d later, 3 projects
+        - 占位态 — 41d later, 3 projects
+        - 幂等 — 77d later, 2 projects
+        - 回退路径 — 95d later, 2 projects
+        - 信息层级 — it: 先把信息层级排出来,再决定字号和颜色
+        - 信息层级 — you: 这块的信息层级不对,时间不该比标题还显眼
+        - 半开区间 — it: 冲突判定用半开区间,结束时刻等于下一段的开始时刻不算重叠
+        - 半开区间 — you: 提醒也改成半开区间,和冲突检测保持一致
         """
         return MindsWordsItTaught(ctx: MindsContext(store: ConversationStore(), md: md,
                                                     viz: MindsViz(), isLoading: false))
             .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
     }
 
-    /// 「你反复说的话」+ 展开成原话（真机数据）
+    /// 「你反复说的话」+ 展开成原话（虚构样本）
     private static var phraseQuotesSample: some View {
         let md = """
         # Minds
 
         ## PHRASES YOU REPEAT
         Turns of phrase you carry across projects. (mechanical, 5 phrases)
-        - 产品经理 (28×/14p) · 第一性原理 (53×/13p) · AI 味 (26×/10p) · 热点事件 (20×/9p) · 生成图片 (16×/7p)
-        - 第一性原理 — [AISG] 从第一性原理来看,他提到的哪些方案还可以优化
-        - 第一性原理 — [ResourceLoop] 你从第一性原理思考,短期方案面临的就是流量不太够
-        - AI 味 — [aicoding] 是否远离了 AI 味的前端设计、文案设计
-        - AI 味 — [Codex] 太丑,太 AI 味,布局也不高端,缺乏质感
-        - AI 味 — [gen] 不改变图片内容,更改图片风格,科技风,避免 AI 味
-        - 热点事件 — [爬虫] 第二个分城市维度的,当地城市的热点事件
+        - 先跑通 (23×/9p) · 对照图 (18×/8p) · 信息层级 (15×/7p) · 别写死 (12×/6p) · 空态 (10×/5p)
+        - 先跑通 — [Lighthouse] 先跑通最小的一版,刷新间隔和缓存后面再调
+        - 先跑通 — [Orbit] 冲突检测先跑通再说,提醒功能放下一轮
+        - 对照图 — [Papyrus] 三种宽度各截一张对照图,我看完再决定
+        - 对照图 — [Mosaic] 压缩前后放一起出张对照图,肉眼看不出差别才算过
+        - 别写死 — [Sundial] 时长别写死 25 分钟,做成设置项
+        - 空态 — [mindbus] 空态也要好看,那是新用户看到的第一屏
         """
         return MindsRepeatedPhrases(ctx: MindsContext(store: ConversationStore(), md: md,
                                                      viz: MindsViz(), isLoading: false))
             .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
     }
 
+    /// 「悬着的事」样张（虚构样本）
     private static var openLoopsSample: some View {
         let md = """
         # Minds
 
         ## OPEN LOOPS
         Threads left hanging. (mechanical, 5)
-        - 2026-08-05 [构建本地 AI 记忆系统的设计方案] 要我开始吗？
-        - 2026-07-28 [ResourceLoop] 这两条改起来都是几分钟的事,要我现在跟一版补丁推上去吗？
-        - 2026-07-21 [拉取最新的 demo 代码库] 需要我顺手帮你开这个 PR 吗?
-        - 2026-07-21 [确定上传事件按钮的信息层级位置] 要我把它归档提交、还是继续调形态？
-        - 2026-07-18 [gitbook] 这八个分部的骨架是否符合你的预期？
+        - 2026-08-20 [把天气组件的刷新间隔改成 15 分钟] 缓存有效期要跟着改成 10 分钟吗?
+        - 2026-08-16 [Markdown 表格在窄屏下换行错乱] 要我把三种断点的对照图一起贴出来吗?
+        - 2026-08-13 [番茄钟结束音效换成更轻的] 淡出时长用 0.4 秒还是 0.6 秒,你听完定?
+        - 2026-08-10 [照片墙缩略图改为构建期生成] 旧的运行时缩略图代码要顺手删掉吗?
+        - 2026-08-06 [日程冲突检测误报] 提醒功能也按半开区间改一轮吗?
         """
         return MindsOpenLoopsCard(ctx: MindsContext(store: ConversationStore(), md: md,
                                                     viz: MindsViz(), isLoading: false))
             .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
     }
 
-    /// 「你可能忘了的」样张（真机召回结果）
+    /// 「你可能忘了的」样张（虚构样本）
     private static var forgottenSample: some View {
         ForgottenListPreview(items: [
-            .init(id: "1", title: "我负责某行业的排班调度工作", cwd: "/w/Delta", daysAgo: 30),
-            .init(id: "2", title: "热点事件驱动,让每个省份的 BD 看到商机", cwd: "/w/Foxtrot", daysAgo: 63),
-            .init(id: "3", title: "我想做一个调度 SKILL,核心是不管商家有多少指标", cwd: "/w/Echo", daysAgo: 88),
+            .init(id: "1", title: "把天气组件的刷新间隔改成 15 分钟", cwd: "/Users/dev/Projects/Lighthouse", daysAgo: 27),
+            .init(id: "2", title: "Markdown 表格在窄屏下换行错乱", cwd: "/Users/dev/Projects/Papyrus", daysAgo: 52),
+            .init(id: "3", title: "番茄钟结束音效换成更轻的", cwd: "/Users/dev/Projects/Sundial", daysAgo: 79),
         ])
         .padding(16).background(DSLight.sf)
     }
 
-    /// 长对话目录样张（真机节点形态：放行 / 拍板 / 时间断点交织）
+    /// 长对话目录样张（虚构样本：放行 / 拍板 / 时间断点交织）
     private static var outlineSample: some View {
         let base = Date(timeIntervalSince1970: 1_754_000_000)
         let nodes: [ConversationOutline.Node] = [
             .init(kind: .milestone, messageID: "1",
-                  text: "风声扩展 P1 落地完毕:表 + 闸门 + 真实种子全链路跑通", at: base),
+                  text: "刷新间隔改成 15 分钟,后台刷新预算实测未超限,三种尺寸都正常更新", at: base),
             .init(kind: .decision, messageID: "2",
-                  text: "走第二条,先把界面接上,索引层下一轮再说", at: base),
-            .init(kind: .gap, messageID: "3", text: "", at: base, gap: 5 * 3600),
+                  text: "先用系统缓存,自建缓存层放到下一轮", at: base),
+            .init(kind: .gap, messageID: "3", text: "", at: base, gap: 4 * 3600),
             .init(kind: .milestone, messageID: "4",
-                  text: "砍完推送(1b2c3d4),净删 573 行,801 测试全绿,已装机", at: base),
-            .init(kind: .gap, messageID: "5", text: "", at: base, gap: 26 * 3600),
+                  text: "旧缓存代码删完并推送(0a1b2c3),净删 218 行,146 个测试全绿", at: base),
+            .init(kind: .gap, messageID: "5", text: "", at: base, gap: 19 * 3600),
             .init(kind: .decision, messageID: "6",
-                  text: "全部冻,而且需要兜底,另外把抓取内容全部审核通过", at: base),
-            .init(kind: .milestone, messageID: "7", text: "线一:上架合规全套上线(2c3d4e5)", at: base),
+                  text: "过期数据一律不显示,宁可空着也别给旧时间", at: base),
+            .init(kind: .milestone, messageID: "7", text: "小组件三种尺寸全部上架(1b2c3d4)", at: base),
         ]
         return OutlineListPreview(nodes: nodes).content
             .frame(width: 388).padding(16).background(DSLight.sf)
     }
 
-    /// 项目页样张：核对「放行数」徽章没有把行布局挤坏（真机数字）
+    /// 项目页样张：核对「放行数」徽章没有把行布局挤坏（虚构数字；条形按消息数画，
+    /// 所以故意让场数少的 mindbus 消息数最多，末行不带放行数验证缺段回退）
     private static var projectsSample: some View {
         let md = """
         # Minds
 
         ## PROJECT RHYTHM
         Top 5 projects. (mechanical, 5 projects)
-        - /w/Atlas — 54 conversations, 6025 messages, 184 signed off, active 2026-06-01 → 2026-08-18, last touched 2026-08-18
-        - /w/mindbus — 12 conversations, 11079 messages, 17 signed off, active 2026-04-24 → 2026-08-18, last touched 2026-08-18
-        - /w/Beacon — 4 conversations, 7914 messages, 25 signed off, active 2026-07-01 → 2026-08-10, last touched 2026-08-10
-        - /w/Compass — 3 conversations, 7486 messages, 9 signed off, active 2026-07-05 → 2026-08-02, last touched 2026-08-02
-        - /w/Golf — 1 conversations, 1001 messages, active 2026-08-01 → 2026-08-01, last touched 2026-08-01
+        - /Users/dev/Projects/Lighthouse — 37 conversations, 4380 messages, 71 signed off, active 2026-04-03 → 2026-08-20, last touched 2026-08-20
+        - /Users/dev/Projects/Papyrus — 26 conversations, 3562 messages, 46 signed off, active 2026-05-11 → 2026-08-19, last touched 2026-08-19
+        - /Users/dev/Projects/mindbus — 19 conversations, 5210 messages, 29 signed off, active 2026-06-02 → 2026-08-22, last touched 2026-08-22
+        - /Users/dev/Projects/Orbit — 15 conversations, 1874 messages, 14 signed off, active 2026-04-27 → 2026-07-14, last touched 2026-07-14
+        - /Users/dev/Projects/Mosaic — 13 conversations, 963 messages, active 2026-07-06 → 2026-08-15, last touched 2026-08-15
         """
         return MindsProjectsPage(ctx: MindsContext(store: ConversationStore(), md: md,
                                                    viz: MindsViz(), isLoading: false))
             .padding(28).frame(width: 900, alignment: .leading).background(MindsUI.page)
     }
 
+    /// Minds 全页样张：一份完整的虚构 minds.md，节名与行形态和 MindsBuilder 写出的一致
     private static var mindsContentSample: some View {
         let root = NSTemporaryDirectory() + "minds-preview-sample"
         try? FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
         let md = """
         # Minds — mechanical self-description
-        > Rebuilt automatically. (policy v14, rebuilt 2026-08-12)
+        > Rebuilt automatically. (policy v14, rebuilt 2026-08-22)
 
         ## MILESTONES
-        Work you signed off on — what the AI had just reported when you said OK. (mechanical, 307 of them)
-        - 2026-08-16 [继续] 砍完推送(1b2c3d4),净删 573 行,801 测试全绿,已装机
-        - 2026-08-14 [全部优化] 看了零态和校准流两屏,拿"数字先在、零处明着要"这把尺子量,还能挑出不少毛病
-        - 2026-08-13 [继续] 线一:上架合规全套上线(2c3d4e5)
-        - 2026-08-12 [继续] 收到,dev 不充值——那正好把架构态度定了:prod 当唯一活管线,dev 当免费沙盒
-        - 2026-08-11 [继续] 风声扩展 P1 落地完毕:表 + 闸门 + 真实种子全链路跑通,准入判据实弹检验通过
-        - 2026-08-11 [确认] 迁移铺开第一波(B1+B2)完成:读族 + 投票读写全部切上 CloudBase,96/96 测绿
+        Work you signed off on — what the AI had just reported when you said OK. (mechanical, 212 of them)
+        - 2026-08-21 [继续] 刷新间隔改成 15 分钟,后台刷新预算实测未超限,三种尺寸都正常更新
+        - 2026-08-19 [好的] 窄屏表格换行修好了,三种宽度断点各截了一张对照图
+        - 2026-08-17 [继续] 结束音效换成更轻的一版,按 0.4 秒淡出,音量曲线已装机试听
+        - 2026-08-15 [可以] 缩略图改为构建期生成,首屏体积从 6.2MB 降到 1.1MB
+        - 2026-08-12 [继续] 冲突检测改成半开区间判定,误报用例 18/18 通过
+        - 2026-08-09 [确认] 旧缓存代码删完并推送(0a1b2c3),净删 218 行,146 个测试全绿
 
         ## SANCTUARY
         What this library holds for you — kept on your disk, in duplicate. (mechanical)
-        - 145 conversations · 149 archived copies (317 MB) · day 111 of your library
-        - 8 conversations have outlived Claude Code's 30-day window — here, they stay
-        - milestones passed: 100 conversations · 10.0M characters
-        - last collected 2026-08-12
+        - 118 conversations · 121 archived copies (238 MB) · day 161 of your library
+        - 4 conversations have outlived Claude Code's 30-day window — here, they stay
+        - milestones passed: 100 conversations · 5.0M characters
+        - last collected 2026-08-22
 
         ## DORMANT PROJECTS
         Heavy investments untouched for 30+ days. (mechanical, 2 projects)
-        - StrategyGame — 54 conversations, last touched 2026-07-18
-        - Codex — 12 conversations, last touched 2026-06-09
+        - Orbit — 15 conversations, last touched 2026-07-14
+        - Sundial — 8 conversations, last touched 2026-06-27
 
         ## THIS MONTH
-        12 conversations so far (-8 vs last month). (mechanical, 12 conversations)
-        - tools: codex 7 · claudeCode 5
-        - first seen this month: FolderAliasStore · user_corpus · GoldShimmer
+        14 conversations so far (+3 vs last month). (mechanical, 14 conversations)
+        - tools: claudeCode 9 · codex 5
+        - first seen this month: ForecastCache · TableWrapper · ChimeFade
 
         ## FADED WORDS
         Words you used to say a lot — silent for 60+ days now. (mechanical, 3 words)
-        - 协变量 — said 38 times, silent 92 days
-        - 转化率 — said 24 times, silent 75 days
-        - 选题库 — said 19 times, silent 61 days
+        - 占位图 — said 27 times, silent 71 days
+        - 缓存策略 — said 21 times, silent 66 days
+        - 冲突检测 — said 15 times, silent 52 days
 
         ## WORK RHYTHM
-        When and how you work. (mechanical, 144 conversations)
-        - most conversations start 20-24 — 51% (74 of 144)
-        - busiest day: 2026-05-15 — 58 conversations (40% of everything, in one day)
-        - you juggle 1.7 projects per active day — peak 5 on 2026-08-05
-        - active 98 of the last 365 days — longest run 12, longest break 9
+        When and how you work. (mechanical, 118 conversations)
+        - most conversations start 21-24 — 44% (52 of 118)
+        - busiest day: 2026-06-14 — 13 conversations (11% of everything, in one day)
+        - you juggle 1.4 projects per active day — peak 4 on 2026-07-21
+        - active 71 of the last 365 days — longest run 8, longest break 5
 
         ## LEVERAGE
-        What your typing turns into. (mechanical, 1.3M chars typed)
-        - you typed 1.3M characters; the conversations hold 15.6M — leverage 1:12
+        What your typing turns into. (mechanical, 620k chars typed)
+        - you typed 620k characters; the conversations hold 8.9M — leverage 1:14
 
         ## MARATHONS
         Your longest conversations by message count. (mechanical, 3 shown)
-        - 继续 — 5497 messages over 64 days, StrategyGame (id: 00000000-0000-4000-8000-000000000001)
-        - 检查城市基础数据完整性 — 5145 messages over 6 days, TrendRadar (id: 00000000-0000-4000-8000-000000000002)
-        - 解决转化率横条吸顶重叠问题 — 3706 messages over 8 days, TrendRadar (id: 11111111-2222-4333-8444-555555555555)
+        - 把天气组件的刷新间隔改成 15 分钟 — 2318 messages over 41 days, Lighthouse (id: 00000000-0000-4000-8000-000000000001)
+        - Markdown 表格在窄屏下换行错乱 — 1745 messages over 11 days, Papyrus (id: 00000000-0000-4000-8000-000000000002)
+        - 日程冲突检测误报 — 1206 messages over 4 days, Orbit (id: 00000000-0000-4000-8000-000000000003)
 
         ## COLLABORATION SHAPE
         How you and AI actually work together. (mechanical)
-        - 77% of conversations run 16+ of your turns — you co-work, you don't just ask
-        - sessions are two-peaked: 23% under 2 min, 33% over 2 h
-        - your average message: 38 chars — short directives, not essays
+        - 63% of conversations run 16+ of your turns — you co-work, you don't just ask
+        - sessions are two-peaked: 19% under 2 min, 28% over 2 h
+        - your average message: 44 chars — short directives, not essays
 
         ## WEEKEND SELF
-        Which projects own your weekends. (mechanical, 1 weekend projects)
-        - weekend: mindbus 3
-        - weekdays: StrategyGame 54 · mindbus 8 · Codex 7 · ResearchKit 5 · PricingLab 4
+        Which projects own your weekends. (mechanical, 2 weekend projects)
+        - weekend: Mosaic 5 · Sundial 2
+        - weekdays: Lighthouse 37 · Papyrus 26 · mindbus 19 · Orbit 15
 
         ## QUESTION SHAPE
-        What kind of questions you ask — your cognitive spectrum with AI. (mechanical, 675 questions)
-        - should-we 286 · how-to 206 · why 94 · what-is 89
+        What kind of questions you ask — your cognitive spectrum with AI. (mechanical, 407 questions)
+        - should-we 163 · how-to 128 · why 67 · what-is 49
         - you ask AI to judge, more than to explain
 
         ## DELEGATION
         What you ask AI to do — the verbs of your instructions. (mechanical, 8 verbs)
-        - 设计 215×/36c · 验证 192×/40c · 测试 182×/42c · 优化 170×/30c · 检查 113×/28c · 分析 110×/17c · 修复 86×/26c · 调研 64×/22c
-        - research destination #1: github (12 of your 调研 orders; then 产品 9 · 最新 2)
+        - 设计 148×/29c · 测试 131×/33c · 修复 117×/31c · 优化 95×/24c · 检查 88×/21c · 验证 74×/19c · 分析 52×/15c · 调研 37×/14c
+        - research destination #1: github (8 of your 调研 orders; then 文档 5 · 论坛 2)
 
         ## REPEATED BRIEFINGS
         Things you keep explaining from scratch. (mechanical, 2 groups)
-        - 你是 Senior Code Reviewer,正在审查 Task 4 的代码质量,请只看规格符合性 — said 6× across 4 conversations
-        - 对 skill.md 里的 description 要按照卖点一样介绍,吸引人 — said 3× across 2 conversations
+        - 改动之前先把要动的文件列出来,等我确认再动手 — said 5× across 3 conversations
+        - 所有界面文案都要走本地化表,视图里不要写死中文 — said 3× across 2 conversations
 
         ## CATCHPHRASES
         Short messages you send again and again. (mechanical, 4 phrases)
-        - 继续 ×47 · 好的 ×23 · 可以 ×15 · 为什么 ×12
-        - politeness & delegation: 帮我 ×89 · 谢谢 ×31 · please ×6
+        - 继续 ×36 · 好的 ×19 · 可以 ×13 · 为什么 ×8
+        - politeness & delegation: 帮我 ×61 · 谢谢 ×22 · please ×4
 
         ## LEVERAGE BY PROJECT
         Which project stretches your words furthest. (mechanical, 5 projects)
-        - homelab — 1:45 (3k typed → 170k, 5 conversations)
-        - ResearchKit — 1:9 (191k typed → 1.8M, 5 conversations)
-        - PricingLab — 1:8 (60k typed → 528k, 6 conversations)
-        - StrategyGame — 1:7 (162k typed → 1.2M, 54 conversations)
-        - Codex — 1:2 (70k typed → 148k, 7 conversations)
+        - Sundial — 1:31 (4k typed → 124k, 8 conversations)
+        - Mosaic — 1:12 (18k typed → 216k, 13 conversations)
+        - Papyrus — 1:11 (88k typed → 968k, 26 conversations)
+        - Lighthouse — 1:6 (196k typed → 1.1M, 37 conversations)
+        - Orbit — 1:3 (41k typed → 123k, 15 conversations)
 
         ## STARRED HIGHLIGHTS
         Messages you bookmarked. (mechanical, 2 shown)
-        - 结论：段级 + BM25 双分词比会话级检索 R@1 提升 4.2 倍，结构切分不优于固定切分 — 2026-08-10 (conversation: 00000000-0000-4000-8000-000000000001)
-        - 玻璃浮在滚动内容上才折射，贴平背景只磨砂 — 2026-08-08 (conversation: 00000000-0000-4000-8000-000000000002)
+        - 结论：天气数据缓存 10 分钟、时间线每 15 分钟重载一次，后台预算够用且不会显示过期时间 — 2026-08-14 (conversation: 00000000-0000-4000-8000-000000000001)
+        - 表格换行的根因是列宽按最长单元格算，改成按容器宽度分配就不再溢出 — 2026-08-11 (conversation: 00000000-0000-4000-8000-000000000002)
 
         ## OVERVIEW
-        144 conversations across 3 tools, 2026-04-24 → 2026-08-10. (mechanical, 144 conversations)
-        - codex 102 · claudeCode 41 · claudeAgent 1
+        118 conversations across 3 tools, 2026-03-14 → 2026-08-22. (mechanical, 118 conversations)
+        - codex 61 · claudeCode 55 · claudeAgent 2
 
         ## PROJECT RHYTHM
-        Top 10 projects by conversation count. (mechanical, 5 projects)
-        - /Users/dev/Projects/StrategyGame — 54 conversations, active 2026-05-15 → 2026-05-15, last touched 2026-07-18
-        - /Users/dev/Projects/mindbus — 11 conversations, active 2026-08-01 → 2026-08-10, last touched 2026-08-10
-        - /Users/dev/Projects/Codex — 7 conversations, active 2026-05-08 → 2026-06-09, last touched 2026-06-09
-        - /Users/dev/Projects/PricingLab — 6 conversations, active 2026-07-09 → 2026-08-05, last touched 2026-08-10
-        - /Users/dev/Projects/ResearchKit — 5 conversations, active 2026-07-01 → 2026-08-10, last touched 2026-08-10
+        Top 10 projects by conversation count. (mechanical, 6 projects)
+        - /Users/dev/Projects/Lighthouse — 37 conversations, 4380 messages, 71 signed off, active 2026-04-03 → 2026-08-20, last touched 2026-08-20
+        - /Users/dev/Projects/Papyrus — 26 conversations, 3562 messages, 46 signed off, active 2026-05-11 → 2026-08-19, last touched 2026-08-19
+        - /Users/dev/Projects/mindbus — 19 conversations, 5210 messages, 29 signed off, active 2026-06-02 → 2026-08-22, last touched 2026-08-22
+        - /Users/dev/Projects/Orbit — 15 conversations, 1874 messages, 14 signed off, active 2026-04-27 → 2026-07-14, last touched 2026-07-14
+        - /Users/dev/Projects/Mosaic — 13 conversations, 963 messages, active 2026-07-06 → 2026-08-15, last touched 2026-08-15
+        - /Users/dev/Projects/Sundial — 8 conversations, 615 messages, 6 signed off, active 2026-03-14 → 2026-06-27, last touched 2026-06-27
 
         ## VOCABULARY
         Your lexicon, counted in your own messages. (mechanical, 12 terms)
-        - mind: 第一性原理 (39×/12p) · 上下文 (67×/11p) · 确定性 (8×/6p)
-        - work: 主工作区 (31) · 类型检查 (18) · 继续推进 (16) · 工作树 (14) · 解析器 (12) · 子代理 (11)
+        - mind: 信息层级 (24×/9p) · 上下文 (41×/8p) · 确定性 (7×/5p)
+        - work: 断点 (23) · 类型检查 (21) · 刷新间隔 (15) · 工作树 (13) · 解析器 (11) · 子代理 (10)
         """
         try? md.write(toFile: root + "/minds.md", atomically: true, encoding: .utf8)
         setenv("MINDBUS_MINDS_ROOT", root, 1)
-        return MindsView(store: ConversationStore(indexPath: NSTemporaryDirectory() + "mb-preview-minds.sqlite")).renderableContent
+        return MindsView(store: ConversationStore(indexPath: NSTemporaryDirectory() + "mb-preview-minds.sqlite"),
+                         previewSynchronousViz: true, previewPage: .ai).renderableContent
             .frame(width: 840)
             .background(MindsUI.page)
     }
@@ -312,7 +325,7 @@ enum PreviewRenderer {
     /// 空结果救援样张:高频实体建议 chips。
     private static var emptyRescueSample: some View {
         ListEmptyState(kind: .noMatch(hint: "没有匹配「zzz」的对话"),
-                       suggestions: ["NodeNext", "src/index.ts", "Sparkle", "WorldState", "接力"],
+                       suggestions: ["ForecastCache", "src/table.ts", "WidgetKit", "ChimeFade", "断点"],
                        onSuggest: { _ in })
             .frame(width: 340, height: 300)
             .background(DSLight.bg)
@@ -322,14 +335,14 @@ enum PreviewRenderer {
     private static var entityHeaderSample: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text("NodeNext").font(BrandFont.mono(14, weight: .medium)).foregroundStyle(DSLight.t1)
+                Text("ForecastCache").font(BrandFont.mono(14, weight: .medium)).foregroundStyle(DSLight.t1)
                 Spacer()
                 Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundStyle(DSLight.t3)
             }
-            Text("42 场相关会话").font(.system(size: 11)).foregroundStyle(DSLight.t3)
+            Text("27 场相关会话").font(.system(size: 11)).foregroundStyle(DSLight.t3)
             Text("与它共现——顺着找：").font(.system(size: 11)).foregroundStyle(DSLight.t3).padding(.top, 2)
             FlowLayout(spacing: 6) {
-                ForEach(["src/index.ts 33", "expedition.test.ts 25", "TypeScript 19", "WorldState 12"], id: \.self) { t in
+                ForEach(["ForecastTimeline.swift 21", "ForecastCacheTests.swift 16", "WidgetKit 12", "reloadPolicy 8"], id: \.self) { t in
                     Text(t).font(BrandFont.mono(11)).foregroundStyle(DSLight.t2)
                         .padding(.horizontal, 9).padding(.vertical, 4)
                         .background(DSLight.sf2, in: Capsule())
@@ -341,8 +354,15 @@ enum PreviewRenderer {
         .background(DSLight.sf)
     }
 
-    /// README 主图:三栏主界面拼装(侧栏|列表|详情),全假数据脱敏。
-    private static var browserHeroSample: some View {
+    /// README 主图:三栏主界面拼装(侧栏|列表|详情)。列表与气泡全是虚构项目的虚构对话,
+    /// 不含任何真实语料;侧栏来自空 store,只有静态框架。
+    /// 主界面样张分两段渲：侧栏走 ImageRenderer（静态内容），列表 + 详情走宿主渲染
+    ///（气泡上的右键菜单覆盖层是 NSViewRepresentable，ImageRenderer 会画成占位块），
+    /// 再拼成一张。
+    static let heroSize = CGSize(width: 1160, height: 560)
+    static let heroSidebarWidth: CGFloat = 211
+
+    private static var heroSidebar: some View {
         HStack(spacing: 0) {
             BrowserSidebarView()
                 .environmentObject(ConversationStore(
@@ -350,23 +370,29 @@ enum PreviewRenderer {
                 .frame(width: 210)
                 .background(DSLight.sf)
             Rectangle().fill(DSLight.rule).frame(width: 1)
+        }
+        .grain()
+    }
+
+    private static var heroMain: some View {
+        HStack(spacing: 0) {
             VStack(spacing: 0) {
                 ConversationListRow(conversation: lite(
-                    folder: "mindbus", preview: "帮我把云同步相关的代码全部移除，保持最干净的状态",
-                    msgs: 42, minutesAgo: 3, dur: 5400,
-                    title: "移除云同步保持本地纯净"), isSelected: true)
+                    folder: "Lighthouse", preview: "把天气组件的刷新间隔改成 15 分钟，顺便看看后台刷新预算够不够",
+                    msgs: 36, minutesAgo: 3, dur: 4800,
+                    title: "天气组件刷新间隔改 15 分钟"), isSelected: true)
                 ConversationListRow(conversation: lite(
-                    folder: "mindbus", preview: "检索三增强的收益账再核一遍",
-                    msgs: 12, minutesAgo: 40, dur: 900, title: "核对检索收益账"))
+                    folder: "Lighthouse", preview: "小组件在锁屏上的温度字号太小了",
+                    msgs: 11, minutesAgo: 40, dur: 780, title: "锁屏温度字号调整"))
                 ConversationListRow(conversation: lite(
-                    folder: "momo-cat", preview: "这个动画的缓动曲线再收一点，现在太弹了",
-                    msgs: 18, minutesAgo: 95, dur: 1200, title: "收紧弹跳动画曲线"))
+                    folder: "Papyrus", preview: "Markdown 表格在窄屏下换行错乱，列宽像是按最长单元格算的",
+                    msgs: 19, minutesAgo: 95, dur: 1300, title: "窄屏表格换行错乱"))
                 ConversationListRow(conversation: lite(
-                    folder: "landing-page", preview: "中文标题的字号需要按规范缩小 7%",
-                    msgs: 7, minutesAgo: 1500, dur: 300, title: "标题字号规范化"))
+                    folder: "Sundial", preview: "番茄钟结束音效换成更轻的，现在太吓人了",
+                    msgs: 8, minutesAgo: 1500, dur: 320, title: "结束音效换轻"))
                 ConversationListRow(conversation: lite(
-                    folder: "momo-cat", preview: "喵星人页面的首屏插画换成夜间版本",
-                    msgs: 9, minutesAgo: 2200, dur: 640, title: "首屏插画夜间版"))
+                    folder: "Mosaic", preview: "照片墙的缩略图改成构建期生成，别在浏览器里现算",
+                    msgs: 9, minutesAgo: 2200, dur: 640, title: "缩略图构建期生成"))
                 Spacer(minLength: 0)
             }
             .padding(.top, 8)
@@ -374,13 +400,13 @@ enum PreviewRenderer {
             .background(DSLight.bg)
             Rectangle().fill(DSLight.rule).frame(width: 1)
             VStack(alignment: .leading, spacing: 10) {
-                MessageBubbleView(message: msg(.user, "帮我把云同步相关的代码全部移除，保持最干净的状态"),
+                MessageBubbleView(message: msg(.user, "把天气组件的刷新间隔改成 15 分钟，顺便看看后台刷新预算够不够"),
                                   starKey: "hero#m1")
-                MessageBubbleView(message: msg(.assistant, "可以。云同步涉及三处：`SyncManager.swift`、设置页的同步开关、以及 `AccountSession` 里的令牌刷新。全部移除后 App 将是纯本地状态，我先列出改动清单再动手。"),
+                MessageBubbleView(message: msg(.assistant, "可以。刷新间隔在 `ForecastTimeline.swift` 的 `reloadPolicy` 里，现在是 30 分钟；系统给小组件的后台刷新有每日预算，改成 15 分钟大约用掉四成，够用。我先列出改动清单再动手。"),
                                   starKey: "hero#m2")
-                MessageBubbleView(message: msg(.user, "好，注意别动本地索引部分"),
+                MessageBubbleView(message: msg(.user, "好，缓存那部分别动"),
                                   starKey: "hero#m3")
-                MessageBubbleView(message: msg(.assistant, "明白——`ConversationIndex` 与全文检索保持原样，只摘除网络层。改完 12 个文件，测试全绿。"),
+                MessageBubbleView(message: msg(.assistant, "明白——`ForecastCache` 的 10 分钟有效期保持不变，只改时间线的重载策略。改完 3 个文件，测试全绿。"),
                                   starKey: "hero#m4")
                 Spacer(minLength: 0)
             }
@@ -394,19 +420,19 @@ enum PreviewRenderer {
     private static var listRowsSample: some View {
         VStack(spacing: 0) {
             ConversationListRow(conversation: lite(
-                folder: "mindbus", preview: "帮我把云同步相关的代码全部移除，保持最干净的状态",
-                msgs: 42, minutesAgo: 3, dur: 5400,
-                title: "移除云同步保持本地纯净"), isSelected: true)
-            // 同项目第二行:验证「同文件夹恒定同色」——两个 mindbus 标签必须一色
+                folder: "Lighthouse", preview: "把天气组件的刷新间隔改成 15 分钟，顺便看看后台刷新预算够不够",
+                msgs: 36, minutesAgo: 3, dur: 4800,
+                title: "天气组件刷新间隔改 15 分钟"), isSelected: true)
+            // 同项目第二行:验证「同文件夹恒定同色」——两个 Lighthouse 标签必须一色
             ConversationListRow(conversation: lite(
-                folder: "mindbus", preview: "检索三增强的收益账再核一遍",
-                msgs: 12, minutesAgo: 40, dur: 900, title: "核对检索收益账"))
+                folder: "Lighthouse", preview: "小组件在锁屏上的温度字号太小了",
+                msgs: 11, minutesAgo: 40, dur: 780, title: "锁屏温度字号调整"))
             ConversationListRow(conversation: lite(
-                folder: "momo-cat", preview: "这个动画的缓动曲线再收一点，现在太弹了",
-                msgs: 18, minutesAgo: 95, dur: 1200))
+                folder: "Papyrus", preview: "Markdown 表格在窄屏下换行错乱，列宽像是按最长单元格算的",
+                msgs: 19, minutesAgo: 95, dur: 1300))
             ConversationListRow(conversation: lite(
-                folder: "landing-page", preview: "中文标题的字号需要按规范缩小 7%",
-                msgs: 7, minutesAgo: 1500, dur: 300))
+                folder: "Sundial", preview: "番茄钟结束音效换成更轻的，现在太吓人了",
+                msgs: 8, minutesAgo: 1500, dur: 320))
         }
         .padding(8)
         .background(DSLight.bg)
@@ -423,11 +449,11 @@ enum PreviewRenderer {
         return VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("header · 未滚动（大标题）").font(.system(size: 10)).foregroundStyle(DSLight.t4)
-                ListHeaderTitle(count: 42, collapsed: false)
+                ListHeaderTitle(count: 118, collapsed: false)
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text("header · 滚过阈值（收缩）").font(.system(size: 10)).foregroundStyle(DSLight.t4)
-                ListHeaderTitle(count: 42, collapsed: true)
+                ListHeaderTitle(count: 118, collapsed: true)
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text("搜索框 · 未聚焦无词 → ⌘K 徽章").font(.system(size: 10)).foregroundStyle(DSLight.t4)
@@ -449,9 +475,9 @@ enum PreviewRenderer {
         // starKey 传入保证收藏按钮链路参与编译与 hover 布局;已收藏的金色填充态
         // 依赖 shared store(渲染进程不写真实 ~/.mindbus,不在样张里造),真机一点即见。
         VStack(alignment: .leading, spacing: 10) {
-            MessageBubbleView(message: msg(.user, "这段代码为什么会内存泄漏？"),
+            MessageBubbleView(message: msg(.user, "番茄钟切到后台再回来，计时为什么会多走几秒？"),
                               starKey: "preview#m1")
-            MessageBubbleView(message: msg(.assistant, "因为 `DetailView.swift` 的闭包里强引用了 self，形成了循环引用。把 self 改成 `weak` 就能断开。"),
+            MessageBubbleView(message: msg(.assistant, "因为 `TimerEngine.swift` 靠累加的 tick 计数算剩余时间，挂起期间 tick 不触发，恢复时系统会补发一串。改成记录开始时刻、每次用 `Date()` 的差值算就准了。"),
                               starKey: "preview#m2")
         }
         .padding(16)
@@ -463,9 +489,9 @@ enum PreviewRenderer {
     /// 圆点应精确对齐气泡垂直中心（时间行 8px 补正后）。短线已按用户定案删除。
     private static var selectionSample: some View {
         VStack(alignment: .leading, spacing: 10) {
-            MessageBubbleView(message: msg(.user, "帮我把这段接口改成分页加载"),
+            MessageBubbleView(message: msg(.user, "把照片墙的加载改成分页，一次别把整个相册全拉下来"),
                               selectionActive: true, selected: true, onToggleSelect: { _ in })
-            MessageBubbleView(message: msg(.assistant, "可以。分页的关键是把 offset 换成基于游标的 cursor——列表在增删时不会漂移，翻页也不会重复。"),
+            MessageBubbleView(message: msg(.assistant, "可以。分页的关键是把 offset 换成基于游标的 cursor——相册增删照片时列表不会漂移，翻页也不会重复。"),
                               selectionActive: true, selected: true, onToggleSelect: { _ in })
             MessageBubbleView(message: msg(.assistant, "这一条未被选中：所选模式下整体退到 0.72 透明度，但保持可读，圆点淡描边常显。"),
                               selectionActive: true, selected: false, onToggleSelect: { _ in })
@@ -506,20 +532,20 @@ enum PreviewRenderer {
         // rev 序（最新在前），与 DetailView.messageScroll 一致
         let rev: [Message] = [
             Message(id: "tl-5", role: .assistant, timestamp: t0.addingTimeInterval(200),
-                    blocks: [.text("已完成时间线重构：节点行默认收起，点击展开原始内容，所有测试通过。")]),
+                    blocks: [.text("已把刷新间隔改成 15 分钟：`reloadPolicy` 改为 15 分钟后重载，缓存有效期保持不变，所有测试通过。")]),
             Message(id: "tl-4", role: .assistant, timestamp: t0.addingTimeInterval(190),
                     blocks: [.toolUse(name: "Edit",
-                                      input: #"{"file_path":"/Users/dev/mindbus/MindBus/Views/ConversationBrowser/Detail/DetailView.swift","old_string":"a","new_string":"b"}"#)]),
+                                      input: #"{"file_path":"/Users/dev/Projects/Lighthouse/Widget/ForecastTimeline.swift","old_string":"a","new_string":"b"}"#)]),
             Message(id: "tl-3", role: .assistant, timestamp: t0.addingTimeInterval(75),
                     blocks: [.toolUse(name: "Read",
-                                      input: #"{"file_path":"/Users/dev/mindbus/MindBus/Views/ConversationBrowser/Detail/MessageBubbleView.swift"}"#)]),
+                                      input: #"{"file_path":"/Users/dev/Projects/Lighthouse/Widget/ForecastCache.swift"}"#)]),
             Message(id: "tl-2", role: .assistant, timestamp: t0.addingTimeInterval(70),
                     blocks: [.toolUse(name: "Bash",
                                       input: #"{"command":"swift build && swift test"}"#)]),
             Message(id: "tl-1", role: .assistant, timestamp: t0,
-                    blocks: [.thinking("用户要求把详情从纯气泡流升级为执行流时间线，先读设计系统确认 token，再看翻转列表结构。")]),
+                    blocks: [.thinking("用户要改小组件的刷新间隔，先看时间线的 reloadPolicy 现在怎么写，再确认系统给小组件的后台刷新预算够不够。")]),
             Message(id: "tl-0", role: .user, timestamp: t0.addingTimeInterval(-30),
-                    blocks: [.text("把 agent 会话的渲染升级为执行流时间线")]),
+                    blocks: [.text("把天气小组件的刷新间隔改成 15 分钟")]),
         ]
         let infos = TimelineLayout.rowInfos(rev: rev)
         // 静态样张不翻转：视觉顺序 = 旧→新，倒序遍历 rev
@@ -538,10 +564,10 @@ enum PreviewRenderer {
     private static var timelineExpandedSample: some View {
         let t0 = Date().addingTimeInterval(-7200)
         let thinkMsg = Message(id: "tle-1", role: .assistant, timestamp: t0,
-                               blocks: [.thinking("用户要求把详情从纯气泡流升级为执行流时间线。\n先读设计系统确认 token 与圆角分级，再精读翻转列表结构——任何新视图都要兼容内容 y 翻转 + 行翻回 + 数据倒序。\n摘要计算必须缓存，不能在 body 里做全文扫描。")])
+                               blocks: [.thinking("用户要改小组件的刷新间隔。\n先看时间线的 reloadPolicy 现在怎么写，再确认系统给小组件的后台刷新预算——15 分钟一次会不会超。\n缓存有效期不能跟着动，那是另一层的事，用户明确说过别碰。")])
         let bashMsg = Message(id: "tle-2", role: .assistant, timestamp: t0.addingTimeInterval(80),
                               blocks: [.toolUse(name: "Bash",
-                                                input: #"{"command":"cd /Users/dev/mindbus-oss && swift build && swift test"}"#)])
+                                                input: #"{"command":"cd /Users/dev/Projects/Lighthouse && swift build && swift test"}"#)])
         let rev = [bashMsg, thinkMsg]
         let infos = TimelineLayout.rowInfos(rev: rev)
         return VStack(alignment: .leading, spacing: 8) {
@@ -558,28 +584,28 @@ enum PreviewRenderer {
     /// 列表行（标题+preview 命中 / 无命中对照）、气泡正文（markdown 粗体内命中）、
     /// 定位金描边（located）、时间线节点摘要命中。
     private static var searchHighlightSample: some View {
-        let q = "内存泄漏"
+        let q = "刷新间隔"
         let tlMsg = Message(id: "sh-tl", role: .assistant, timestamp: Date(),
-                            blocks: [.thinking("先复现内存泄漏，再定位闭包里的循环引用。")])
+                            blocks: [.thinking("先确认刷新间隔的改动有没有进时间线，再看系统是不是把重载请求合并了。")])
         let tlInfos = TimelineLayout.rowInfos(rev: [tlMsg])
         return VStack(alignment: .leading, spacing: 12) {
             Text("列表行 · 标题/preview 命中金标注（下行为无命中对照）")
                 .font(.system(size: 10)).foregroundStyle(DSLight.t4)
             VStack(spacing: 0) {
                 ConversationListRow(conversation: lite(
-                    folder: "内存泄漏排查", preview: "帮我查这段代码的内存泄漏，顺便看看闭包引用",
-                    msgs: 42, minutesAgo: 3, dur: 5400), highlightQuery: q)
+                    folder: "Lighthouse", preview: "把天气组件的刷新间隔改成 15 分钟，顺便看看后台刷新预算够不够",
+                    msgs: 36, minutesAgo: 3, dur: 4800, title: "天气组件刷新间隔改 15 分钟"), highlightQuery: q)
                 ConversationListRow(conversation: lite(
-                    folder: "landing-page", preview: "中文标题的字号需要按规范缩小 7%",
-                    msgs: 7, minutesAgo: 1500, dur: 300), highlightQuery: q)
+                    folder: "Sundial", preview: "番茄钟结束音效换成更轻的，现在太吓人了",
+                    msgs: 8, minutesAgo: 1500, dur: 320), highlightQuery: q)
             }
             .frame(width: 340)
 
             Text("气泡正文 · markdown 渲染后按可见文本标注；user 泡带定位强调环")
                 .font(.system(size: 10)).foregroundStyle(DSLight.t4)
-            MessageBubbleView(message: msg(.user, "这段代码为什么会**内存泄漏**？"),
+            MessageBubbleView(message: msg(.user, "为什么**刷新间隔**改了，小组件还是半小时才更新一次？"),
                               highlightQuery: q, located: true)
-            MessageBubbleView(message: msg(.assistant, "闭包强引用了 self，形成循环引用导致内存泄漏。改成 weak 即可断开。"),
+            MessageBubbleView(message: msg(.assistant, "时间线里的刷新间隔只是建议值，系统会按后台刷新预算合并重载请求；预算余量够的时候才会按 15 分钟走。"),
                               highlightQuery: q)
 
             Text("时间线节点摘要 · 命中")
@@ -666,6 +692,63 @@ enum PreviewRenderer {
 
     // MARK: - 渲染
 
+    /// AppKit 宿主渲染：把视图挂进一个放在屏幕外的离屏窗口，跑一段 runloop 让 onAppear /
+    /// Task 的异步加载落地，再 cacheDisplay 截图。ImageRenderer 渲不出 NSViewRepresentable
+    /// （右键菜单覆盖层、TextField 会变成黄色占位块），也不触发 onAppear——依赖异步加载的
+    /// 页面只能抓到骨架。README 用的几张走这里。
+    private static func hostedBitmap<V: View>(_ view: V, size: CGSize, settle: TimeInterval) -> NSBitmapImageRep? {
+        _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
+        let host = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
+        host.frame = CGRect(origin: .zero, size: size)
+        let window = NSWindow(contentRect: CGRect(x: -20000, y: -20000, width: size.width, height: size.height),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .aqua)
+        window.isReleasedWhenClosed = false
+        window.contentView = host
+        window.orderBack(nil)
+        RunLoop.main.run(until: Date().addingTimeInterval(settle))
+        host.layoutSubtreeIfNeeded()
+        host.displayIfNeeded()
+        defer { window.close() }
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return nil }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        return rep
+    }
+
+    private static func renderHosted<V: View>(_ view: V, name: String, size: CGSize,
+                                              settle: TimeInterval, to dir: URL) {
+        guard let rep = hostedBitmap(view, size: size, settle: settle),
+              let data = rep.representation(using: .png, properties: [:])
+        else { print("render failed: \(name)"); return }
+        try? data.write(to: dir.appendingPathComponent("\(name).png"))
+    }
+
+    /// 侧栏（ImageRenderer）+ 主区（宿主渲染）左右拼接成主界面样张。
+    private static func renderHeroComposite(name: String, to dir: URL) {
+        let size = heroSize, leftW = heroSidebarWidth, scale: CGFloat = 2
+        let left = ImageRenderer(content: heroSidebar.frame(width: leftW, height: size.height))
+        left.scale = scale
+        guard let leftCG = left.cgImage,
+              let rightRep = hostedBitmap(heroMain, size: CGSize(width: size.width - leftW, height: size.height), settle: 2.5),
+              let out = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale),
+                                         pixelsHigh: Int(size.height * scale), bitsPerSample: 8, samplesPerPixel: 4,
+                                         hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                         bytesPerRow: 0, bitsPerPixel: 0)
+        else { print("render failed: \(name)"); return }
+        out.size = size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: out)
+        NSImage(cgImage: leftCG, size: CGSize(width: leftW, height: size.height))
+            .draw(in: CGRect(x: 0, y: 0, width: leftW, height: size.height))
+        let rightImage = NSImage(size: rightRep.size)
+        rightImage.addRepresentation(rightRep)
+        rightImage.draw(in: CGRect(x: leftW, y: 0, width: size.width - leftW, height: size.height))
+        NSGraphicsContext.restoreGraphicsState()
+        guard let data = out.representation(using: .png, properties: [:]) else { return }
+        try? data.write(to: dir.appendingPathComponent("\(name).png"))
+    }
+
     private static func render<V: View>(_ view: V, name: String, size: CGSize, to dir: URL) {
         let renderer = ImageRenderer(content:
             view.frame(width: size.width, height: size.height)
@@ -685,7 +768,7 @@ enum PreviewRenderer {
         return ConversationLite(
             id: UUID().uuidString, source: .claudeCode,
             startAt: end.addingTimeInterval(-Double(dur)), endAt: end,
-            cwd: "/Users/dev/\(folder)", gitBranch: nil, title: title,
+            cwd: "/Users/dev/Projects/\(folder)", gitBranch: nil, title: title,
             preview: preview, messageCount: msgs,
             fileURL: URL(fileURLWithPath: "/tmp/preview.jsonl")
         )
@@ -695,3 +778,4 @@ enum PreviewRenderer {
         Message(id: UUID().uuidString, role: role, timestamp: Date(), blocks: [.text(text)])
     }
 }
+#endif

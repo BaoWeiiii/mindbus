@@ -42,7 +42,7 @@ public enum MindsReadTool {
             """, isError: true)
         }
         // 不可失败解码：这份文件正常只由 `MindsBuilder.build` 写出（保证是合法 UTF-8），
-        // 但它是用户看得见、"好备份、能整体带走"的文件（design spec §1），手改或被其他
+        // 但它是用户看得见、"好备份、能整体带走"的文件，手改或被其他
         // 工具误写入非法字节不该让整个读取直接判定成"文件不存在"——那会把一次编码事故
         // 升级成对产品承诺（底座文件不存在时才给"先扫一遍"的提示）的破坏。
         let content = String(decoding: data, as: UTF8.self)

@@ -33,7 +33,7 @@ public final class MindsStore: ObservableObject {
             return
         }
         // 不可失败解码：这份文件正常只由 `MindsBuilder.build` 写出（保证合法 UTF-8），
-        // 但用户可能手改它（design spec §1："用户看得见、好备份"），一个坏字节不该让
+        // 但用户可能手改它（"用户看得见、好备份"），一个坏字节不该让
         // 整个读取判定成"文件不存在"。
         let content = String(decoding: data, as: UTF8.self)
         if let range = content.range(of: MindsBuilder.legacyWeakSpotsMarker) {

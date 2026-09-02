@@ -19,7 +19,7 @@ public enum MemoryOpenTool {
     /// 还大，需要一并重新检视那条分支。
     public static let totalCap = 20_000
 
-    /// 引用回流记账钩子（spec §7 第5步）：`loadFull` 成功读到原文后调用一次，
+    /// 引用回流记账钩子（第5步）：`loadFull` 成功读到原文后调用一次，
     /// 参数是那条会话真正的 `lite.id`。生产走默认实现——写真实
     /// `MCPRefLog.defaultLogURL`；测试替换成断言用的闭包，断言"被调/未被调"后
     /// 必须在 `addTeardownBlock` 里还原——这是进程级共享的 static var，没有
@@ -92,7 +92,7 @@ public enum MemoryOpenTool {
             you can get.
             """, isError: true)
         }
-        // 真读到原文——记一笔引用（spec §7 第5步）。只在这条成功分支记：上面两个
+        // 真读到原文——记一笔引用（第5步）。只在这条成功分支记：上面两个
         // guard（id 查不到 / loadFull 失败）都提前 return 了，走不到这里，天然满足
         // 「找不到 id / 读不出原文都不记」的约束，不需要额外分支判断。
         refLogger(lite.id)

@@ -38,7 +38,7 @@ final class MCPRefLogTests: XCTestCase {
             try JSONSerialization.jsonObject(with: Data(lines[0].utf8)) as? [String: Any])
         XCTAssertEqual(obj["conv_id"] as? String, "conv-a")
         XCTAssertEqual(obj["ts"] as? Double, 1_700_000_000)
-        // agent 字段：spec §2.2「被哪个 Agent 读取过」——日志 append-only 不可回填，
+        // agent 字段：设计说明「被哪个 Agent 读取过」——日志 append-only 不可回填，
         // 从第一天就要在。未设置时是 "unknown"（无状态客户端可以不握手）。
         XCTAssertNotNil(obj["agent"] as? String, "缺 agent 字段——无归属的历史一天都不该多")
     }

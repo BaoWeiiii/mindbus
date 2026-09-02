@@ -13,6 +13,25 @@ set -euo pipefail
 # raw.githubusercontent.com 的 main 分支路径）。
 # ============================================================
 
+usage() {
+    cat >&2 << 'USAGE'
+用法: make-appcast.sh <short-version> <build-number> <zip-file> <signature-attrs>
+  short-version    形如 1.4.1（CFBundleShortVersionString）
+  build-number     纯数字，形如 6（CFBundleVersion，Sparkle 用它比大小）
+  zip-file         更新包路径；只取文件名拼进 Releases 下载 URL
+  signature-attrs  sign_update 的原样输出：sparkle:edSignature="..." length="..."
+输出写到 stdout，重定向到 appcast.xml。
+USAGE
+    exit 2
+}
+
+case "${1:-}" in -h|--help) usage ;; esac
+[ "$#" -eq 4 ] || { echo "✗ 需要 4 个参数，收到 $#" >&2; usage; }
+[[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "✗ short-version 应为 x.y.z，收到: $1" >&2; usage; }
+[[ "$2" =~ ^[0-9]+$ ]] || { echo "✗ build-number 应为纯数字，收到: $2" >&2; usage; }
+[ -n "$3" ] || { echo "✗ zip-file 为空" >&2; usage; }
+[[ "$4" == *sparkle:edSignature=* && "$4" == *length=* ]] || { echo "✗ signature-attrs 缺少 sparkle:edSignature / length（应直接传 sign_update 的输出）" >&2; usage; }
+
 VERSION="$1"
 BUILD="$2"
 ZIP_NAME="$(basename "$3")"

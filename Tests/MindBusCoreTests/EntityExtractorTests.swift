@@ -2,7 +2,7 @@ import XCTest
 @testable import MindBusCore
 
 /// 实体抽取：语言中立、无词表、零 LLM——只认字符形态。
-/// 开发语料里信号最高的四类（`MEMORY-LAYER-SPEC.md` §2.2）：
+/// 开发语料里信号最高的四类（记忆层设计说明）：
 /// 文件路径、代码标识符、URL、报错码。
 final class EntityExtractorTests: XCTestCase {
 

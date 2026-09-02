@@ -34,7 +34,7 @@ final class LexRouteTests: XCTestCase {
     /// testBuildExtractsFrequentCohesiveWord` 当初也是这样），门槛按真实语料（几百万字）
     /// 标定，10 句话的语料连"库存经理"自己的二分切法都显得概率很高。
     ///
-    /// 修法照抄 Task 1 报告验证过的手法：补一份与 `收/益/经/理` 及上下文字符完全不相交的
+    /// 修法照抄 Task 1 报告验证过的手法：补一份与 `库/存/经/理` 及上下文字符完全不相交的
     /// 8 字符池，三重循环生成 512 条 3 字 filler。3 字 filler 只贡献 1/2/3-gram 的语料
     /// 总数（`PersonalLexicon.build` 的候选循环 `guard chars.count >= n else { break }`
     /// 让 3 字 run 天然不产生 4-gram），完全不稀释"库存经理"自身的概率（分子分母都在
@@ -42,7 +42,7 @@ final class LexRouteTests: XCTestCase {
     /// 净效果是把凝固度从约 15 拉到约 963（相对门槛 5 倍安全边际），实测确认词表最终
     /// 只含 `库存经理` 一项（filler 两两拼接的凝固度约 1，边界熵也因为三重循环保证每个
     /// 2 字前缀/后缀恰好出现 8 次而稀释，够不到 60 的门槛，不会混进词表）。
-    /// 门槛数值本身不改（spec §7.62 定稿），只改语料。
+    /// 门槛数值本身不改（定稿），只改语料。
     private func seedLexiconCorpus(_ index: ConversationIndex) throws {
         let contexts = [("找", "谈"), ("和", "说"), ("让", "看"), ("由", "定"),
                         ("请", "来"), ("跟", "聊"), ("给", "批"), ("为", "办"),
@@ -77,7 +77,7 @@ final class LexRouteTests: XCTestCase {
         XCTAssertFalse(index.rebuildLexiconIfNeeded(), "语料未增长不该重复重建")
     }
 
-    /// 决定性检验（spec §7.62 的核心主张）：词表词整词查询，lex 路命中。
+    /// 决定性检验（的核心主张）：词表词整词查询，lex 路命中。
     func testLexiconWordMatchesAsWholeToken() throws {
         let index = try makeIndex()
         try seedLexiconCorpus(index)
@@ -136,7 +136,7 @@ final class LexRouteTests: XCTestCase {
     /// 词表重建后，**已入库的旧段**也能按新词表整词命中——这就是重灌的意义。
     func testRefillReindexesPreexistingSegments() throws {
         let index = try makeIndex()
-        try put(index, "old", "早就入库的那条也提到库存经理了")   // 此时词表为空
+        try put(index, "old", "早就录进去的那条也提到库存经理了")   // 此时词表为空
         try seedLexiconCorpus(index)
         _ = index.rebuildLexiconIfNeeded()
         XCTAssertTrue(index.search("库存经理").contains("old"),
@@ -200,7 +200,7 @@ final class LexRouteTests: XCTestCase {
     /// 变异同一处会让它由绿转红）。
     ///
     /// 实现相对简报字面构造做了必要调整，原因记入报告「拍板有误的地方」：简报设想
-    /// X 含整词「库存经理」一次、Y 含"收益经""益经理"等 3-gram 碎片但无整词，靠 trigram
+    /// X 含整词「库存经理」一次、Y 含"库存经""存经理"等 3-gram 碎片但无整词，靠 trigram
     /// 路的碎片密度把 Y 排到 X 前面。实测（sqlite3 CLI 直接建 trigram FTS5 表验证）
     /// trigram 路的查询是**引号短语**（`ftsQuery` 给无空格输入包一层引号），FTS5 对
     /// trigram tokenizer 的短语查询要求切出的子词元位置相邻——等价于「逐字节子串必须

@@ -116,9 +116,9 @@ public enum MemorySearchTool {
         var contextPath: String?
         if let raw = arguments["context_path"] as? String, !raw.isEmpty { contextPath = raw }
 
-        // .always：宿主模型自己会滤掉扩展带来的噪声，MCP 场景要的是召回（spec §7.60）——
+        // .always：宿主模型自己会滤掉扩展带来的噪声，MCP 场景要的是召回——
         // 与 GUI 的 .adaptive 不同，这里不看命中量，恒做 RM3 扩展补词汇鸿沟。
-        // contextPath（spec §7.61 情境先验）：模型自己知道调用方 cwd，schema 描述引导它
+        // contextPath（情境先验）：模型自己知道调用方 cwd，schema 描述引导它
         // 传；软加权，不过滤——不接的话不影响结果集合，只是同仓库的会话排不到前面。
         let allHits = index.searchWithHits(query, expansion: .always, contextPath: contextPath)
         // 保持索引给出的相关度顺序：先按名次截断，再补元数据，再过滤，绝不重排
@@ -166,7 +166,7 @@ public enum MemorySearchTool {
             }
         }
         lines.append("")
-        // 借宿主改写（spec §5）：低命中时结果照给，但附一句改写建议——机械 RM3 只能
+        // 借宿主改写：低命中时结果照给，但附一句改写建议——机械 RM3 只能
         // 桥「在语料里共现过」的词，同义改写这种语义跨越正是宿主模型的本行。
         // 本渲染层只服务 MCP（GUI 走 ConversationStore.runSearch，不经过这里），
         // 给模型看的指令不会泄漏进 GUI。
@@ -225,7 +225,7 @@ public enum MemorySearchTool {
         row("Recent months", map.byMonth.reversed().prefix(4).map { ($0.key, $0.count) })
 
         lines.append("")
-        // 借宿主改写（spec §5）：零命中说明机械扩展（RM3 共现词）也没救回来——
+        // 借宿主改写：零命中说明机械扩展（RM3 共现词）也没救回来——
         // 语义改写让宿主自己生成。明说「别重复原词」，共现方向已经试过了。
         if !filtered {
             lines.append("REWRITE — the mechanical expansion already tried co-occurring terms "

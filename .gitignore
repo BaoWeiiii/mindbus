@@ -60,3 +60,6 @@ _local/
 # claude-mem 注入的会话上下文（会随使用累积私有信息）
 AGENTS.md
 .superpowers/
+
+# 本机私有拦截规则（作者身份词等，规则本身即敏感）
+.githooks/local-deny.txt

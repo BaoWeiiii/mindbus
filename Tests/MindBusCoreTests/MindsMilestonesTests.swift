@@ -3,8 +3,8 @@ import XCTest
 
 /// 「你点头的时刻」：用户的短反馈是标注，AI 的汇报是内容。
 ///
-/// 夹具用真机实测到的形态（2026-08-18，150 场 / 3240 条 user 消息 /
-/// 271 处认可信号），不是我编的句子。
+/// 夹具的形态照真机实测（2026-08-18，150 场 / 3240 条 user 消息 /
+/// 271 处认可信号）仿写，句子本身已换成虚构文本。
 final class MindsMilestonesTests: XCTestCase {
 
     private func msg(_ role: MessageRole, _ text: String, minute: Int = 0) -> Message {
@@ -20,7 +20,7 @@ final class MindsMilestonesTests: XCTestCase {
     private let zhApprovals: Set<String> = ["继续", "确认", "好"]
 
     private var report: String {
-        "风声扩展 P1 落地完毕(0a1b2c3)：表 + 闸门 + 真实种子全链路跑通，准入判据实弹检验通过。"
+        "缓存分层 P1 落地完毕(0a1b2c3)：表 + 开关 + 真实样本全链路跑通，准入判据实际检验通过。"
             + String(repeating: "后面还有很多细节交代，逐条列出改动与验证方式。", count: 8)
     }
 
@@ -50,13 +50,13 @@ final class MindsMilestonesTests: XCTestCase {
     // MARK: - 首句
 
     func testHeadlineStripsMarkdownAndCutsAtSentenceEnd() {
-        let h = MindsMilestones.headline(of: "## **思脉底座开发完成、合并、已推送两仓**\n\n细节如下：\n- 一\n- 二")
-        XCTAssertEqual(h, "思脉底座开发完成、合并、已推送两仓")
+        let h = MindsMilestones.headline(of: "## **索引底座开发完成、合并、已推送主干**\n\n细节如下：\n- 一\n- 二")
+        XCTAssertEqual(h, "索引底座开发完成、合并、已推送主干")
     }
 
     func testHeadlineSkipsTooShortLeadingLines() {
-        let h = MindsMilestones.headline(of: "好\n\n砍完推送(1b2c3d4)，净删 573 行，801 测试全绿，已装机")
-        XCTAssertEqual(h, "砍完推送(1b2c3d4)，净删 573 行，801 测试全绿，已装机")
+        let h = MindsMilestones.headline(of: "好\n\n裁剪推送(1b2c3d4)，净删 573 行，801 测试全绿，已装机")
+        XCTAssertEqual(h, "裁剪推送(1b2c3d4)，净删 573 行，801 测试全绿，已装机")
     }
 
     func testHeadlineIsNilWhenNothingSubstantial() {
@@ -71,7 +71,7 @@ final class MindsMilestonesTests: XCTestCase {
                   msg(.user, "继续", minute: 2)]
         let out = MindsMilestones.extract(messages: ms, approvals: zhApprovals, text: plain)
         XCTAssertEqual(out.count, 1)
-        XCTAssertTrue(out[0].headline.hasPrefix("风声扩展 P1 落地完毕"), out[0].headline)
+        XCTAssertTrue(out[0].headline.hasPrefix("缓存分层 P1 落地完毕"), out[0].headline)
         XCTAssertEqual(out[0].approval, "继续")
     }
 
@@ -82,7 +82,7 @@ final class MindsMilestonesTests: XCTestCase {
                   msg(.user, "继续", minute: 2)]
         let out = MindsMilestones.extract(messages: ms, approvals: zhApprovals, text: plain)
         XCTAssertEqual(out.count, 1)
-        XCTAssertTrue(out[0].headline.hasPrefix("风声扩展 P1"), out[0].headline)
+        XCTAssertTrue(out[0].headline.hasPrefix("缓存分层 P1"), out[0].headline)
     }
 
     /// 没有够长的汇报就不产出——闲聊里的「继续」不是里程碑
@@ -93,7 +93,7 @@ final class MindsMilestonesTests: XCTestCase {
     }
 
     func testMultipleMilestonesKeepChronology() {
-        let second = "第二阶段完成：全部切上新链路，96/96 测绿。"
+        let second = "第二阶段完成：全部迁到新链路，96/96 测绿。"
             + String(repeating: "详细改动逐条说明，含验证方式与回滚预案。", count: 8)
         let ms = [msg(.assistant, report, minute: 0),
                   msg(.user, "继续", minute: 1),
@@ -201,7 +201,7 @@ extension MindsMilestonesTests {
     /// 够长的 AI 汇报的首句（没有就是 nil）。这一层**不做任何判断**——
     /// 认可词表要看全部对话才学得出来，而判据以后还会改，改判据不该要求重建索引。
     func testCandidatesCarryRawMaterialOnly() {
-        let report = String(repeating: "风声扩展 P1 落地完毕，表和闸门全链路跑通。", count: 12)
+        let report = String(repeating: "缓存分层 P1 落地完毕，表和开关全链路跑通。", count: 12)
         let msgs = [
             msg(.assistant, report),
             msg(.user, "继续", minute: 1),
@@ -210,7 +210,7 @@ extension MindsMilestonesTests {
         ]
         let cands = MindsMilestones.candidates(messages: msgs, text: plain)
         XCTAssertEqual(cands.map(\.approval), ["继续", "好"], "长消息不是候选")
-        XCTAssertTrue(cands.allSatisfy { $0.headline?.contains("风声扩展 P1 落地完毕") == true })
+        XCTAssertTrue(cands.allSatisfy { $0.headline?.contains("缓存分层 P1 落地完毕") == true })
     }
 
     /// 前面没有够长的汇报时，headline 为 nil——这条候选照样要留，

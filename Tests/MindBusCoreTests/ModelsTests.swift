@@ -44,7 +44,7 @@ final class ModelsTests: XCTestCase {
     func testConversationPreviewTakesFirstUserTextUpTo40Chars() {
         let msg1 = Message(
             id: "m1", role: .user, timestamp: Date(),
-            blocks: [.text("我想讨论一下 assembler.ts 的路由逻辑，特别是快慢通道切换的阈值")]
+            blocks: [.text("我想讨论一下 router.ts 的分发逻辑，特别是冷热路径切换的阈值")]
         )
         let conv = Conversation(
             id: "s1", source: .claudeCode,
@@ -52,6 +52,6 @@ final class ModelsTests: XCTestCase {
             cwd: "/", gitBranch: nil,
             messages: [msg1]
         )
-        XCTAssertEqual(conv.preview, "我想讨论一下 assembler.ts 的路由逻辑，特别是快慢通道切换的阈值")
+        XCTAssertEqual(conv.preview, "我想讨论一下 router.ts 的分发逻辑，特别是冷热路径切换的阈值")
     }
 }

@@ -28,6 +28,15 @@ public final class ConversationIndex: @unchecked Sendable {
         let fm = FileManager.default
         // 文件都不存在还打不开 = 目录不可写等环境问题，搬走也没用，别乱动
         guard fm.fileExists(atPath: path) else { return nil }
+        // 历史的 .corrupt-* 永不清理会一直吃磁盘：索引可从源文件重建，旧损坏件没有用处，
+        // 只留本次这一份供排障。
+        let dir = (path as NSString).deletingLastPathComponent
+        let corruptPrefix = (path as NSString).lastPathComponent + ".corrupt-"
+        if let names = try? fm.contentsOfDirectory(atPath: dir) {
+            for n in names where n.hasPrefix(corruptPrefix) {
+                try? fm.removeItem(atPath: (dir as NSString).appendingPathComponent(n))
+            }
+        }
         let stamp = Int(Date().timeIntervalSince1970)
         for suffix in ["", "-wal", "-shm"] {
             let src = path + suffix
@@ -114,7 +123,7 @@ public final class ConversationIndex: @unchecked Sendable {
                       "vocab_uni", "vocab_lex"] {
             var exists = false
             try db.query("SELECT 1 FROM sqlite_master WHERE name = ? LIMIT 1;",
-                         bind: { sqlite3_bind_text($0, 1, table, -1, SQLiteDB.transient) },
+                         bind: { SQLiteDB.bindText($0, 1, table) },
                          row: { _ in exists = true })
             guard exists else { throw ReadOnlyOpenError.incompleteSchema(missing: table) }
         }
@@ -160,12 +169,12 @@ public final class ConversationIndex: @unchecked Sendable {
     CREATE VIRTUAL TABLE IF NOT EXISTS segments_fts_uni USING fts5(
         text, content='', contentless_delete=1, tokenize="unicode61 remove_diacritics 2"
     );
-    -- 第三路：个人词表切分后的词级索引（spec §7.62，中文 R@10 实测 +19pt）。
+    -- 第三路：个人词表切分后的词级索引（中文 R@10 实测 +19pt）。
     -- contentless；rowid 对齐 segments.rowid，与 _uni 完全同构。
     CREATE VIRTUAL TABLE IF NOT EXISTS segments_fts_lex USING fts5(
         text, content='', contentless_delete=1, tokenize="unicode61 remove_diacritics 2"
     );
-    -- RM3 查询扩展（spec §7.60）算 df 用：'row' 模式给 (term, doc, cnt) 三列，
+    -- RM3 查询扩展算 df 用：'row' 模式给 (term, doc, cnt) 三列，
     -- doc 即该词元出现在几个段（segments 表行）里——正是 IDF 过滤要的文档频率。
     -- 纯视图、无自有数据（不占盘、不需要迁移），不 bump dataPolicyVersion。
     CREATE VIRTUAL TABLE IF NOT EXISTS vocab_uni USING fts5vocab(segments_fts_uni, 'row');
@@ -370,7 +379,7 @@ public final class ConversationIndex: @unchecked Sendable {
             for word in words {
                 var df = 0
                 try? db.query("SELECT doc FROM vocab_lex WHERE term = ?;",
-                              bind: { sqlite3_bind_text($0, 1, word.lowercased(), -1, SQLiteDB.transient) },
+                              bind: { SQLiteDB.bindText($0, 1, word.lowercased()) },
                               row: { df = Int(sqlite3_column_int64($0, 0)) })
                 if df > 0 { out[word] = df }
             }
@@ -551,7 +560,7 @@ public final class ConversationIndex: @unchecked Sendable {
             try db.query("""
                 SELECT u.text FROM user_corpus u JOIN conversations c ON c.rowid = u.conv_rowid
                 WHERE c.id = ?;
-                """, bind: { sqlite3_bind_text($0, 1, conversationID, -1, SQLiteDB.transient) },
+                """, bind: { SQLiteDB.bindText($0, 1, conversationID) },
                 row: { corpus = String(cString: sqlite3_column_text($0, 0)) })
         }
         guard !corpus.isEmpty else { return [] }
@@ -639,7 +648,7 @@ public final class ConversationIndex: @unchecked Sendable {
         try? queue.sync {
             for id in hits {
                 try db.query("SELECT title, cwd, start_at FROM conversations WHERE id = ?;",
-                             bind: { sqlite3_bind_text($0, 1, id, -1, SQLiteDB.transient) },
+                             bind: { SQLiteDB.bindText($0, 1, id) },
                              row: { st in
                     let at = Date(timeIntervalSince1970: sqlite3_column_double(st, 2))
                     guard at < cutoff else { return }
@@ -676,7 +685,7 @@ public final class ConversationIndex: @unchecked Sendable {
                 SELECT m.approval, m.headline, m.at, m.message_id
                 FROM milestone_candidates m JOIN conversations c ON c.rowid = m.conv_rowid
                 WHERE c.id = ? AND m.headline IS NOT NULL AND m.message_id != '';
-                """, bind: { sqlite3_bind_text($0, 1, conversationID, -1, SQLiteDB.transient) },
+                """, bind: { SQLiteDB.bindText($0, 1, conversationID) },
                 row: { st in
                 stones.append((.init(approval: String(cString: sqlite3_column_text(st, 0)),
                                      headline: sqlite3_column_text(st, 1).map { String(cString: $0) },
@@ -687,7 +696,7 @@ public final class ConversationIndex: @unchecked Sendable {
                 SELECT d.statement, d.message_id
                 FROM decision_points d JOIN conversations c ON c.rowid = d.conv_rowid
                 WHERE c.id = ? AND d.message_id != '';
-                """, bind: { sqlite3_bind_text($0, 1, conversationID, -1, SQLiteDB.transient) },
+                """, bind: { SQLiteDB.bindText($0, 1, conversationID) },
                 row: { st in
                 calls.append((String(cString: sqlite3_column_text(st, 0)),
                               String(cString: sqlite3_column_text(st, 1))))
@@ -774,7 +783,7 @@ public final class ConversationIndex: @unchecked Sendable {
     /// 词在 `vocab_uni`/`vocab_lex` 两路第三方索引里的文档频率（df），取两表 **max**——
     /// 与 `expansionTermsInsideQueue` 内联查两表取 max 的口径完全一致（那里没有独立成
     /// 公开方法，是因为它紧跟着候选抽取与排序，抽出来反而要多传几个参数）；这里单独
-    /// 提炼成公开方法，供 `BenchDataset`（spec §7.59 评测集分带：query 与答案会话全文
+    /// 提炼成公开方法，供 `BenchDataset`（设计说明 评测集分带：query 与答案会话全文
     /// 的低频词重叠数）复用同一 df 口径——评测「低频」的标准必须与生产代码判断「值不值得
     /// 当扩展词」的标准一致，否则分带数字与检索行为对不上号。
     ///
@@ -794,10 +803,10 @@ public final class ConversationIndex: @unchecked Sendable {
                 let lower = term.lowercased()
                 var dfUni = 0, dfLex = 0
                 try? db.query("SELECT doc FROM vocab_uni WHERE term = ?;",
-                              bind: { sqlite3_bind_text($0, 1, lower, -1, SQLiteDB.transient) },
+                              bind: { SQLiteDB.bindText($0, 1, lower) },
                               row: { dfUni = Int(sqlite3_column_int64($0, 0)) })
                 try? db.query("SELECT doc FROM vocab_lex WHERE term = ?;",
-                              bind: { sqlite3_bind_text($0, 1, lower, -1, SQLiteDB.transient) },
+                              bind: { SQLiteDB.bindText($0, 1, lower) },
                               row: { dfLex = Int(sqlite3_column_int64($0, 0)) })
                 let df = max(dfUni, dfLex)
                 if df > 0 { out[term] = df }
@@ -824,7 +833,7 @@ public final class ConversationIndex: @unchecked Sendable {
         var n = 0
         try? queue.sync {
             try db.query("SELECT COUNT(*) FROM segments_fts_lex WHERE segments_fts_lex MATCH ?;",
-                         bind: { sqlite3_bind_text($0, 1, match, -1, SQLiteDB.transient) },
+                         bind: { SQLiteDB.bindText($0, 1, match) },
                          row: { n = Int(sqlite3_column_int64($0, 0)) })
         }
         return n
@@ -875,7 +884,7 @@ public final class ConversationIndex: @unchecked Sendable {
                 try db.exec("DELETE FROM lexicon;")
                 for word in lexicon {
                     try db.run("INSERT INTO lexicon(word) VALUES (?);",
-                               bind: { sqlite3_bind_text($0, 1, word, -1, SQLiteDB.transient) })
+                               bind: { SQLiteDB.bindText($0, 1, word) })
                 }
                 try db.run("""
                 INSERT INTO lexicon_meta(id, corpus_chars, built_at) VALUES (1, ?, ?)
@@ -895,7 +904,7 @@ public final class ConversationIndex: @unchecked Sendable {
                     try db.run("INSERT INTO segments_fts_lex(rowid, text) VALUES (?, ?);",
                                bind: { s2 in
                         sqlite3_bind_int64(s2, 1, rowid)
-                        sqlite3_bind_text(s2, 2, segmented, -1, SQLiteDB.transient)
+                        SQLiteDB.bindText(s2, 2, segmented)
                     })
                 }
             }
@@ -906,7 +915,7 @@ public final class ConversationIndex: @unchecked Sendable {
         return rebuilt
     }
 
-    // MARK: - MCP 引用回流（spec §7 第5步/§2.2）
+    // MARK: - MCP 引用回流（第5步/§2.2）
 
     /// 汇入 `MCPRefLog` 写的 jsonl：读全文件按行聚合出 `[conv_id: (count, lastTs)]`，
     /// 事务里 `DELETE FROM mcp_refs` 后全量重插——不是增量累加。
@@ -927,7 +936,7 @@ public final class ConversationIndex: @unchecked Sendable {
     ///
     /// 性能：整文件读进内存后按行 `split`（不是 `components(separatedBy:)`——
     /// 前者返回 `[Substring]`，是原字符串的视图，不逐行拷贝；后者返回 `[String]`，
-    /// 每行都要一次新分配）。引用日志量级小（spec §2.2 估算：一人一天检索几十次，
+    /// 每行都要一次新分配）。引用日志量级小（设计说明 估算：一人一天检索几十次，
     /// 十年 <10MB），整文件读入内存与逐行 `JSONSerialization` 都在毫秒级，
     /// 这个量级不需要为此做流式读取。
     public func ingestRefLog(from url: URL) {
@@ -960,7 +969,7 @@ public final class ConversationIndex: @unchecked Sendable {
                 for (id, agg) in counts {
                     try db.run("INSERT INTO mcp_refs(conv_id, ref_count, last_ref) VALUES (?, ?, ?);",
                                bind: { s in
-                        sqlite3_bind_text(s, 1, id, -1, SQLiteDB.transient)
+                        SQLiteDB.bindText(s, 1, id)
                         sqlite3_bind_int64(s, 2, Int64(agg.count))
                         sqlite3_bind_double(s, 3, agg.lastTs)
                     })
@@ -970,13 +979,13 @@ public final class ConversationIndex: @unchecked Sendable {
     }
 
     /// 该会话被 `memory_open` 读取过的次数与最近一次时间。**本轮只记录不进排序**
-    /// （spec §6 明言观察期，排序权重无实测支撑）——接口是给未来 GUI 徽章
+    /// （明言观察期，排序权重无实测支撑）——接口是给未来 GUI 徽章
     /// （「被 Claude Code 引用过 3 次」）与 §7.66 回声判定用的查询入口。
     public func refCount(forID id: String) -> (count: Int, last: Date)? {
         var out: (count: Int, last: Date)?
         try? queue.sync {
             try db.query("SELECT ref_count, last_ref FROM mcp_refs WHERE conv_id = ?;",
-                         bind: { sqlite3_bind_text($0, 1, id, -1, SQLiteDB.transient) },
+                         bind: { SQLiteDB.bindText($0, 1, id) },
                          row: { st in
                 out = (count: Int(sqlite3_column_int64(st, 0)),
                        last: Date(timeIntervalSince1970: sqlite3_column_double(st, 1)))
@@ -997,7 +1006,7 @@ public final class ConversationIndex: @unchecked Sendable {
     }
 
     /// 被引用过的会话，按引用次数降序——供 `MindsBuilder` 的 AGENT USAGE 节（思脉底座
-    /// spec §2 第 5 节：总次数/Top 被引会话）。与 `refCount(forID:)` 同一张表
+    /// 设计说明：总次数/Top 被引会话）。与 `refCount(forID:)` 同一张表
     /// （`mcp_refs`），那边是"给定一个会话 id 反查"，这里是"给整张表排个名"，两种查询
     /// 形状不同、没有代码好共用。
     ///
@@ -1070,11 +1079,11 @@ public final class ConversationIndex: @unchecked Sendable {
                     // id 已被另一个 file_path 占用（同一对话的副本文件）→ 跳过新文件，保留已索引那份
                     var existingPath: String?
                     try db.query("SELECT file_path FROM conversations WHERE id = ?;",
-                                 bind: { sqlite3_bind_text($0, 1, l.id, -1, SQLiteDB.transient) },
+                                 bind: { SQLiteDB.bindText($0, 1, l.id) },
                                  row: { existingPath = SQLiteDB.text($0, 0) })
                     if let ep = existingPath, ep != l.fileURL.path {
                         NSLog("[index] skip duplicate conversation id=%@ at %@ (already indexed from %@)",
-                              l.id, l.fileURL.path, ep)
+                              l.id, l.fileURL.lastPathComponent, (ep as NSString).lastPathComponent)
                         duplicates.append((l.fileURL.path, it.mtime))
                         continue
                     }
@@ -1086,7 +1095,7 @@ public final class ConversationIndex: @unchecked Sendable {
                         try? db.exec("ROLLBACK TO upsert_one;")
                         try? db.exec("RELEASE upsert_one;")
                         NSLog("[index] upsert failed for %@: %@",
-                              l.fileURL.path, String(describing: error))
+                              l.fileURL.lastPathComponent, String(describing: error))
                     }
                 }
             }
@@ -1102,7 +1111,7 @@ public final class ConversationIndex: @unchecked Sendable {
         // 先删旧（含该会话的段与三路 fts），再插，保证幂等——否则重扫会让段随每次重扫翻倍
         var oldRowid: Int64?
         try db.query("SELECT rowid FROM conversations WHERE file_path = ?;",
-                     bind: { sqlite3_bind_text($0, 1, l.fileURL.path, -1, SQLiteDB.transient) },
+                     bind: { SQLiteDB.bindText($0, 1, l.fileURL.path) },
                      row: { oldRowid = sqlite3_column_int64($0, 0) })
         if let rid = oldRowid {
             // contentless FTS 的删除写法是 DELETE FROM ... WHERE rowid = ?（或 IN 子查询），
@@ -1133,20 +1142,22 @@ public final class ConversationIndex: @unchecked Sendable {
         INSERT INTO conversations (id, source, start_at, end_at, cwd, git_branch, title, preview, message_count, file_path, mtime, last_role, open_question)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?);
         """, bind: { s in
-            sqlite3_bind_text(s, 1, l.id, -1, SQLiteDB.transient)
-            sqlite3_bind_text(s, 2, l.source.rawValue, -1, SQLiteDB.transient)
+            SQLiteDB.bindText(s, 1, l.id)
+            SQLiteDB.bindText(s, 2, l.source.rawValue)
             sqlite3_bind_double(s, 3, l.startAt.timeIntervalSince1970)
             sqlite3_bind_double(s, 4, l.endAt.timeIntervalSince1970)
-            sqlite3_bind_text(s, 5, l.cwd, -1, SQLiteDB.transient)
-            if let b = l.gitBranch { sqlite3_bind_text(s, 6, b, -1, SQLiteDB.transient) } else { sqlite3_bind_null(s, 6) }
-            if let t = l.title { sqlite3_bind_text(s, 7, t, -1, SQLiteDB.transient) } else { sqlite3_bind_null(s, 7) }
-            sqlite3_bind_text(s, 8, l.preview, -1, SQLiteDB.transient)
+            SQLiteDB.bindText(s, 5, l.cwd)
+            if let b = l.gitBranch { SQLiteDB.bindText(s, 6, b) } else { sqlite3_bind_null(s, 6) }
+            if let t = l.title { SQLiteDB.bindText(s, 7, t) } else { sqlite3_bind_null(s, 7) }
+            SQLiteDB.bindText(s, 8, l.preview)
             sqlite3_bind_int64(s, 9, Int64(l.messageCount))
-            sqlite3_bind_text(s, 10, l.fileURL.path, -1, SQLiteDB.transient)
+            SQLiteDB.bindText(s, 10, l.fileURL.path)
             sqlite3_bind_double(s, 11, it.mtime)
-            sqlite3_bind_text(s, 12, it.lastRole, -1, SQLiteDB.transient)
+            SQLiteDB.bindText(s, 12, it.lastRole)
             if let q = it.harvest.openQuestion, !q.isEmpty {
-                sqlite3_bind_text(s, 13, q, -1, SQLiteDB.transient)
+                // 尾句（问句在末尾）截断保留后 200 字：英文句子以 . 结尾不在句末标点集合里时，
+                // trailingQuestion 会返回整段，取前缀就把问句本身切掉了
+                SQLiteDB.bindText(s, 13, String(q.suffix(200)))
             } else { sqlite3_bind_null(s, 13) }
         })
         // 用 last_insert_rowid 取代「INSERT 完再 SELECT 查回来」，每条省一次查询
@@ -1156,7 +1167,7 @@ public final class ConversationIndex: @unchecked Sendable {
         try db.run("INSERT INTO user_corpus(conv_rowid, text) VALUES(?, ?);",
                    bind: { s in
             sqlite3_bind_int64(s, 1, newRowid)
-            sqlite3_bind_text(s, 2, it.userText, -1, SQLiteDB.transient)
+            SQLiteDB.bindText(s, 2, it.userText)
         })
         for d in it.harvest.decisions {
             try db.run("""
@@ -1164,9 +1175,9 @@ public final class ConversationIndex: @unchecked Sendable {
                 VALUES(?,?,?,?);
                 """, bind: { s in
                 sqlite3_bind_int64(s, 1, newRowid)
-                sqlite3_bind_text(s, 2, d.statement, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(s, 2, d.statement)
                 sqlite3_bind_double(s, 3, d.at.timeIntervalSince1970)
-                sqlite3_bind_text(s, 4, d.messageID, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(s, 4, d.messageID)
             })
         }
         for c in it.harvest.milestones {
@@ -1175,12 +1186,12 @@ public final class ConversationIndex: @unchecked Sendable {
                 VALUES(?,?,?,?,?);
                 """, bind: { s in
                 sqlite3_bind_int64(s, 1, newRowid)
-                sqlite3_bind_text(s, 2, c.approval, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(s, 2, c.approval)
                 if let h = c.headline {
-                    sqlite3_bind_text(s, 3, h, -1, SQLiteDB.transient)
+                    SQLiteDB.bindText(s, 3, h)
                 } else { sqlite3_bind_null(s, 3) }
                 sqlite3_bind_double(s, 4, c.at.timeIntervalSince1970)
-                sqlite3_bind_text(s, 5, c.messageID, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(s, 5, c.messageID)
             })
         }
         for seg in it.segments {
@@ -1189,18 +1200,18 @@ public final class ConversationIndex: @unchecked Sendable {
                 sqlite3_bind_int64(s, 1, newRowid)
                 sqlite3_bind_int64(s, 2, Int64(seg.firstMessageIndex))
                 sqlite3_bind_int64(s, 3, Int64(seg.lastMessageIndex))
-                sqlite3_bind_text(s, 4, seg.text, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(s, 4, seg.text)
             })
             let segRowid = db.lastInsertRowid
             try db.run("INSERT INTO segments_fts(rowid, text) VALUES(?, ?);",
                        bind: { s in
                 sqlite3_bind_int64(s, 1, segRowid)
-                sqlite3_bind_text(s, 2, seg.text, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(s, 2, seg.text)
             })
             try db.run("INSERT INTO segments_fts_uni(rowid, text) VALUES(?, ?);",
                        bind: { s in
                 sqlite3_bind_int64(s, 1, segRowid)
-                sqlite3_bind_text(s, 2, seg.text, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(s, 2, seg.text)
             })
             // 第三路：词表切分后入索引。词表为空时切分退化成按单字断词（unicode61
             // 遇到空格才断词，中文本身不含空格，不切分会让一整段中文粘成一个巨长
@@ -1210,7 +1221,7 @@ public final class ConversationIndex: @unchecked Sendable {
             try db.run("INSERT INTO segments_fts_lex(rowid, text) VALUES(?, ?);",
                        bind: { s in
                 sqlite3_bind_int64(s, 1, segRowid)
-                sqlite3_bind_text(s, 2, lexSegmented, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(s, 2, lexSegmented)
             })
         }
         // 实体：每会话抽一次，不是每段一次——同一实体在会话内出现多次只该记一条关联，
@@ -1224,16 +1235,16 @@ public final class ConversationIndex: @unchecked Sendable {
         // 见 upsert 与 Segmenter.entityText 的注释。
         for e in EntityExtractor.extract(from: it.entityText) {
             try db.run("INSERT OR IGNORE INTO entities(text, kind) VALUES(?, ?);", bind: { st in
-                sqlite3_bind_text(st, 1, e.text, -1, SQLiteDB.transient)
-                sqlite3_bind_text(st, 2, e.kind.rawValue, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(st, 1, e.text)
+                SQLiteDB.bindText(st, 2, e.kind.rawValue)
             })
             try db.run("""
             INSERT OR IGNORE INTO conversation_entities(conv_rowid, entity_rowid)
             SELECT ?, rowid FROM entities WHERE text = ? AND kind = ?;
             """, bind: { st in
                 sqlite3_bind_int64(st, 1, newRowid)
-                sqlite3_bind_text(st, 2, e.text, -1, SQLiteDB.transient)
-                sqlite3_bind_text(st, 3, e.kind.rawValue, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(st, 2, e.text)
+                SQLiteDB.bindText(st, 3, e.kind.rawValue)
             })
         }
     }
@@ -1257,6 +1268,29 @@ public final class ConversationIndex: @unchecked Sendable {
             })
         }
         return (count, sources, latest.map { Date(timeIntervalSince1970: $0) })
+    }
+
+    /// 索引内容指纹：Minds 重建的「零变化短路」依据——任何一项变了就重建，全同则跳过。
+    /// 只用行数 / 最大 mtime / 消息总数这类聚合，不扫正文，稳态一次几毫秒。
+    public func changeFingerprint() -> String {
+        var parts: [String] = []
+        try? queue.sync {
+            try db.query("SELECT COUNT(*), COALESCE(MAX(mtime), 0), COALESCE(SUM(message_count), 0) FROM conversations;",
+                         row: { s in
+                parts.append("c\(sqlite3_column_int64(s, 0))")
+                parts.append("m\(sqlite3_column_double(s, 1))")
+                parts.append("n\(sqlite3_column_int64(s, 2))")
+            })
+            try db.query("SELECT COUNT(*), COALESCE(SUM(length(word)), 0) FROM lexicon;", row: { s in
+                parts.append("l\(sqlite3_column_int64(s, 0))/\(sqlite3_column_int64(s, 1))")
+            })
+            for t in ["segments", "user_corpus", "milestone_candidates", "decision_points", "mcp_refs", "entities"] {
+                try db.query("SELECT COUNT(*) FROM \(t);", row: { s in
+                    parts.append("\(t)\(sqlite3_column_int64(s, 0))")
+                })
+            }
+        }
+        return parts.joined(separator: "|")
     }
 
     /// 从 `SELECT id, source, start_at, end_at, cwd, git_branch, title, preview, message_count, file_path`
@@ -1328,7 +1362,7 @@ public final class ConversationIndex: @unchecked Sendable {
                 for it in items {
                     try db.run("INSERT OR REPLACE INTO skipped_files(file_path, mtime) VALUES(?, ?);",
                                bind: {
-                                   sqlite3_bind_text($0, 1, it.path, -1, SQLiteDB.transient)
+                                   SQLiteDB.bindText($0, 1, it.path)
                                    sqlite3_bind_double($0, 2, it.mtime)
                                })
                 }
@@ -1343,7 +1377,7 @@ public final class ConversationIndex: @unchecked Sendable {
             try db.transaction {
                 for p in paths {
                     try db.run("DELETE FROM skipped_files WHERE file_path = ?;",
-                               bind: { sqlite3_bind_text($0, 1, p, -1, SQLiteDB.transient) })
+                               bind: { SQLiteDB.bindText($0, 1, p) })
                 }
             }
         }
@@ -1358,7 +1392,7 @@ public final class ConversationIndex: @unchecked Sendable {
                 for p in missingPaths {
                     var rid: Int64?
                     try db.query("SELECT rowid FROM conversations WHERE file_path = ?;",
-                                 bind: { sqlite3_bind_text($0, 1, p, -1, SQLiteDB.transient) },
+                                 bind: { SQLiteDB.bindText($0, 1, p) },
                                  row: { rid = sqlite3_column_int64($0, 0) })
                     if let r = rid {
                         // 会话删掉时段必须连带清掉，否则搜索会命中已删会话的幽灵段落
@@ -1391,7 +1425,7 @@ public final class ConversationIndex: @unchecked Sendable {
     /// 作用是压平头部差距：名次靠前的贡献不会碾压另一路的中段结果。
     private static let rrfK = 60.0
 
-    /// 情境先验倍率（spec §7.61 实测 ×3 拿到硬过滤收益的 71% 且无不可恢复失败模式）。
+    /// 情境先验倍率（实测 ×3 拿到硬过滤收益的 71% 且无不可恢复失败模式）。
     private static let contextPriorMultiplier = 3.0
 
     /// path 向上找最近的含 `.git` 的目录；找不到（或 path 不存在）返回标准化后的 path。
@@ -1419,7 +1453,7 @@ public final class ConversationIndex: @unchecked Sendable {
         return url.path
     }
 
-    /// RM3 伪相关反馈查询扩展策略（spec §7.60，实测低带 R@20 +14pt）：原查询 top-8 段
+    /// RM3 伪相关反馈查询扩展策略（实测低带 R@20 +14pt）：原查询 top-8 段
     /// 抽高 IDF 词 → 扩展查询重跑三路 RRF → 与原结果加权融合。
     /// `.off`：现状，不扩展（未标注 `expansion:` 的既有调用点全部走这条，逐位不变）。
     /// `.adaptive`：原查询命中段数 < `adaptiveExpansionThreshold` 才扩——GUI 用这个，
@@ -1498,7 +1532,7 @@ public final class ConversationIndex: @unchecked Sendable {
         JOIN segments s ON s.rowid = f.rowid
         JOIN conversations c ON c.rowid = s.conv_rowid
         WHERE \(table) MATCH ? ORDER BY bm25(\(table));
-        """, bind: { sqlite3_bind_text($0, 1, match, -1, SQLiteDB.transient) },
+        """, bind: { SQLiteDB.bindText($0, 1, match) },
              row: { out.append((SQLiteDB.text($0, 0), SQLiteDB.text($0, 1), Int(sqlite3_column_int64($0, 2)))) })
         return out
     }
@@ -1540,8 +1574,8 @@ public final class ConversationIndex: @unchecked Sendable {
     /// 无关，所以两条调用路径的会话集合与顺序保证一致
     /// （`SegmentIndexTests.testSearchAndSearchWithHitsAgreeOnIdsAndOrder` 钉住这个不变量）。
     ///
-    /// `expansion`：RM3 伪相关反馈查询扩展策略（spec §7.60），见 `rankedHitsInsideQueue`。
-    /// `contextPath`：情境先验（spec §7.61），见 `rankedHitsInsideQueue`/`applyContextPrior`。
+    /// `expansion`：RM3 伪相关反馈查询扩展策略，见 `rankedHitsInsideQueue`。
+    /// `contextPath`：情境先验，见 `rankedHitsInsideQueue`/`applyContextPrior`。
     /// 默认 nil——未标注的既有调用点（`search()`）逐位不变，只有 `searchWithHits()`
     /// 会把调用方传入的路径接到这里。
     private func rankedHits(_ query: String, includeText: Bool, expansion: ExpansionPolicy, contextPath: String? = nil)
@@ -1559,8 +1593,8 @@ public final class ConversationIndex: @unchecked Sendable {
 
     /// **必须已在 `queue` 上**（同 `loadLexiconInsideQueue` 的重入铁律：不得自带
     /// `queue.sync`）。原查询三路 RRF →（视策略与命中量）判断是否要 RM3 扩展 →
-    /// 扩展查询重跑三路 RRF → 与原结果加权 RRF 融合（spec §7.60）→ 情境先验加权
-    /// （spec §7.61，`applyContextPrior`）。
+    /// 扩展查询重跑三路 RRF → 与原结果加权 RRF 融合→ 情境先验加权
+    /// （`applyContextPrior`）。
     ///
     /// 扩展只发生在 FTS 分支（`q.count >= 3`）——LIKE 兜底路径是布尔匹配，没有 bm25
     /// 名次可供二次 RRF 融合，相关度语义本身就与扩展不兼容。
@@ -1596,7 +1630,7 @@ public final class ConversationIndex: @unchecked Sendable {
         return applyContextPrior(fuseExpanded(orig: orig, expanded: expanded), contextPath: contextPath)
     }
 
-    /// 情境先验（spec §7.61）：`rankedHitsInsideQueue` 融合出的最终分数之后、排序之前，
+    /// 情境先验：`rankedHitsInsideQueue` 融合出的最终分数之后、排序之前，
     /// 命中会话的 cwd 落在 `contextPath` 的 git root（或其子目录）下 → 总分 ×3。
     ///
     /// **软先验，绝不过滤**：不匹配的会话原样留在返回值里，只是可能排得靠后——
@@ -1628,7 +1662,7 @@ public final class ConversationIndex: @unchecked Sendable {
         for hit in hits {
             var cwd: String?
             try? db.query("SELECT cwd FROM conversations WHERE id = ?;",
-                          bind: { sqlite3_bind_text($0, 1, hit.id, -1, SQLiteDB.transient) },
+                          bind: { SQLiteDB.bindText($0, 1, hit.id) },
                           row: { cwd = SQLiteDB.text($0, 0) })
             // 前缀判定必须带 "/" 边界：/repo-other 不是 /repo 的子路径，只有
             // cwd 恰好等于 root、或以 "root/" 打头才算归属这个 git 仓库。
@@ -1739,7 +1773,7 @@ public final class ConversationIndex: @unchecked Sendable {
             SELECT id, '', NULL FROM conversations WHERE cwd LIKE ?1 ESCAPE '\\'
             ORDER BY 1, 2 DESC;
             """,
-                         bind: { sqlite3_bind_text($0, 1, "%\(escaped)%", -1, SQLiteDB.transient) },
+                         bind: { SQLiteDB.bindText($0, 1, "%\(escaped)%") },
                          row: { r in
                 let id = SQLiteDB.text(r, 0)
                 let t = SQLiteDB.text(r, 1)
@@ -1798,12 +1832,12 @@ public final class ConversationIndex: @unchecked Sendable {
     /// 词元之间插了空格，词元内部无分隔符）——合起来就是「先切中文再按非字母数字切
     /// 英文，合并词元」。
     ///
-    /// internal（非 private）可见度：`BenchDataset`（spec §7.59 评测集分带）需要与
+    /// internal（非 private）可见度：`BenchDataset`（评测集分带）需要与
     /// RM3 扩展词**同一条**切词管道来判定「query 与答案会话全文的低频词重叠数」——
     /// 分带用的「词」概念必须与生产代码判断「候选词」的概念是同一件事，否则评测数字
     /// 会静默漂移出它本该衡量的东西。同 `expansionTerms(for:excludingQuery:limit:)`
     /// 的先例：为可测性/可复用性放宽到 internal，不进公开 API。
-    static func candidateTokens(from text: String, lexicon: Set<String>) -> [String] {
+    public static func candidateTokens(from text: String, lexicon: Set<String>) -> [String] {
         let segmented = PersonalLexicon.segment(text, lexicon: lexicon)
         var tokens: [String] = []
         var current = ""
@@ -1869,10 +1903,10 @@ public final class ConversationIndex: @unchecked Sendable {
         for term in candidates {
             var dfUni = 0, dfLex = 0
             try? db.query("SELECT doc FROM vocab_uni WHERE term = ?;",
-                          bind: { sqlite3_bind_text($0, 1, term, -1, SQLiteDB.transient) },
+                          bind: { SQLiteDB.bindText($0, 1, term) },
                           row: { dfUni = Int(sqlite3_column_int64($0, 0)) })
             try? db.query("SELECT doc FROM vocab_lex WHERE term = ?;",
-                          bind: { sqlite3_bind_text($0, 1, term, -1, SQLiteDB.transient) },
+                          bind: { SQLiteDB.bindText($0, 1, term) },
                           row: { dfLex = Int(sqlite3_column_int64($0, 0)) })
             let df = max(dfUni, dfLex)
             guard df >= 2, df <= ceiling else { continue }   // df 过滤：2 ≤ df ≤ max(2, 5%×总段数)
@@ -1932,7 +1966,7 @@ public final class ConversationIndex: @unchecked Sendable {
 
     /// 同 `search`，额外带上命中段的原文、段数与位置。
     ///
-    /// `contextPath`（spec §7.61 情境先验）：调用方当前工作目录。查询侧解析一次
+    /// `contextPath`（情境先验）：调用方当前工作目录。查询侧解析一次
     /// git root，命中会话的 cwd 落在这个 root（或其子目录）下 → 总分 ×3——软加权，
     /// 绝不从结果里剔除跨项目命中，只影响排序（见 `applyContextPrior`）。
     /// GUI 不传（浏览器窗口没有情境）；MCP 把宿主模型自己的 cwd 传进来
@@ -1985,28 +2019,28 @@ public final class ConversationIndex: @unchecked Sendable {
                     INSERT INTO conversations (id, source, start_at, end_at, cwd, git_branch, title, preview, message_count, file_path, mtime, last_role)
                     VALUES (?,?,?,?,?,?,?,?,?,?,0,?);
                     """, bind: { s in
-                        sqlite3_bind_text(s, 1, conv.id, -1, SQLiteDB.transient)
-                        sqlite3_bind_text(s, 2, conv.source.rawValue, -1, SQLiteDB.transient)
+                        SQLiteDB.bindText(s, 1, conv.id)
+                        SQLiteDB.bindText(s, 2, conv.source.rawValue)
                         sqlite3_bind_double(s, 3, conv.startAt.timeIntervalSince1970)
                         sqlite3_bind_double(s, 4, conv.endAt.timeIntervalSince1970)
-                        sqlite3_bind_text(s, 5, conv.cwd, -1, SQLiteDB.transient)
-                        if let b = conv.gitBranch { sqlite3_bind_text(s, 6, b, -1, SQLiteDB.transient) } else { sqlite3_bind_null(s, 6) }
-                        if let t = conv.title { sqlite3_bind_text(s, 7, t, -1, SQLiteDB.transient) } else { sqlite3_bind_null(s, 7) }
-                        sqlite3_bind_text(s, 8, conv.preview, -1, SQLiteDB.transient)
+                        SQLiteDB.bindText(s, 5, conv.cwd)
+                        if let b = conv.gitBranch { SQLiteDB.bindText(s, 6, b) } else { sqlite3_bind_null(s, 6) }
+                        if let t = conv.title { SQLiteDB.bindText(s, 7, t) } else { sqlite3_bind_null(s, 7) }
+                        SQLiteDB.bindText(s, 8, conv.preview)
                         sqlite3_bind_int64(s, 9, Int64(conv.messageCount))
-                        sqlite3_bind_text(s, 10, conv.id, -1, SQLiteDB.transient)   // file_path = conv.id（唯一）
-                        sqlite3_bind_text(s, 11, Segmenter.lastMeaningfulRole(of: conv.messages), -1, SQLiteDB.transient)
+                        SQLiteDB.bindText(s, 10, conv.id)   // file_path = conv.id（唯一）
+                        SQLiteDB.bindText(s, 11, Segmenter.lastMeaningfulRole(of: conv.messages))
                     })
                     var rowid: Int64 = 0
                     try db.query("SELECT rowid FROM conversations WHERE id = ?;",
-                                 bind: { sqlite3_bind_text($0, 1, conv.id, -1, SQLiteDB.transient) },
+                                 bind: { SQLiteDB.bindText($0, 1, conv.id) },
                                  row: { rowid = sqlite3_column_int64($0, 0) })
                     // 用户语料：browser 路径持有完整消息，可直接现算（行数守恒同 upsertOne）
                     let userText = Segmenter.userText(of: conv.messages)
                     try db.run("INSERT INTO user_corpus(conv_rowid, text) VALUES(?, ?);",
                                bind: { s in
                         sqlite3_bind_int64(s, 1, rowid)
-                        sqlite3_bind_text(s, 2, userText, -1, SQLiteDB.transient)
+                        SQLiteDB.bindText(s, 2, userText)
                     })
                     // 段级索引：切段后逐段写三路 fts——此前漏写 search_text 导致 browser 对话的
                     // 短词（<3 字）搜索永远搜不到，段的 text 同样要存原文，道理不变。
@@ -2017,24 +2051,24 @@ public final class ConversationIndex: @unchecked Sendable {
                             sqlite3_bind_int64(s, 1, rowid)
                             sqlite3_bind_int64(s, 2, Int64(seg.firstMessageIndex))
                             sqlite3_bind_int64(s, 3, Int64(seg.lastMessageIndex))
-                            sqlite3_bind_text(s, 4, seg.text, -1, SQLiteDB.transient)
+                            SQLiteDB.bindText(s, 4, seg.text)
                         })
                         let segRowid = db.lastInsertRowid
                         try db.run("INSERT INTO segments_fts(rowid, text) VALUES(?, ?);",
                                    bind: { s in
                             sqlite3_bind_int64(s, 1, segRowid)
-                            sqlite3_bind_text(s, 2, seg.text, -1, SQLiteDB.transient)
+                            SQLiteDB.bindText(s, 2, seg.text)
                         })
                         try db.run("INSERT INTO segments_fts_uni(rowid, text) VALUES(?, ?);",
                                    bind: { s in
                             sqlite3_bind_int64(s, 1, segRowid)
-                            sqlite3_bind_text(s, 2, seg.text, -1, SQLiteDB.transient)
+                            SQLiteDB.bindText(s, 2, seg.text)
                         })
                         let lexSegmented = PersonalLexicon.segment(seg.text, lexicon: lexicon)
                         try db.run("INSERT INTO segments_fts_lex(rowid, text) VALUES(?, ?);",
                                    bind: { s in
                             sqlite3_bind_int64(s, 1, segRowid)
-                            sqlite3_bind_text(s, 2, lexSegmented, -1, SQLiteDB.transient)
+                            SQLiteDB.bindText(s, 2, lexSegmented)
                         })
                     }
                     // 实体：口径与 upsertOne 一致——每会话抽一次，且用排除 .toolUse 的
@@ -2045,16 +2079,16 @@ public final class ConversationIndex: @unchecked Sendable {
                     let entityText = Segmenter.entityText(of: conv.messages)
                     for e in EntityExtractor.extract(from: entityText) {
                         try db.run("INSERT OR IGNORE INTO entities(text, kind) VALUES(?, ?);", bind: { st in
-                            sqlite3_bind_text(st, 1, e.text, -1, SQLiteDB.transient)
-                            sqlite3_bind_text(st, 2, e.kind.rawValue, -1, SQLiteDB.transient)
+                            SQLiteDB.bindText(st, 1, e.text)
+                            SQLiteDB.bindText(st, 2, e.kind.rawValue)
                         })
                         try db.run("""
                         INSERT OR IGNORE INTO conversation_entities(conv_rowid, entity_rowid)
                         SELECT ?, rowid FROM entities WHERE text = ? AND kind = ?;
                         """, bind: { st in
                             sqlite3_bind_int64(st, 1, rowid)
-                            sqlite3_bind_text(st, 2, e.text, -1, SQLiteDB.transient)
-                            sqlite3_bind_text(st, 3, e.kind.rawValue, -1, SQLiteDB.transient)
+                            SQLiteDB.bindText(st, 2, e.text)
+                            SQLiteDB.bindText(st, 3, e.kind.rawValue)
                         })
                     }
                 }
@@ -2751,7 +2785,7 @@ public final class ConversationIndex: @unchecked Sendable {
             try db.query("""
             SELECT COUNT(*) FROM conversations
             WHERE strftime('%Y-%m', start_at, 'unixepoch', 'localtime') = ?;
-            """, bind: { sqlite3_bind_text($0, 1, yearMonth, -1, SQLiteDB.transient) },
+            """, bind: { SQLiteDB.bindText($0, 1, yearMonth) },
                  row: { n = Int(sqlite3_column_int($0, 0)) })
         }
         return n
@@ -2767,7 +2801,7 @@ public final class ConversationIndex: @unchecked Sendable {
             WHERE date(start_at, 'unixepoch', 'localtime') = ?
             ORDER BY start_at LIMIT ?;
             """, bind: { st in
-                sqlite3_bind_text(st, 1, day, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(st, 1, day)
                 sqlite3_bind_int(st, 2, Int32(clamping: limit))
             }, row: { st in
                 let title = sqlite3_column_type(st, 1) == SQLITE_NULL ? nil : SQLiteDB.text(st, 1)
@@ -2795,7 +2829,7 @@ public final class ConversationIndex: @unchecked Sendable {
               AND start_at < ?
             ORDER BY start_at DESC LIMIT ?;
             """, bind: { st in
-                sqlite3_bind_text(st, 1, dayOfMonth, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(st, 1, dayOfMonth)
                 sqlite3_bind_double(st, 2, cutoff.timeIntervalSince1970)
                 sqlite3_bind_int(st, 3, Int32(clamping: limit))
             }, row: { st in
@@ -2883,7 +2917,7 @@ public final class ConversationIndex: @unchecked Sendable {
             JOIN conversation_entities ce ON ce.conv_rowid = c.rowid
             JOIN entities e ON e.rowid = ce.entity_rowid
             WHERE e.text = ? ORDER BY c.end_at DESC;
-            """, bind: { sqlite3_bind_text($0, 1, text, -1, SQLiteDB.transient) },
+            """, bind: { SQLiteDB.bindText($0, 1, text) },
                  row: { out.append(SQLiteDB.text($0, 0)) })
         }
         return out
@@ -2912,7 +2946,7 @@ public final class ConversationIndex: @unchecked Sendable {
             HAVING n <= (SELECT COUNT(*) FROM conversations) * ? + 1
             ORDER BY n DESC, e2.text LIMIT ?;
             """, bind: { st in
-                sqlite3_bind_text(st, 1, text, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(st, 1, text)
                 sqlite3_bind_double(st, 2, Self.documentFrequencyCeiling)
                 sqlite3_bind_int(st, 3, Int32(clamping: limit))
             }, row: { st in
@@ -2957,7 +2991,7 @@ public final class ConversationIndex: @unchecked Sendable {
             HAVING df <= (SELECT COUNT(*) FROM conversations) * ? + 1
             ORDER BY df ASC, e.text LIMIT ?;
             """, bind: { st in
-                sqlite3_bind_text(st, 1, id, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(st, 1, id)
                 sqlite3_bind_double(st, 2, Self.documentFrequencyCeiling)
                 sqlite3_bind_int(st, 3, Int32(clamping: limit))
             }, row: { st in
@@ -2978,7 +3012,7 @@ public final class ConversationIndex: @unchecked Sendable {
 
     /// L0 地图的全部数据：会话总数、时间跨度、按工具/项目/月份三个正交切面、Top 实体。
     /// 全是 group-by + count 的直接结果，不建物化表——几千行的 conversations 表上是毫秒级
-    /// 查询，物化表要在每次 upsert/prune 时维护，多一条会漂移的真相（见本任务简报）。
+    /// 查询，物化表要在每次 upsert/prune 时维护，多一条会漂移的真相。
     public struct MapOverview {
         public let conversationCount: Int
         public let earliest: Date?
@@ -3067,7 +3101,7 @@ public final class ConversationIndex: @unchecked Sendable {
             try db.query("""
             SELECT id FROM conversations WHERE \(clause) ORDER BY end_at DESC LIMIT ?;
             """, bind: { st in
-                sqlite3_bind_text(st, 1, value, -1, SQLiteDB.transient)
+                SQLiteDB.bindText(st, 1, value)
                 // Int32(...) 在 limit 传 Int.max 时会运行时陷阱、整个进程 abort——
                 // MCP 层表达"不限"最自然的写法就是 Int.max（本仓库 JSONLReader 已是这个
                 // 模式），必须用 clamping 把超出 Int32 范围的值夹到 Int32.max 而不是崩溃。
@@ -3094,7 +3128,7 @@ public final class ConversationIndex: @unchecked Sendable {
                 JOIN conversation_entities ce ON ce.conv_rowid = c.rowid
                 JOIN entities e ON e.rowid = ce.entity_rowid
                 WHERE e.text = ?;
-                """, bind: { sqlite3_bind_text($0, 1, text, -1, SQLiteDB.transient) },
+                """, bind: { SQLiteDB.bindText($0, 1, text) },
                      row: { n = Int(sqlite3_column_int64($0, 0)) })
             }
             return n
@@ -3103,7 +3137,7 @@ public final class ConversationIndex: @unchecked Sendable {
         let (clause, value) = Self.clause(for: facet)
         try? queue.sync {
             try db.query("SELECT COUNT(*) FROM conversations WHERE \(clause);",
-                         bind: { sqlite3_bind_text($0, 1, value, -1, SQLiteDB.transient) },
+                         bind: { SQLiteDB.bindText($0, 1, value) },
                          row: { n = Int(sqlite3_column_int64($0, 0)) })
         }
         return n
@@ -3140,7 +3174,7 @@ public final class ConversationIndex: @unchecked Sendable {
     private func liteRow(id: String) throws -> ConversationLite? {
         var out: ConversationLite?
         try db.query("SELECT \(Self.liteColumns) FROM conversations WHERE id = ? LIMIT 1;",
-                     bind: { sqlite3_bind_text($0, 1, id, -1, SQLiteDB.transient) },
+                     bind: { SQLiteDB.bindText($0, 1, id) },
                      row: { out = Self.lite(from: $0) })
         return out
     }

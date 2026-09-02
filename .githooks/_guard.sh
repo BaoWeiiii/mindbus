@@ -13,7 +13,7 @@ RED=''; YEL=''; NC=''
 if [ -t 2 ]; then RED='\033[31m'; YEL='\033[33m'; NC='\033[0m'; fi
 
 # ── 路径 deny-list（扩展正则，匹配仓库相对路径）────────────────
-# 私有规格与内部文档：按 CLAUDE.md「spec 文档永不公开」
+# 私有规格与内部文档：私有规格不进开源仓
 DENY_PATH='(^|/)\.env($|\.|/)
 (^|/)\.envrc$
 \.(pem|key|p12|pfx|cer|mobileprovision|keystore|jks)$
@@ -41,6 +41,14 @@ Sentry DSN（含真实 key）|https://[0-9a-f]{16,}@[A-Za-z0-9.-]*sentry\.io
 JWT / Supabase key|eyJ[A-Za-z0-9_-]{15,}\.eyJ[A-Za-z0-9_-]{15,}\.
 Supabase service_role|service_role[^A-Za-z]{0,4}(key|secret)
 本机绝对路径（泄漏用户名）|/Users/'"$(whoami)"
+
+# 本机私有规则（不入仓）：与 _guard.sh 同目录的 local-deny.txt，每行「描述|正则」。
+# 作者身份词、私人邮箱这类规则本身就是敏感信息，只能放在 gitignore 掉的文件里。
+_LOCAL_DENY="${HOOK_DIR:-$(dirname "$0")}/local-deny.txt"
+if [ -f "$_LOCAL_DENY" ]; then
+  DENY_CONTENT="$DENY_CONTENT
+$(grep -v '^#' "$_LOCAL_DENY" | grep -v '^[[:space:]]*$')"
+fi
 
 MAX_BYTES=5242880   # 5MB
 

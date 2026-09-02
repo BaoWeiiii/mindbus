@@ -105,12 +105,27 @@ public enum ClaudeCodeLoader {
     }
 
     /// 剥离附加在真实消息上的 `<system-reminder>…</system-reminder>` 注入块（CLAUDE.md/技能列表/上下文等）。
+    ///
+    /// 手写线性扫描而不用惰性正则：`[\s\S]*?` 在没有闭合标签时对每个起始位置都要扫到
+    /// 串尾，用户把一段带几千个未闭合标签的转录粘进对话就是 O(k×n) 的卡顿。
+    /// 语义与原正则一致：每个起始标签配最近的闭合标签；找不到闭合则原样保留。
     static func stripSystemReminders(_ text: String) -> String {
-        text.replacingOccurrences(
-            of: #"<system-reminder>[\s\S]*?</system-reminder>"#,
-            with: "",
-            options: .regularExpression
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        let open = "<system-reminder>", close = "</system-reminder>"
+        guard text.contains(open) else { return text.trimmingCharacters(in: .whitespacesAndNewlines) }
+        var out = ""
+        out.reserveCapacity(text.utf8.count)
+        var cursor = text.startIndex
+        while let o = text.range(of: open, range: cursor..<text.endIndex) {
+            out += text[cursor..<o.lowerBound]
+            guard let c = text.range(of: close, range: o.upperBound..<text.endIndex) else {
+                out += text[o.lowerBound..<text.endIndex]
+                cursor = text.endIndex
+                break
+            }
+            cursor = c.upperBound
+        }
+        if cursor < text.endIndex { out += text[cursor..<text.endIndex] }
+        return out.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// 增量解析：只读 `fromOffset` 之后的内容，把新消息接到 `baseMessages` 后面。

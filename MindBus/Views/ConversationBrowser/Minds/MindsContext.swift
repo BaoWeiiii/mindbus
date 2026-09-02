@@ -102,7 +102,7 @@ struct MindsContext {
         return l10n.mFadedMeta(r.said, r.silentDays)
     }
 
-    /// 「5497 条消息 · 跨 64 天 · Atlas」
+    /// 「5497 条消息 · 跨 64 天 · ProjectA」
     func marathonMeta(_ d: String) -> String {
         guard let r = doc.marathonDetail(d) else { return d }
         let span: String

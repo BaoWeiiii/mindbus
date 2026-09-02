@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全漏洞 / Security vulnerability
+    url: https://github.com/BaoWeiiii/mindbus/security/advisories/new
+    about: 请勿在公开 Issue 里报告安全问题，用 Security 标签页私下报告。/ Do not file security issues publicly — report privately via the Security tab.

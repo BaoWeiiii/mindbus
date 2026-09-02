@@ -1,8 +1,8 @@
 import XCTest
 @testable import MindBusCore
 
-/// 个人词表：零词典零模型，从用户自己的语料统计出高频凝固词（spec §7.62）。
-/// 决定性动机：`库存经理` 这类领域词被 trigram 切成 `收益经`/`益经理` 碎片，
+/// 个人词表：零词典零模型，从用户自己的语料统计出高频凝固词。
+/// 决定性动机：`库存经理` 这类领域词被 trigram 切成 `库存经`/`存经理` 碎片，
 /// 词级检索永远拼不回整词——第三路用这个词表切分后才有词级倒排。
 final class PersonalLexiconTests: XCTestCase {
 
@@ -22,9 +22,9 @@ final class PersonalLexiconTests: XCTestCase {
         // 连它自身的二分切法都显得「概率很高」，凝固度算出来虚低（实测约 10.5，
         // 门槛要求 ≥180）——不是算法或门槛错，是这份迷你语料没有真实语料的稀释效应。
         // 用一个与目标词完全不相交的字符池填充背景：只撑分母，不新增任何
-        // `收/益/经/理` 及其子串的出现次数。三重循环保证每个 2 字前缀/后缀最多出现
+        // `库/存/经/理` 及其子串的出现次数。三重循环保证每个 2 字前缀/后缀最多出现
         // 8 次（字符池大小），不会误触发频次门槛而混进词表干扰断言之外的东西。
-        // 门槛数值本身不许改（spec §7.62 定稿）——这里改的是语料，不是门槛。
+        // 门槛数值本身不许改（定稿）——这里改的是语料，不是门槛。
         let fillerPool = Array("甲乙丙丁戊己庚辛")   // 与目标词、左右语境字均不相交
         for a in fillerPool {
             for b in fillerPool {
@@ -68,9 +68,9 @@ final class PersonalLexiconTests: XCTestCase {
     // MARK: 切分
 
     func testSegmentUsesLongestMatch() {
-        let lexicon: Set<String> = ["库存经理", "收益"]
+        let lexicon: Set<String> = ["库存经理", "库存"]
         XCTAssertEqual(PersonalLexicon.segment("找库存经理谈", lexicon: lexicon),
-                       "找 库存经理 谈", "该取最长的『库存经理』而不是『收益』")
+                       "找 库存经理 谈", "该取最长的『库存经理』而不是『库存』")
     }
 
     func testSegmentFallsBackToSingleCharsOutsideLexicon() {
@@ -151,7 +151,7 @@ final class PersonalLexiconTests: XCTestCase {
         try XCTSkipIf(ProcessInfo.processInfo.environment["CI"] != nil,
                       "CI 虚拟机性能不代表目标硬件，护栏只在本地生效")
         var corpus: [String] = []
-        let heads = ["收益", "工作", "聚焦", "测试", "目标", "季度", "地图", "会议",
+        let heads = ["库存", "工作", "聚焦", "测试", "目标", "季度", "地图", "会议",
                      "方案", "结构", "索引", "检索", "词表", "语料", "上下", "文本"]
         let tails = ["经理", "空间", "重建", "对齐", "偏移", "融合", "切分", "统计",
                      "评审", "验证", "回流", "先验", "扩展", "窗口", "片段", "边界"]

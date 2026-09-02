@@ -177,7 +177,7 @@ struct MessageBubbleView: View {
                             .overlay(alignment: .topTrailing) { starControl }   // 白一级底卡片（去旧灰底/金底）
                             // 角色区分只靠位置（user 靠右 / assistant 靠左）——聊天界面最经典的信号。
                             // 曾试过金色左缘 3px 竖条：彩条贴卡缘是典型「AI 生成界面」句式，已删（用户否决，
-                            // 记入 AI-DESIGN-COLLABORATION-GUIDE 的 Anti-Patterns 一并遵守）。
+                            // 记入 设计协作准则 的 Anti-Patterns 一并遵守）。
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                             .overlay { locateRing }
                     }

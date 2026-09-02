@@ -11,6 +11,34 @@ INSTALL_PATH="/Applications/$APP_NAME.app"
 
 cd "$PROJECT_DIR"
 
+# 精确匹配整条命令行（pgrep -fx）取 PID 再逐个 kill，不用 pkill -f 子串匹配——
+# 后者会把命令行里恰好带这段路径的 tail / 编辑器 / 终端一起杀掉。
+stop_running_app() {
+    local pids pid
+    pids="$(pgrep -fx "$INSTALL_PATH/Contents/MacOS/$APP_NAME" || true)"
+    [ -n "$pids" ] || return 0
+    echo "▸ 关闭正在运行的 ${APP_NAME}（PID: $(echo "$pids" | tr '\n' ' ')）..."
+    for pid in $pids; do kill "$pid" 2>/dev/null || true; done
+    sleep 1
+}
+
+# ── 1. 覆盖前先看清楚装的是什么 ──
+# Releases 下载的 Developer ID 签名版被本地 ad-hoc 构建覆盖后，Sparkle 无法再自动更新
+# （签名身份不匹配）；想回到自动更新只能重新从 Releases 安装。问清楚再编译，省得白等。
+# codesign 要 -dvv（两个 v）才打印 Authority= 证书链；单 -v 只有 TeamIdentifier，匹配不到
+if [ -d "$INSTALL_PATH" ]; then
+    EXISTING_SIG="$(codesign -dvv "$INSTALL_PATH" 2>&1 || true)"
+    if [[ "$EXISTING_SIG" == *"Authority=Developer ID Application"* ]]; then
+        echo "⚠ $INSTALL_PATH 是 Releases 下载的 Developer ID 签名版。"
+        echo "  用本地构建覆盖后 Sparkle 将无法自动更新；想恢复需重新从 Releases 安装。"
+        read -r -p "  仍要覆盖？[y/N] " answer || answer=""
+        case "$answer" in
+            y|Y|yes|YES) ;;
+            *) echo "已取消，$INSTALL_PATH 未改动"; exit 1 ;;
+        esac
+    fi
+fi
+
 # 注：杀旧进程放在「拷贝前一刻」（第 5 步），不在这里——
 # 曾经在编译前杀，编译的几秒窗口里系统把旧版拉活，open 只激活了旧进程，
 # 表现为「装了新版界面还是旧的」。
@@ -48,10 +76,13 @@ cp "$PROJECT_DIR/Info.plist" "$STAGE/Contents/"
 echo -n "APPL????" > "$STAGE/Contents/PkgInfo"
 
 # SPM resource bundle（.build/release 是 SPM 指向原生架构目录的符号链接，
-# 硬编码 arm64-apple-macosx 会让 Intel 构建装出来缺资源）
+# 硬编码 arm64-apple-macosx 会让 Intel 构建装出来缺资源）。
+# 放 Contents/Resources/ 而不是 .app 根，与 build-release.sh 一致：Bundle.module 的
+# 查找候选含 Bundle.main.resourceURL；根目录多任何东西都会让 codesign 报
+# "unsealed contents present in the bundle root"，公证过不去。
 RESOURCE_BUNDLE="$PROJECT_DIR/.build/release/MindBus_MindBus.bundle"
 if [ -d "$RESOURCE_BUNDLE" ]; then
-    cp -R "$RESOURCE_BUNDLE" "$STAGE/"
+    cp -R "$RESOURCE_BUNDLE" "$STAGE/Contents/Resources/"
 fi
 
 # Copy Sparkle.framework（SPM 拉的是 xcframework，已是 universal）——
@@ -89,11 +120,7 @@ codesign --force --deep --sign - "$STAGE" 2>/dev/null || true
 
 # ── 5. 安装到 /Applications ──
 # 拷贝前一刻才杀旧进程：窗口最短，旧版没机会被系统拉活
-if pgrep -f "$APP_NAME.app/Contents/MacOS/$APP_NAME" > /dev/null 2>&1; then
-    echo "▸ 关闭正在运行的 $APP_NAME..."
-    pkill -f "$APP_NAME.app/Contents/MacOS/$APP_NAME" 2>/dev/null || true
-    sleep 1
-fi
+stop_running_app
 echo "▸ 安装到 $INSTALL_PATH..."
 rm -rf "$INSTALL_PATH"
 cp -R "$STAGE" "$INSTALL_PATH"
@@ -104,7 +131,7 @@ echo "✓ 安装完成: $INSTALL_PATH"
 # ── 6. 启动（并验证跑的确实是新二进制）──
 echo "▸ 启动 $APP_NAME..."
 # 兜底：若这一秒内又有旧进程复活（登录项等），杀掉再启
-pkill -f "$APP_NAME.app/Contents/MacOS/$APP_NAME" 2>/dev/null || true
+stop_running_app
 sleep 0.5
 open "$INSTALL_PATH"
 

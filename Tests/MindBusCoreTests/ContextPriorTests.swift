@@ -1,7 +1,7 @@
 import XCTest
 @testable import MindBusCore
 
-/// 情境先验（spec §7.61）：P(会话|查询,情境) ∝ P(查询|会话)·P(会话|情境)。
+/// 情境先验：P(会话|查询,情境) ∝ P(查询|会话)·P(会话|情境)。
 /// cwd 是免费、100% 覆盖的先验——软加权 ×3，绝不过滤（跨项目答案不能丢）。
 final class ContextPriorTests: XCTestCase {
 

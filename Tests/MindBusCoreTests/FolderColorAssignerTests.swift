@@ -6,8 +6,8 @@ final class FolderColorAssignerTests: XCTestCase {
 
     /// 核心规则:活跃集(≤8 个)内每个项目一色,绝不重复。
     func testActiveSetNeverCollides() {
-        let keys = ["mindbus", "PricingLab", "ResearchKit", "Hotel",
-                    "StrategyGame", "TrendRadar", "skill-ux", "Codex"]
+        let keys = ["mindbus", "Lima", "Mike", "Hotel",
+                    "Kilo", "Juliet", "skill-zeta", "Codex"]
         let assigned = FolderColorAssigner.resolve(activeKeysInOrder: keys)
         XCTAssertEqual(assigned.count, 8)
         XCTAssertEqual(Set(assigned.values).count, 8, "活跃集内出现撞色")

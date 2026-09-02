@@ -1,8 +1,9 @@
 import Foundation
+import MindBusCore
 
 /// 评测集生成（方法学与四路生成规则的唯一真相：
-/// `docs/superpowers/plans/2026-08-11-bench-pipeline.md`；出处见
-/// `MEMORY-LAYER-SPEC.md` §7.59「评测集」）。
+/// 评测管线计划；出处见
+/// 记忆层设计说明「评测集」）。
 ///
 /// **为什么这份文件放在 `MindBusCore` 而不是独立 target**：生成逻辑要能被
 /// `Tests/MindBusCoreTests` 直接单测（`@testable import`），且未来 `mindbus-bench`
@@ -250,7 +251,7 @@ public enum BenchDataset {
     /// `ceiling`（`max(2, 5%×总段数)`，与 `expansionTermsInsideQueue` 的扩展词 df
     /// 上限公式相同）的词计数 → 映射到三档：0-1 low，2-3 mid，≥4 high。
     ///
-    /// 用全文算重叠会被长对话的常见词淹没（v1 就栽在这，见 spec §7.59）——所以只算
+    /// 用全文算重叠会被长对话的常见词淹没（v1 就栽在这，见 设计说明）——所以只算
     /// 交集里的**低频**词，不是交集本身的大小。
     ///
     /// internal（非 private）可见度：供 `BenchDatasetTests` 用可控 df 的临时语料直测

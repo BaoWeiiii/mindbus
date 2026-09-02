@@ -61,6 +61,8 @@ struct DetailView: View {
         // 布局位移交给 messageScroll 的 .transaction 掐掉——否则这里的 animation
         // 会连内容布局一起驱动，翻转列表（原点在底）生长方向朝下，观感即「整块内容向下弹」。
         .animation(.easeOut(duration: 0.2), value: store.isLoadingDetail)
+        // 正文来自不可信来源：链接只放行 http/https（见 SafeOpenURL.swift）
+        .safeLinkOpening()
         // 切换会话重置「加载更早」窗口（滚动定位由 defaultScrollAnchor + .id 重建负责）
         // 与复制范围选择（选择不跨会话——避免看不见的旧选择静默改变复制内容）
         .onChange(of: store.selectedDetail?.id) { _ in

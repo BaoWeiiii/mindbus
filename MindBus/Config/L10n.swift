@@ -138,28 +138,13 @@ struct Strings {
 
     // Minds · 真内容页
     let mindsSubtitle: String
-    let mindsGroupForYou: String
-    let mindsGroupForAI: String
-    let mindsSecUnfinished: String
-    let mindsUnfinishedHint: String
-    let mindsSecRecurring: String
-    let mindsRecurringHint: String
-    let mindsSecDormant: String
-    let mindsDormantHint: String
     let mindsSecThisMonth: String
     let mindsThisMonthHint: String
-    let mindsSecStarred: String
-    let mindsStarredHint: String
     let scanLiveCollected: String
     let completeSanctuaryOngoing: (Int) -> String
     let completeSanctuary: (Int) -> String
     let completeSanctuaryOutlived: (Int, Int) -> String
     // Minds 单语化内容模板(2026-08-13:GUI 不再直显 md 英文行)
-    let mRhythmPeak: (String, Int, Int, Int) -> String
-    let mRhythmBusiest: (String, Int, Int) -> String
-    let mRhythmJuggle: (String, Int, String) -> String
-    let mRhythmActive: (Int, Int, Int, Int) -> String
-    let mRhythmWeek: (Int, Int, Int) -> String
     let mShapeTurns: (Int) -> String
     let mShapeBimodal: (Int, Int) -> String
     let mShapeAvg: (Int) -> String
@@ -168,37 +153,23 @@ struct Strings {
     let mMonthDelta: (Int) -> String
     let mMonthTools: (String) -> String
     let mMonthFirstSeen: (String) -> String
-    let mMonthLastYear: (Int) -> String
     let mLeverageLine: (String, String) -> String
     let mLeverageBooks: (Int, Int) -> String
-    let mConvSpan: (Int, String) -> String
     let mDormantMeta: (Int, String) -> String
     let mFadedMeta: (Int, Int) -> String
     let mBriefSaid: (Int, Int) -> String
     /// %d=天数:「还持续了 N 天」
     let mBriefSpan: (Int) -> String
-    let mFlowShared: (Int) -> String
-    let mFlowBorn: (Int, String) -> String
     let mMarathonMeta: (Int, String, String) -> String
     let mSpanDays: (Int) -> String
     let mSpanHours: (Int) -> String
-    let mRaritiesNight: (String, String, String) -> String
-    let mRaritiesOnce: (String) -> String
-    let mRaritiesRare: (String) -> String
     let mPoliteness: (String) -> String
     let rescuedBadgeHelp: String
     let rescuedBanner: String
-    let mindsMuteResurface: String
-    let mVocabMindLabel: String
-    let mVocabWorkLabel: String
     let mVocabMindMeta: (Int, Int) -> String
     let mVocabWorkMeta: (Int) -> String
     let mindsSecQuestionShape: String
     let mindsQuestionShapeHint: String
-    let mindsGroupRhythm: String
-    let mindsGroupHowYouUseAI: String
-    let mindsGroupLanguage: String
-    let mindsGroupProjects: String
     let heroConversations: String
     let heroVaultCopies: String
     let heroLibraryDays: String
@@ -248,8 +219,6 @@ struct Strings {
     let mDelegCount: String
     /// 调研目的地亮点:%@=目的地, %@=点名次数
     let mDelegResearch: String
-    let mindsSecFirstWords: String
-    let mindsFirstWordsHint: String
     let mQKindConfirm: String
     let mQKindHow: String
     let mQKindWhy: String
@@ -260,8 +229,6 @@ struct Strings {
     let mQVerdictWhat: String
     let mindsSecBriefings: String
     let mindsBriefingsHint: String
-    let mindsSecSanctuary: String
-    let mindsSanctuaryHint: String
     let mindsSecShape: String
     let mindsShapeHint: String
     /// 双峰直方两组的题头
@@ -269,29 +236,18 @@ struct Strings {
     let mShapeTurnTitle: String
     let mindsSecWeekend: String
     let mindsWeekendHint: String
-    let mindsSecFlows: String
-    let mindsFlowsHint: String
     let mindsProjectsHint: String
     /// 项目总表列名:项目 / 场数 / 杠杆
     let mProjColName: String
     let mProjColCount: String
-    let mProjColLeverage: String
     /// 活跃地图右侧三个小统计的标签
     let mHeatActiveDays: String
     let mHeatLongestRun: String
     let mHeatLongestGap: String
     /// 杠杆冠军脚注:%@=项目名, %d=比率
-    let mProjLeverageTop: String
-    let mindsSecOnThisDay: String
-    let mindsOnThisDayHint: String
-    let mindsSecInvokedNames: String
-    let mindsInvokedNamesHint: String
     /// %@=次数 %@=场次
-    let mInvokedMeta: (Int, Int) -> String
     let mindsSecCatchphrases: String
     let mindsCatchphrasesHint: String
-    let mindsSecRarities: String
-    let mindsRaritiesHint: String
     let mindsSecTaught: String
     let mindsTaughtHint: String
     let mindsTaughtMeta: (Int, Int) -> String
@@ -311,11 +267,6 @@ struct Strings {
     let outlineGapHours: (Int) -> String
     let outlineGapDays: (Int) -> String
     let mindsSignedOffTip: String
-    let mindsSecDecisions: String
-    let mindsDecisionsHint: String
-    let mindsSecMilestones: String
-    let mindsMilestonesHint: String
-    let mindsMilestonesCount: String
     let mindsSecHeatmap: String
     let mindsHeatmapHint: String
     let mindsSecWorkRhythm: String
@@ -326,21 +277,10 @@ struct Strings {
     let mindsMarathonsHint: String
     let mindsSecFaded: String
     let mindsFadedHint: String
-    let mindsSecOverview: String
     let mindsSecProjects: String
-    let mindsSecEntities: String
-    let mindsSecPhrases: String
-    let mindsPhrasesHint: String
     let mindsSecVocabulary: String
-    let mindsSecAgentUsage: String
-    let mindsConversationsUnit: String
-    let mindsToolsUnit: String
-    let mindsDaysUnit: String
-    let mindsAllLocal: String
     let mindsActiveNow: String
-    let mindsEntitiesHint: String
     let mindsVocabularyHint: String
-    let mindsAgentUsageHint: String
     let mindsFileMissing: String
     let emptySuggestTitle: String
     let exportSectionTitle: String
@@ -350,13 +290,6 @@ struct Strings {
     let entityConvCount: (Int) -> String   // 实体页:「N 场相关会话」
     let entityCoOccurring: String          // 实体页:共现小标题
     let entityExitHelp: String             // 实体页退出按钮 hover
-    let mindsInjectAction: String
-    let mindsInjectUpdate: String
-    let mindsInjectRemove: String
-    let mindsInjectDone: String
-    let mindsInjectHint: (Int) -> String
-    let mindsInjectConfirmTitle: String
-    let mindsInjectConfirmBody: String
     let folderRenameMenu: String
     let folderRenameTitle: String
     let folderRenameSave: String
@@ -427,7 +360,6 @@ struct Strings {
     let moreActions: String
     let fabRelay: String
     let fabWorking: String
-    let copied: String                    // FAB 成功态 + 气泡复制反馈共用
     let fabHelp: String
 
     // 详情 · 复制范围（两态：完整会话 / 所选消息）
@@ -496,10 +428,12 @@ struct Strings {
     let scopeSmart: String
     let scopeAll: String
     let copyScopeHelp: String   // 复制范围问号浮层说明
-    let aboutCheckUpdates: String   // 更新卡按钮：调 Sparkle 检查（App 唯一网络功能，opt-in）
+    let aboutCheckUpdates: String   // 更新卡按钮：调 Sparkle 检查（App 唯一网络功能，默认开、设置可关）
     let updateBanner: (String) -> String   // 侧栏更新行：「新版本 v1.3.0」
     let updateBannerAction: String         // 更新行右侧胶囊按钮
     let updateAutoCheck: String
+    let launchAtLoginToggle: String   // 登录项开关（向导复选框 + 设置卡共用），默认关
+    let launchAtLoginHint: String
 
     static let zh = Strings(
         wizardWindowTitle: "MindBus 设置向导",
@@ -514,7 +448,7 @@ struct Strings {
         sourcesTitle: "我会读取这三个地方的对话记录",
         sourcesSubtitle: "只读不改。解析与索引全部在本机完成，不会联网。",
         sourcesFootnoteLocal: "数据始终保留在本地。点「下一步」开始扫描。",
-        sourcesFootnoteLogin: "MindBus 会随登录启动，保持对话库最新（可在系统设置中关闭）",
+        sourcesFootnoteLogin: "默认不开机自启。勾选后 MindBus 随登录启动、后台保持对话库最新；设置里随时可关。",
         scanTitleScanning: "正在收拢你的 AI 对话…",
         scanTitleDone: "扫描完成",
         scanTitleBackground: "扫描已在后台进行",
@@ -564,27 +498,12 @@ struct Strings {
         sidebarMinds: "Minds",
         mindsPlaceholder: "Minds 正在准备中",
         mindsSubtitle: "你日常的一点一滴",
-        mindsGroupForYou: "给你的,你可能没意识到的",
-        mindsGroupForAI: "给你的 AI 的,让它开口前就认识你",
-        mindsSecUnfinished: "断了的线头",
-        mindsUnfinishedHint: "最后一句是你说的——问了没答",
-        mindsSecRecurring: "反复回来的问题",
-        mindsRecurringHint: "隔着日子又来一遍的话题",
-        mindsSecDormant: "沉睡的项目",
-        mindsDormantHint: "聊了很多，好久没碰",
         mindsSecThisMonth: "本月",
         mindsThisMonthHint: "这个月比上个月热闹还是安静",
-        mindsSecStarred: "你标记的重点",
-        mindsStarredHint: "点击回到原对话",
         scanLiveCollected: "段对话已收录",
         completeSanctuaryOngoing: { "已收录 \($0) 段对话,还在继续——它们从此有了第二个家" },
         completeSanctuary: { "已收录 \($0) 段对话——从今天起,它们有了第二个家" },
         completeSanctuaryOutlived: { "已收录 \($0) 段对话·其中 \($1) 段已越过源工具的清理线" },
-        mRhythmPeak: { "开场高峰 \($0)——\($1)%(\($2)/\($3) 场)" },
-        mRhythmBusiest: { "最忙一天 \($0)——\($1) 场(占全部 \($2)%)" },
-        mRhythmJuggle: { "平均每个活跃日跨 \($0) 个项目——峰值 \($1),\($2)" },
-        mRhythmActive: { "近 \($1) 天活跃 \($0) 天——最长连续 \($2) 天,最长间歇 \($3) 天" },
-        mRhythmWeek: { "本周至今 \($0) 场——处于你个人历史的 P\($1)(中位 \($2))" },
         mShapeTurns: { "\($0)% 的对话你说了 16 轮以上——你不是在问答,是在共事" },
         mShapeBimodal: { "时长双峰:\($0)% 不到 2 分钟,\($1)% 超过 2 小时" },
         mShapeAvg: { "平均每条消息 \($0) 字——短指令,不是长文" },
@@ -593,36 +512,22 @@ struct Strings {
         mMonthDelta: { $0 >= 0 ? "比上月 +\($0)" : "比上月 \($0)" },
         mMonthTools: { "工具:\($0)" },
         mMonthFirstSeen: { "本月首见:\($0)" },
-        mMonthLastYear: { "去年同月:\($0) 场" },
         mLeverageLine: { "你打了 \($0) 字,对话共有 \($1) 字" },
         mLeverageBooks: { "≈ 你亲手写下 \($0) 本书,在 \($1) 本书的工作量里" },
-        mConvSpan: { "\($0) 场对话 · \($1)" },
         mDormantMeta: { "\($0) 场对话,最后一次 \($1)" },
         mFadedMeta: { "说过 \($0) 次,沉默 \($1) 天" },
         mBriefSaid: { "讲过 \($0) 遍 · 跨 \($1) 场对话" },
         mBriefSpan: { "持续 \($0) 天" },
-        mFlowShared: { "共享 \($0) 个概念" },
-        mFlowBorn: { " · \($0) 个先生于 \($1)" },
         mMarathonMeta: { "\($0) 条消息,跨 \($1),\($2)" },
         mSpanDays: { "\($0) 天" },
         mSpanHours: { "\($0) 小时" },
-        mRaritiesNight: { "最晚的深夜:\($0) \($1),你开了「\($2)」" },
-        mRaritiesOnce: { "只问过一次,再没回来:\($0)" },
-        mRaritiesRare: { "你的稀有词:\($0)" },
         mPoliteness: { "礼貌与委托:\($0)" },
         rescuedBadgeHelp: "源文件已被工具清理——这份副本由 MindBus 保存,永远都在",
         rescuedBanner: "这场对话的源文件已被工具删除——你看到的是 MindBus 替你保存的副本",
-        mindsMuteResurface: "不再显示这条——只影响「那年今日」,不影响列表与搜索",
-        mVocabMindLabel: "思维词汇,跟着你走过 5+ 个项目",
-        mVocabWorkLabel: "项目词汇",
         mVocabMindMeta: { "\($0) 次,\($1) 个项目" },
         mVocabWorkMeta: { "\($0) 次" },
         mindsSecQuestionShape: "提问的形状",
         mindsQuestionShapeHint: "你更常问哪一类问题",
-        mindsGroupRhythm: "你的节奏",
-        mindsGroupHowYouUseAI: "你怎么用 AI",
-        mindsGroupLanguage: "你的语言",
-        mindsGroupProjects: "你的项目",
         heroConversations: "场对话",
         heroVaultCopies: "本地副本",
         heroLibraryDays: "收纳天数",
@@ -660,8 +565,6 @@ struct Strings {
         mHourTipCount: { "\($0) 场对话 · 占全部 \($1)%" },
         mDelegCount: "%d 次 %d 场",
         mDelegResearch: "调研的第一目的地:%@(点名 %@ 次)",
-        mindsSecFirstWords: "项目的第一句话",
-        mindsFirstWordsHint: "每个项目的创世句·点击回到起点",
         mQKindConfirm: "该不该",
         mQKindHow: "怎么做",
         mQKindWhy: "为什么",
@@ -672,33 +575,20 @@ struct Strings {
         mQVerdictWhat: "你从定义出发",
         mindsSecBriefings: "反复交代的话",
         mindsBriefingsHint: "同一句话讲了好几遍，该存成模板了",
-        mindsSecSanctuary: "永久留底",
-        mindsSanctuaryHint: "都在你自己的硬盘上，谁也拿不走",
         mindsSecShape: "一起干活的样子",
         mindsShapeHint: "不是一问一答，是一起磨活",
         mShapeDurationTitle: "每场聊多久",
         mShapeTurnTitle: "来回几轮",
         mindsSecWeekend: "周末的你",
         mindsWeekendHint: "哪个项目占据了你的周末",
-        mindsSecFlows: "知识流动",
-        mindsFlowsHint: "项目之间共享的概念",
         mindsProjectsHint: "点击展开历次会话",
         mProjColName: "项目",
         mProjColCount: "场数",
-        mProjColLeverage: "杠杆",
         mHeatActiveDays: "活跃天数",
         mHeatLongestRun: "最长连续",
         mHeatLongestGap: "最长间歇",
-        mProjLeverageTop: "最省你话的项目:%@(你写 1 个字,换回 %d 个字)",
-        mindsSecOnThisDay: "那年今日",
-        mindsOnThisDayHint: "同一个日期，更早的章节",
-        mindsSecInvokedNames: "你搬出过的名字",
-        mindsInvokedNamesHint: "你反复请出的人,如实计数",
-        mInvokedMeta: { "\($0) 次,\($1) 场" },
         mindsSecCatchphrases: "口头禅",
         mindsCatchphrasesHint: "你总挂在嘴边的短句，原话照数",
-        mindsSecRarities: "独一无二",
-        mindsRaritiesHint: "最晚的深夜·只问过一次的话题·稀有词",
         mindsSecTaught: "它教你的词",
         mindsTaughtHint: "它先说的,你后来接过来、带着走了好几个项目",
         mindsTaughtMeta: { "\($0) 天后你开始用 · \($1) 个项目" },
@@ -718,11 +608,6 @@ struct Strings {
         outlineGapHours: { "\($0) 小时后" },
         outlineGapDays: { "\($0) 天后" },
         mindsSignedOffTip: "你在这个项目里放行过几件事",
-        mindsSecDecisions: "你拍板的时刻",
-        mindsDecisionsHint: "它把选择摆到你面前时,你说的那句话",
-        mindsSecMilestones: "你点头的时刻",
-        mindsMilestonesHint: "你说「继续」之前,它刚汇报完的那件事",
-        mindsMilestonesCount: "件放行过的成果",
         mindsSecHeatmap: "活跃地图",
         mindsHeatmapHint: "近一年每天的对话量,点击查看当天",
         mindsSecWorkRhythm: "工作节奏",
@@ -733,21 +618,10 @@ struct Strings {
         mindsMarathonsHint: "最长的几场,点击回看",
         mindsSecFaded: "不再说的词",
         mindsFadedHint: "以前常说，现在不提了",
-        mindsSecOverview: "概览",
         mindsSecProjects: "项目节奏",
-        mindsSecEntities: "高频实体",
-        mindsSecPhrases: "你反复说的话",
-        mindsPhrasesHint: "跨项目带着走的说法,你未必察觉",
         mindsSecVocabulary: "你的常用词",
-        mindsSecAgentUsage: "被 AI 引用过的对话",
-        mindsConversationsUnit: "场对话",
-        mindsToolsUnit: "个工具",
-        mindsDaysUnit: "天跨度",
-        mindsAllLocal: "全部本地采集",
         mindsActiveNow: "活跃中",
-        mindsEntitiesHint: "点击查看相关会话",
         mindsVocabularyHint: "从你说过的话里数出来的,点击可搜",
-        mindsAgentUsageHint: "点击打开",
         mindsFileMissing: "Minds 还没生成,完成一次扫描后自动出现",
         emptySuggestTitle: "换个词试试——你的高频实体：",
         exportSectionTitle: "导出与备份",
@@ -757,13 +631,6 @@ struct Strings {
         entityConvCount: { "\($0) 场相关会话" },
         entityCoOccurring: "与它共现——顺着找：",
         entityExitHelp: "退出实体导航",
-        mindsInjectAction: "写进 CLAUDE.md",
-        mindsInjectUpdate: "更新 CLAUDE.md 里的这段",
-        mindsInjectRemove: "从 CLAUDE.md 移除",
-        mindsInjectDone: "已写入 ~/.claude/CLAUDE.md",
-        mindsInjectHint: { "\($0) 条已确认内容可注入" },
-        mindsInjectConfirmTitle: "写入全局 CLAUDE.md？",
-        mindsInjectConfirmBody: "只写入受管分节（带标记，可随时移除），你自己写的内容一个字不动。所有 Claude 会话开机即懂你。",
         folderRenameMenu: "重命名文件夹标签…",
         folderRenameTitle: "重命名文件夹标签",
         folderRenameSave: "保存",
@@ -830,7 +697,6 @@ struct Strings {
         moreActions: "更多操作",
         fabRelay: "复制接力",
         fabWorking: "整理中…",
-        copied: "已复制",
         fabHelp: "复制这段对话的关键上下文，粘给另一个 AI 就能接着聊。\n复制方式可在设置里调整，默认剥离代码、带交接说明。",
         scopeFullMeta: { "完整会话 · \($0) 条消息" },
         scopeSelectedMeta: { "已选 \($0) 条 · 仅复制所选" },
@@ -887,7 +753,9 @@ struct Strings {
         aboutCheckUpdates: "检查更新",
         updateBanner: { "新版本 v\($0)" },
         updateBannerAction: "更新",
-        updateAutoCheck: "自动检查更新"
+        updateAutoCheck: "自动检查更新",
+        launchAtLoginToggle: "随登录启动 MindBus",
+        launchAtLoginHint: "默认关闭。开启后随登录在后台保持对话库最新，随时可以关掉。"
     )
 
     static let en = Strings(
@@ -903,7 +771,7 @@ struct Strings {
         sourcesTitle: "MindBus will read conversations from these three places",
         sourcesSubtitle: "Read-only. Parsing and indexing happen entirely on this Mac — nothing goes online.",
         sourcesFootnoteLocal: "Your data always stays local. Click “Next” to start scanning.",
-        sourcesFootnoteLogin: "MindBus starts at login to keep your vault up to date (turn this off anytime in System Settings)",
+        sourcesFootnoteLogin: "Off by default. When checked, MindBus starts at login to keep your vault current — change it anytime in Settings.",
         scanTitleScanning: "Gathering your AI conversations…",
         scanTitleDone: "Scan complete",
         scanTitleBackground: "Scanning continues in the background",
@@ -953,27 +821,12 @@ struct Strings {
         sidebarMinds: "Minds",
         mindsPlaceholder: "Minds is coming soon",
         mindsSubtitle: "Your mechanical self-description — every line is counted, not generated",
-        mindsGroupForYou: "FOR YOU · patterns you might have missed",
-        mindsGroupForAI: "FOR YOUR AI · the profile agents consume",
-        mindsSecUnfinished: "Unfinished threads",
-        mindsUnfinishedHint: "the last word was yours — asked, not answered",
-        mindsSecRecurring: "Recurring questions",
-        mindsRecurringHint: "topics that keep coming back",
-        mindsSecDormant: "Dormant projects",
-        mindsDormantHint: "heavy investment, long untouched",
         mindsSecThisMonth: "This month",
         mindsThisMonthHint: "busier or quieter than last month",
-        mindsSecStarred: "Starred",
-        mindsStarredHint: "click to revisit the conversation",
         scanLiveCollected: "conversations collected",
         completeSanctuaryOngoing: { "\($0) conversations so far, still collecting — they have a second home now" },
         completeSanctuary: { "\($0) conversations collected — as of today, they have a second home" },
         completeSanctuaryOutlived: { "\($0) conversations collected · \($1) already outlived their source tool's cleanup" },
-        mRhythmPeak: { "most conversations start \($0) — \($1)% (\($2) of \($3))" },
-        mRhythmBusiest: { "busiest day \($0) — \($1) conversations (\($2)% of everything)" },
-        mRhythmJuggle: { "you juggle \($0) projects per active day — peak \($1) on \($2)" },
-        mRhythmActive: { "active \($0) of the last \($1) days — longest run \($2), longest break \($3)" },
-        mRhythmWeek: { "this week so far: \($0) — P\($1) of your own history (median \($2))" },
         mShapeTurns: { "\($0)% of conversations run 16+ of your turns — you co-work, you don't just ask" },
         mShapeBimodal: { "two-peaked sessions: \($0)% under 2 min, \($1)% over 2 h" },
         mShapeAvg: { "average message \($0) chars — short directives, not essays" },
@@ -982,36 +835,22 @@ struct Strings {
         mMonthDelta: { $0 >= 0 ? "+\($0) vs last month" : "\($0) vs last month" },
         mMonthTools: { "tools: \($0)" },
         mMonthFirstSeen: { "first seen this month: \($0)" },
-        mMonthLastYear: { "same month last year: \($0)" },
         mLeverageLine: { "you typed \($0); the conversations hold \($1)" },
         mLeverageBooks: { "≈ \($0) books of your own writing, inside ≈ \($1) books of work" },
-        mConvSpan: { "\($0) conversations · \($1)" },
         mDormantMeta: { "\($0) conversations, last touched \($1)" },
         mFadedMeta: { "said \($0)× · silent \($1) days" },
         mBriefSaid: { "said \($0)× · across \($1) conversations" },
         mBriefSpan: { "over \($0) days" },
-        mFlowShared: { "\($0) shared concepts" },
-        mFlowBorn: { " · \($0) born in \($1) first" },
         mMarathonMeta: { "\($0) messages · over \($1) · \($2)" },
         mSpanDays: { "\($0) days" },
         mSpanHours: { "\($0) h" },
-        mRaritiesNight: { "deepest night: \($0) \($1) you started \"\($2)\"" },
-        mRaritiesOnce: { "asked once, never again: \($0)" },
-        mRaritiesRare: { "your rare words: \($0)" },
         mPoliteness: { "politeness & delegation: \($0)" },
         rescuedBadgeHelp: "The source file was cleaned up by its tool — this copy is kept by MindBus, forever",
         rescuedBanner: "The source of this conversation was deleted by its tool — you are reading MindBus's rescued copy",
-        mindsMuteResurface: "Don't resurface this — hides it from On This Day only, not from lists or search",
-        mVocabMindLabel: "MIND WORDS · travel with you across 5+ projects",
-        mVocabWorkLabel: "WORK WORDS",
         mVocabMindMeta: { "\($0)× · \($1) projects" },
         mVocabWorkMeta: { "\($0)×" },
         mindsSecQuestionShape: "Question Shape",
         mindsQuestionShapeHint: "which cognitive layer your questions live in",
-        mindsGroupRhythm: "Your rhythm",
-        mindsGroupHowYouUseAI: "How you use AI",
-        mindsGroupLanguage: "Your language",
-        mindsGroupProjects: "Your projects",
         heroConversations: "conversations",
         heroVaultCopies: "local copies",
         heroLibraryDays: "days of library",
@@ -1049,8 +888,6 @@ struct Strings {
         mHourTipCount: { "\($0) conversations · \($1)% of all" },
         mDelegCount: "%d× %dc",
         mDelegResearch: "research destination #1: %@ (named %@ times)",
-        mindsSecFirstWords: "First Words",
-        mindsFirstWordsHint: "how each project began · click to revisit",
         mQKindConfirm: "should-we",
         mQKindHow: "how-to",
         mQKindWhy: "why",
@@ -1061,33 +898,20 @@ struct Strings {
         mQVerdictWhat: "you start from definitions",
         mindsSecBriefings: "Repeated Briefings",
         mindsBriefingsHint: "worth turning into a reusable prompt or skill",
-        mindsSecSanctuary: "Sanctuary",
-        mindsSanctuaryHint: "on your disk — no one takes it without you",
         mindsSecShape: "Collaboration Shape",
         mindsShapeHint: "you co-work, you don't just ask",
         mShapeDurationTitle: "SESSION LENGTH",
         mShapeTurnTitle: "TURNS",
         mindsSecWeekend: "Weekend Self",
         mindsWeekendHint: "which project owns your weekends",
-        mindsSecFlows: "Knowledge Flows",
-        mindsFlowsHint: "concepts your projects share",
         mindsProjectsHint: "click to expand history",
         mProjColName: "PROJECT",
         mProjColCount: "RUNS",
-        mProjColLeverage: "LEVERAGE",
         mHeatActiveDays: "ACTIVE DAYS",
         mHeatLongestRun: "LONGEST RUN",
         mHeatLongestGap: "LONGEST GAP",
-        mProjLeverageTop: "your words stretch furthest in %@ — 1 char typed, %d back",
-        mindsSecOnThisDay: "On This Day",
-        mindsOnThisDayHint: "same date, earlier chapters",
-        mindsSecInvokedNames: "Names You Invoke",
-        mindsInvokedNamesHint: "the people you keep citing, counted",
-        mInvokedMeta: { "\($0)x, \($1) chats" },
         mindsSecCatchphrases: "Catchphrases",
         mindsCatchphrasesHint: "short messages you send again and again",
-        mindsSecRarities: "Rarities",
-        mindsRaritiesHint: "deepest night · asked once · rare words",
         mindsSecTaught: "Words It Taught You",
         mindsTaughtHint: "it used them first — you picked them up and carried them on",
         mindsTaughtMeta: { "picked up \($0)d later · \($1) projects" },
@@ -1107,11 +931,6 @@ struct Strings {
         outlineGapHours: { "\($0)h later" },
         outlineGapDays: { "\($0)d later" },
         mindsSignedOffTip: "how many things you signed off in this project",
-        mindsSecDecisions: "Your Calls",
-        mindsDecisionsHint: "what you said when it put the options in front of you",
-        mindsSecMilestones: "Signed Off",
-        mindsMilestonesHint: "what it had just reported when you said OK",
-        mindsMilestonesCount: "signed off",
         mindsSecHeatmap: "Activity Map",
         mindsHeatmapHint: "a year of conversations · click any day",
         mindsSecWorkRhythm: "Work Rhythm",
@@ -1122,21 +941,10 @@ struct Strings {
         mindsMarathonsHint: "longest conversations · click to revisit",
         mindsSecFaded: "Faded Words",
         mindsFadedHint: "once-frequent, topics moved on",
-        mindsSecOverview: "Overview",
         mindsSecProjects: "Project Rhythm",
-        mindsSecEntities: "Top Entities",
-        mindsSecPhrases: "Phrases You Repeat",
-        mindsPhrasesHint: "turns of phrase you carry across projects",
         mindsSecVocabulary: "Your Concept Map",
-        mindsSecAgentUsage: "Referenced by Agents",
-        mindsConversationsUnit: "conversations",
-        mindsToolsUnit: "tools",
-        mindsDaysUnit: "days",
-        mindsAllLocal: "all captured locally",
         mindsActiveNow: "active",
-        mindsEntitiesHint: "click to see related conversations",
         mindsVocabularyHint: "your personal lexicon, statistically grown · click to search",
-        mindsAgentUsageHint: "click to open",
         mindsFileMissing: "Minds not built yet — it appears after the first scan",
         emptySuggestTitle: "Try one of your frequent entities:",
         exportSectionTitle: "Export & Backup",
@@ -1146,13 +954,6 @@ struct Strings {
         entityConvCount: { "\($0) related conversation(s)" },
         entityCoOccurring: "Co-occurring — follow the thread:",
         entityExitHelp: "Exit entity navigation",
-        mindsInjectAction: "Inject into CLAUDE.md",
-        mindsInjectUpdate: "Update CLAUDE.md injection",
-        mindsInjectRemove: "Remove injection",
-        mindsInjectDone: "Written to ~/.claude/CLAUDE.md",
-        mindsInjectHint: { "\($0) confirmed item(s) ready" },
-        mindsInjectConfirmTitle: "Write to global CLAUDE.md?",
-        mindsInjectConfirmBody: "Only a managed section is written (marked, removable anytime); your own content is untouched. Every Claude session starts knowing you.",
         folderRenameMenu: "Rename Folder Tag…",
         folderRenameTitle: "Rename Folder Tag",
         folderRenameSave: "Save",
@@ -1219,7 +1020,6 @@ struct Strings {
         moreActions: "More actions",
         fabRelay: "Copy & relay",
         fabWorking: "Preparing…",
-        copied: "Copied",
         fabHelp: "Copies the key context of this conversation — paste it into another AI to keep going.\nAdjust how it copies in Settings; by default code is stripped and a handoff note is included.",
         scopeFullMeta: { $0 == 1 ? "Full conversation · 1 message" : "Full conversation · \($0) messages" },
         scopeSelectedMeta: { $0 == 1 ? "1 selected · copies selection only" : "\($0) selected · copies selection only" },
@@ -1276,6 +1076,8 @@ struct Strings {
         aboutCheckUpdates: "Check for Updates",
         updateBanner: { "Version \($0)" },
         updateBannerAction: "Update",
-        updateAutoCheck: "Check for updates automatically"
+        updateAutoCheck: "Check for updates automatically",
+        launchAtLoginToggle: "Launch MindBus at login",
+        launchAtLoginHint: "Off by default. When on, MindBus starts at login to keep your vault current; switch it off anytime."
     )
 }

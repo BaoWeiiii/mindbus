@@ -23,6 +23,27 @@ struct MindsView: View {
         MindsContext(store: store, md: minds.mechanicalMarkdown, viz: viz, isLoading: loadingViz)
     }
 
+    init(store: ConversationStore) {
+        self.store = store
+    }
+
+    #if DEBUG
+    /// 离屏预览专用（PreviewRenderer）：ImageRenderer 不触发 onAppear，图表数据同步算好
+    /// 再渲，否则样张只能抓到骨架。正式路径永远走上面的 init + onAppear 异步取数。
+    init(store: ConversationStore, previewSynchronousViz: Bool, previewPage: MindsPage = .overview) {
+        self.store = store
+        _page = State(initialValue: previewPage)
+        guard previewSynchronousViz else { return }
+        let md = MindsStore()
+        let probe = MindsContext(store: store, md: md.mechanicalMarkdown, viz: MindsViz(), isLoading: true)
+        let faded = probe.bullets("FADED WORDS").compactMap(probe.parseRecurring).map(\.word)
+        let v = MindsViz.build(store: store, fadedWords: faded, rescuedCount: store.rescuedIDs.count)
+        _minds = StateObject(wrappedValue: md)
+        _viz = State(initialValue: v)
+        _loadingViz = State(initialValue: false)
+    }
+    #endif
+
     var body: some View {
         // 宽度硬约束（2026-08-16 三修）：内部组件（Swift Charts 无宽度约束、
         // FlowLayout 曾返回无限宽）会向父容器索取极大理想宽度，一路顶穿窗口——

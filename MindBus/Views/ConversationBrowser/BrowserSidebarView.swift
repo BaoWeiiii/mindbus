@@ -178,7 +178,7 @@ struct BrowserSidebarView: View {
         .animation(.easeOut(duration: 0.15), value: store.mindsSelected)
     }
 
-    /// 收藏模块入口(规格 §5:Minds 下方、工作区上方,跨项目全局;标准书签图标;
+    /// 收藏模块入口(设计说明:Minds 下方、工作区上方,跨项目全局;标准书签图标;
     /// 右侧数字 = **含收藏的对话数**,不是消息总数,hover 提示给两个数)。
     private var favoritesSection: some View {
         let convCount = stars.summaries().count

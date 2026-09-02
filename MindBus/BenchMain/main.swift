@@ -1,6 +1,7 @@
 import Foundation
 import MindBusCore
 import MindBusMCP
+import MindBusBench
 
 // mindbus-bench：评测管线本地开发者工具，两个子命令 `generate`/`run`。不进 app
 // bundle（`Package.swift` 里 `MindBus` target 已 `exclude` `BenchMain`；

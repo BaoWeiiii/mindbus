@@ -1,9 +1,10 @@
 import XCTest
 import Foundation
 @testable import MindBusCore
+@testable import MindBusBench
 
-/// 跑分器（spec `MEMORY-LAYER-SPEC.md` §7.59-§7.61；方法学唯一真相：
-/// `docs/superpowers/plans/2026-08-11-bench-pipeline.md` Task 2 节）：R@k/MRR 计算、
+/// 跑分器（spec 记忆层设计说明-§7.61；方法学唯一真相：
+/// 评测管线计划 节）：R@k/MRR 计算、
 /// 分带/分来源表聚合、`"answer-cwd"` 哨兵解析、oracle 标注。
 ///
 /// 全部用临时 SQLite 索引（UUID 命名，`addTeardownBlock` 清理）+ 直接 `upsert` 注入

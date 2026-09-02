@@ -148,13 +148,13 @@ final class MindsRoundTripTests: XCTestCase {
 
     func testDormantRoundTrip() {
         let doc = render {
-            $0.dormant = [MindsBuilder.ProjectRhythm(cwd: "/x/StrategyGame", count: 54, messages: 5400,
+            $0.dormant = [MindsBuilder.ProjectRhythm(cwd: "/x/Kilo", count: 54, messages: 5400,
                                                      activeStart: date(2026, 5, 1),
                                                      activeEnd: date(2026, 5, 15),
                                                      lastTouched: date(2026, 7, 18))]
         }
         let rows = doc.bullets("DORMANT PROJECTS").compactMap(doc.namedDetail)
-        XCTAssertEqual(rows.first?.name, "StrategyGame")
+        XCTAssertEqual(rows.first?.name, "Kilo")
         XCTAssertEqual(MindsDocument.firstInt(after: "", in: rows[0].detail), 54)
         XCTAssertTrue(rows[0].detail.contains("2026-07-18"))
     }
@@ -242,7 +242,7 @@ extension MindsRoundTripTests {
 
     func testDormantDetailExtraction() {
         let doc = render {
-            $0.dormant = [MindsBuilder.ProjectRhythm(cwd: "/x/StrategyGame", count: 54, messages: 5400,
+            $0.dormant = [MindsBuilder.ProjectRhythm(cwd: "/x/Kilo", count: 54, messages: 5400,
                                                      activeStart: date(2026, 5, 1),
                                                      activeEnd: date(2026, 5, 15),
                                                      lastTouched: date(2026, 7, 18))]
@@ -366,7 +366,7 @@ extension MindsRoundTripTests {
     }
 
     func testPhraseEdgePunctuationClassifier() {
-        for c in "】【（）「」《》，。：、,.:;" {
+        for c in "】【「」《》，。：、,.:;" {
             XCTAssertTrue(MindsBuilder.isPhraseEdgePunctuation(c), "\(c) 应判为标点")
         }
         for c in "第一性原理skillAI7" {
@@ -380,7 +380,7 @@ extension MindsRoundTripTests {
     func testLeverageByProjectRendersWhenDataPresent() {
         let doc = render {
             $0.projectLeverage = [
-                .init(name: "homelab", userChars: 3_000, totalChars: 135_000, conversationCount: 5),
+                .init(name: "November", userChars: 3_000, totalChars: 135_000, conversationCount: 5),
             ]
         }
         let rows = doc.bullets("LEVERAGE BY PROJECT")

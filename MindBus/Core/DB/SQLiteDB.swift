@@ -8,6 +8,15 @@ public final class SQLiteDB {
     /// sqlite3_bind_text 的 destructor：让 SQLite 复制字符串（避免悬垂指针）。
     public static let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
+    /// 绑定文本——**显式传 UTF-8 字节长度**而不是 -1：-1 让 SQLite 用 strlen 取长，
+    /// 文本含 U+0000（二进制被 cat 进对话、或注入者刻意放置）时 NUL 之后的内容会被
+    /// 静默截断，那一段对搜索「隐身」。全库文本绑定统一走这里。
+    public static func bindText(_ stmt: OpaquePointer?, _ index: Int32, _ text: String) {
+        _ = text.withCString { p in
+            sqlite3_bind_text(stmt, index, p, Int32(clamping: text.utf8.count), transient)
+        }
+    }
+
     private var handle: OpaquePointer?
 
     /// - Parameter queryOnly: 只读消费者（MCP 进程）用。三点差别：

@@ -240,7 +240,7 @@ final class MemoryOpenToolTests: XCTestCase {
         XCTAssertTrue(out.text.contains(missing))
     }
 
-    // MARK: 引用回流记账（refLogger 接线，spec §7 第5步）
+    // MARK: 引用回流记账（refLogger 接线，设计说明）
 
     /// 造一个最小可解析的 Claude Code 会话（一问一答）——与
     /// `VaultRestoreReadTests.makeSession` 同款最小 fixture，这里只是为了让

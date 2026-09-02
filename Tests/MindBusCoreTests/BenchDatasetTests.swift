@@ -1,8 +1,9 @@
 import XCTest
 import Foundation
 @testable import MindBusCore
+@testable import MindBusBench
 
-/// 评测集生成（spec `MEMORY-LAYER-SPEC.md` §7.59「评测集」）：四路查询来源各自的
+/// 评测集生成（spec 记忆层设计说明「评测集」）：四路查询来源各自的
 /// 生成/丢弃规则、低频词重叠分带边界、JSONL 往返。
 ///
 /// 全部用临时 SQLite 索引 + 临时目录（UUID 命名，`addTeardownBlock` 清理），commit

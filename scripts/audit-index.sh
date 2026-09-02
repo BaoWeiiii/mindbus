@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail
+set -euo pipefail
 
 # ============================================================
 # MindBus 索引数据质量哨兵
@@ -9,13 +9,32 @@ set -uo pipefail
 #       用户报告「重复/丢失/怪数据」时第一时间跑。
 # 退出码：0 全绿；1 有断言失败（输出 ✗ 行）。
 # 只读，不修改索引。
+#
+# ⚠ 输出含你的个人词表 / 对话片段（--verbose 会打印 preview 首句），
+#   勿直接贴进 Issue。默认只打计数。
+#
+# 用法: scripts/audit-index.sh [--verbose] [index.sqlite]
+#   索引路径也可用环境变量 DB= 覆盖；默认 ~/Library/Application Support/MindBus/index.sqlite
 # ============================================================
 
-DB="${1:-$HOME/Library/Application Support/MindBus/index.sqlite}"
+VERBOSE=0
+DB="${DB:-$HOME/Library/Application Support/MindBus/index.sqlite}"
+for arg in "$@"; do
+    case "$arg" in
+        --verbose|-v) VERBOSE=1 ;;
+        -h|--help) echo "用法: scripts/audit-index.sh [--verbose] [index.sqlite]（索引路径也可用 DB= 覆盖）"; exit 0 ;;
+        *) DB="$arg" ;;
+    esac
+done
 if [ ! -f "$DB" ]; then
     echo "✗ 索引不存在: $DB"
     exit 1
 fi
+# set -e 下任何一条 SQL 失败（多半是表不存在：索引还没升级到当前政策版本）都会中止——
+# 留一句提示，别静默退出
+trap 'echo "✗ 第 $LINENO 行意外退出：SQL 失败或表不存在？先启动 App 完成索引迁移再跑" >&2' ERR
+# 打印路径时把家目录缩成 ~，别把用户名带进输出
+case "$DB" in "$HOME"/*) DB_DISPLAY="~${DB#"$HOME"}" ;; *) DB_DISPLAY="$DB" ;; esac
 
 Q() { sqlite3 -readonly "$DB" "$1"; }
 FAIL=0
@@ -33,7 +52,7 @@ assert_zero() {  # assert_zero <描述> <SQL(应返回 0)>
 VERSION=$(Q "PRAGMA user_version;")
 
 echo "== MindBus 索引哨兵 · $(date '+%F %T') =="
-echo "库: ${DB}（$(Q 'SELECT COUNT(*) FROM conversations') 条，政策 v${VERSION}）"
+echo "库: ${DB_DISPLAY}（$(Q 'SELECT COUNT(*) FROM conversations') 条，政策 v${VERSION}）"
 if [ "${VERSION}" -lt 13 ]; then
     echo "⚠ 政策版本旧（v${VERSION} < v13）——先启动 App 完成迁移，本轮跳过第三路新表检查（segments_fts_lex/lexicon/lexicon_meta/mcp_refs）"
 fi
@@ -51,9 +70,12 @@ assert_zero "无同 id 多行" \
 DUP=$(Q "SELECT COUNT(*) FROM (SELECT cwd, substr(preview,1,40) p, COUNT(*) c FROM conversations WHERE source='codex' GROUP BY cwd, p HAVING c>1);")
 if [ "${DUP}" = "0" ]; then pass "Codex 无同 cwd+preview 疑似线程组"; else
     # 启发式警告不置 FAIL：同类任务多次独立运行 preview 相同是合法的（如反复评审）；
-    # 若某组的 forked_from 指向同根才是收敛失效——人工看一眼下面清单即可判断
-    echo "⚠ Codex 同 cwd+preview 组 ${DUP} 个（人工确认是否独立会话）："
-    Q "SELECT '  ' || substr(cwd,-24) || ' | ' || substr(preview,1,32) || ' ×' || COUNT(*) FROM conversations WHERE source='codex' GROUP BY cwd, substr(preview,1,40) HAVING COUNT(*)>1 LIMIT 5;"
+    # 若某组的 forked_from 指向同根才是收敛失效——人工看一眼清单即可判断。
+    # 清单含 cwd 尾段与 preview 首句（对话片段），只在 --verbose 下打印
+    echo "⚠ Codex 同 cwd+preview 组 ${DUP} 个（人工确认是否独立会话；加 --verbose 列出前 5 组）"
+    if [ "$VERBOSE" = "1" ]; then
+        Q "SELECT '  ' || substr(cwd,-24) || ' | ' || substr(preview,1,32) || ' ×' || COUNT(*) FROM conversations WHERE source='codex' GROUP BY cwd, substr(preview,1,40) HAVING COUNT(*)>1 LIMIT 5;"
+    fi
 fi
 
 # ── 时间正确性 ──

@@ -63,6 +63,8 @@ struct SetupWizardView: View {
     @State private var currentPage: WizardPage = .sources
     @State private var completedPages: Set<WizardPage> = []
     @State private var setupPhase: SetupPhase = .idle
+    /// 登录项默认关；来源页勾选才注册（此前点「下一步」即静默注册）。
+    @State private var launchAtLogin = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -75,7 +77,7 @@ struct SetupWizardView: View {
                 Group {
                     switch currentPage {
                     case .sources:
-                        SourcesPage()
+                        SourcesPage(launchAtLogin: $launchAtLogin)
                     case .scan:
                         ScanConfigPage(phase: setupPhase)
                     case .complete:
@@ -141,12 +143,8 @@ struct SetupWizardView: View {
         }
 
         if currentPage == .sources && setupPhase == .idle {
-            // 登录项注册（来源页已有告知文案，用户知情）。失败仅记日志：
-            // 告知说「会随登录启动」，注册失败时至少留下可排查的痕迹。
-            if #available(macOS 13.0, *) {
-                do { try SMAppService.mainApp.register() }
-                catch { NSLog("[onboarding] login item register failed: \(error)") }
-            }
+            // 登录项只在用户勾选时注册；关闭/撤销走设置页同一入口。
+            if launchAtLogin { LoginItemManager.shared.setEnabled(true) }
             setupPhase = .scanning
             // 真实进度：等启动 warm-up（AppDelegate 首建索引）完成才宣布「扫描完成」——
             // 曾经固定 sleep 1.2s 假进度，大库用户「完成」后打开主窗仍是空列表。
@@ -325,6 +323,7 @@ struct WizardNavBar: View {
 /// 它同时承担「第一印象」：低频工具的用户隔很久才打开一次，单次体验在记忆中占比极高，
 /// 所以第一屏要立刻给确定性——我会读什么、改不改、联不联网——而不是先来一句欢迎辞。
 struct SourcesPage: View {
+    @Binding var launchAtLogin: Bool
     @ObservedObject private var l10n = L10n.shared
 
     // 展示名不写死在这里：统一取 ConversationSource.displayName(isZh:)，
@@ -390,7 +389,14 @@ struct SourcesPage: View {
                     .font(.system(size: 11))
                     .foregroundColor(DSLight.t4)
                     .fixedSize(horizontal: false, vertical: true)
-                // 登录项注册在 goNext 里静默发生——必须在此告知，用户才有知情权。
+                // 登录项：默认关，勾选才注册（设置页可随时改）。
+                Toggle(isOn: $launchAtLogin) {
+                    Text(l10n.s.launchAtLoginToggle)
+                        .font(.system(size: 12))
+                        .foregroundColor(DSLight.t2)
+                }
+                .toggleStyle(.checkbox)
+                .tint(DSLight.gold)
                 Text(l10n.s.sourcesFootnoteLogin)
                     .font(.system(size: 11))
                     .foregroundColor(DSLight.t4)
@@ -421,7 +427,6 @@ struct ScanConfigPage: View {
     /// 实时计数:扫描等待从「干等 spinner」变「看着资产被找回来」(Readwise 首扫
     /// 模式——把存量翻译成正在到账的价值)。0.4s 轮询索引条数,纯读快查询。
     @State private var liveCount = 0
-    @State private var counting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DSLight.spaceMd) {
@@ -487,20 +492,21 @@ struct ScanConfigPage: View {
 
             Spacer()
         }
-        .onAppear { startCountingIfNeeded() }
-        .onChange(of: phase) { _ in startCountingIfNeeded() }
+        .task(id: phase) { await pollCount() }
     }
 
-    private func startCountingIfNeeded() {
-        guard !counting else { return }
-        counting = true
-        Task { @MainActor in
-            // done 后再刷一次终值;窗口存续期间轮询,页面销毁任务随之取消
-            while true {
-                liveCount = ConversationIndex.shared?.summary().count ?? 0
-                if phase == .done { break }
-                try? await Task.sleep(nanoseconds: 400_000_000)
-            }
+    /// 0.4s 轮询索引条数。`.task(id: phase)`：phase 变了 SwiftUI 取消旧任务再起新的，
+    /// 页面销毁自动取消——此前用裸 Task 捕获了 onAppear 时那份 struct 的 phase 拷贝，
+    /// 永远等不到 .done，向导完成后仍每 400ms 在主线程跑一次 SQL 直到进程退出。
+    private func pollCount() async {
+        while !Task.isCancelled {
+            let n = await Task.detached(priority: .utility) {
+                ConversationIndex.shared?.summary().count ?? 0
+            }.value
+            if Task.isCancelled { return }
+            liveCount = n
+            if phase == .done || phase == .doneInBackground { return }
+            try? await Task.sleep(nanoseconds: 400_000_000)
         }
     }
 

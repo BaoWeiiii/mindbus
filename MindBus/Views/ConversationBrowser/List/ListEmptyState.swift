@@ -28,7 +28,7 @@ enum ListPlaceholderKind: Equatable {
 struct ListEmptyState: View {
     let kind: ListPlaceholderKind
     var onClearFilters: () -> Void = {}
-    /// 空结果救援(spec §3.5):高频实体建议,点击直接换搜索词。仅 noMatch 态使用。
+    /// 空结果救援:高频实体建议,点击直接换搜索词。仅 noMatch 态使用。
     var suggestions: [String] = []
     var onSuggest: (String) -> Void = { _ in }
     @ObservedObject private var l10n = L10n.shared

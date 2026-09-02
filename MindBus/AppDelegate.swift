@@ -17,8 +17,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBar: StatusBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Native Messaging 已在 main.swift 拦截，这里不会进入
-
         // 初始化 menubar
         statusBar = StatusBarController()
 
@@ -26,8 +24,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 只有打开过设置窗口的用户才会启动 updater，后台更新检查等于不存在。
         _ = UpdaterManager.shared
 
-        // 每次启动刷新 Native Messaging manifest（本地 IPC，不联网）
-        let _ = NativeMessagingConfigurator.configureAll()
+        // 1.4.1：清掉 ≤1.4.0 写进各浏览器的 Native Messaging 清单（扩展桥已整体移除），
+        // 并把 ~/.mindbus 权限收紧到 700/600——副本不该比源目录更开放。
+        Task.detached(priority: .utility) {
+            LegacyCleanup.removeNativeMessagingManifests()
+            MindBusHome.tightenPermissions()
+        }
 
         // 后台预热对话索引：首次建库（一次性 + 进度由 popover summary 反映），之后增量。
         // 全程本地操作；峰值内存受控（流式 parse + autoreleasepool，全文进 SQLite 不驻留）。
@@ -59,7 +61,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        // 常驻型 App（menubar 图标 + 后台采集/同步）永不因关窗退出——
+        // 常驻型 App（menubar 图标 + 后台采集）永不因关窗退出——
         // 关掉聊天记录窗/设置窗只是收起界面，App 留在 Dock 和菜单栏。
         false
     }

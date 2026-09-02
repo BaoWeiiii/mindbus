@@ -5,7 +5,7 @@ import XCTest
 /// L2 检索结果。三条硬要求：
 /// ①按相关度排（`searchWithHits` 已排好，渲染层不许重排）；
 /// ②每条都给出能直接跳到那条消息的 `memory_open` 句柄；
-/// ③空结果不返回空——给地图节选与可执行的下一步（MEMORY-LAYER-SPEC §1、§3.5）。
+/// ③空结果不返回空——给地图节选与可执行的下一步（记忆层设计说明、§3.5）。
 final class MemorySearchToolTests: XCTestCase {
 
     /// 固定用公历构造测试日期——`Calendar.current` 在非公历的区域设置（如佛历）下
@@ -191,7 +191,7 @@ final class MemorySearchToolTests: XCTestCase {
         XCTAssertFalse(bySince.contains("conversation_id=\"a\""))
     }
 
-    /// `context_path`（spec §7.61 情境先验）必须真的接到 `searchWithHits`——这里测的是
+    /// `context_path`（情境先验）必须真的接到 `searchWithHits`——这里测的是
     /// 参数解析与接线本身（读出、空串归 nil、传下去），排序机制的单元覆盖在
     /// `ContextPriorTests`。软加权，不是过滤：两条会话都还在，只是顺序变了。
     func testContextPathArgumentBoostsSameRepoConversation() throws {
@@ -381,7 +381,7 @@ final class MemorySearchToolTests: XCTestCase {
         }
     }
 
-    // MARK: 借宿主改写（spec §5：机械 RM3 只能桥有共现的词，语义跨越借宿主智能）
+    // MARK: 借宿主改写（机械 RM3 只能桥有共现的词，语义跨越借宿主智能）
 
     /// 零命中救援必须带结构化改写指令——宿主是语言模型，让它生成语义改写再查。
     func testZeroHitRescueCarriesRewriteInstruction() throws {
