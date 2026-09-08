@@ -21,3 +21,29 @@ jobs:
 
       - name: Test
         run: swift test
+
+      # 打包 + 无构建目录启动烟测（issue #3 类问题的通用防线）：发布产物不得依赖打包机的
+      # .build——把它挪走后拉起 App，12 秒内不退出、没有崩溃报告才算过。
+      # 放在 CI 而不是 Release 流水线：先在每次 push 上证明 runner 能跑 GUI App，
+      # 再考虑把它提到发版门槛。
+      - name: Package unsigned app
+        run: ./scripts/build-release.sh
+
+      - name: Launch smoke test without the build directory
+        run: |
+          mv .build /tmp/build-hidden
+          rm -f ~/Library/Logs/DiagnosticReports/MindBus* 2>/dev/null || true
+          dist/MindBus.app/Contents/MacOS/MindBus > /tmp/smoke.log 2>&1 &
+          PID=$!
+          sleep 12
+          if ! kill -0 "$PID" 2>/dev/null; then
+            echo "::error::MindBus exited within 12s"; cat /tmp/smoke.log
+            ls ~/Library/Logs/DiagnosticReports 2>/dev/null; exit 1
+          fi
+          kill "$PID"; wait "$PID" 2>/dev/null || true
+          if ls ~/Library/Logs/DiagnosticReports/MindBus* >/dev/null 2>&1; then
+            echo "::error::crash report written during smoke test"
+            head -60 ~/Library/Logs/DiagnosticReports/MindBus*; exit 1
+          fi
+          cat /tmp/smoke.log
+          mv /tmp/build-hidden .build

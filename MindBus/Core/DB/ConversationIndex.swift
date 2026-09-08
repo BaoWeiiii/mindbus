@@ -18,8 +18,22 @@ public final class ConversationIndex: @unchecked Sendable {
     /// 从未写入，于是每次扫描重新解析、重新失败，永久缺失。
     /// 收敛到单实例后，内部串行队列天然排掉了这类竞争。
     public static let shared: ConversationIndex? = {
-        openRecoveringCorruption(path: ConversationStore.defaultIndexPath())
+        openIfLibrarySupported(path: ConversationStore.defaultIndexPath())
     }()
+
+    /// 系统 SQLite 低于 schema 门槛（FTS5 `contentless_delete`，3.43.0）时直接返回 nil、不碰磁盘。
+    /// 否则建表失败会被 `openRecoveringCorruption` 当成「库损坏」：把刚建的空库挪成 .corrupt-*
+    /// 再失败一次，App 静默停在空库欢迎页，且每次启动重演。调用方（AppDelegate）负责把这件事
+    /// 告诉用户。`libVersionNumber` 可注入，供测试模拟旧系统。
+    public static func openIfLibrarySupported(
+        path: String, libVersionNumber: Int32 = SQLiteDB.libVersionNumber
+    ) -> ConversationIndex? {
+        guard SQLiteDB.libVersionIsSupported(libVersionNumber) else {
+            NSLog("[index] system SQLite %@ is below the required 3.43.0 — index disabled", SQLiteDB.libVersion)
+            return nil
+        }
+        return openRecoveringCorruption(path: path)
+    }
 
     /// 打开索引；打不开（文件损坏）时把损坏文件挪到 `<path>.corrupt-<时间戳>` 后重建空库。
     /// 索引可从源 JSONL 完整重建——宁可丢缓存重扫一轮，也不静默空列表。

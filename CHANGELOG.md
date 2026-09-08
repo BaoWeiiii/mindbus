@@ -5,6 +5,24 @@ This file tracks user-facing changes per release, in [Keep a Changelog](https://
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-08
+
+### Changed / 变更
+- 最低系统版本从 macOS 13 提到 macOS 14。全文索引依赖 SQLite 3.43 的 FTS5 `contentless_delete`，macOS 13 自带的是 3.39，在它上面索引根本建不起来，此前的表现是打开后永远停在空库欢迎页、没有任何提示。macOS 13 已停止维护，不再承诺。
+  Minimum macOS raised from 13 to 14. The full-text index relies on FTS5 `contentless_delete` from SQLite 3.43; macOS 13 ships 3.39, so the index could never be built there and the app silently sat on the empty welcome page. macOS 13 is out of support and no longer promised.
+
+### Added / 新增
+- 系统自带的 SQLite 低于索引门槛时，启动直接弹出说明并指出当前版本，不再静默空库。
+  When the system's SQLite is below what the index needs, launch now shows an explanation with the version found instead of a silent empty library.
+- 从安装镜像或临时位置（Gatekeeper App Translocation）打开时提示先移到「应用程序」文件夹；在这种位置下「接入 Claude Code / Codex」与「随登录启动」不再写入一条很快失效的路径，改为内联提示。
+  Opening from the disk image or a temporary location (Gatekeeper App Translocation) now prompts to move MindBus to Applications first; in that state, connecting Claude Code / Codex and launch-at-login no longer write a soon-to-break path and show an inline hint instead.
+- 开发：`MINDBUS_LEGACY_UI=1` 可在新系统上强制走旧系统 UI 分支；CI 增加「挪走构建目录后启动」烟测与 Intel 切片（Rosetta）自检；发版验收清单进 CONTRIBUTING。
+  Development: `MINDBUS_LEGACY_UI=1` forces the older-macOS UI branches on a new system; CI gains a launch smoke test with the build directory removed and an Intel-slice (Rosetta) self-check; the release acceptance checklist is in CONTRIBUTING.
+
+### Fixed / 修复
+- Releases 下载的 0.1.0 DMG 打开即崩（#3）：SwiftPM 的 `Bundle.module` 只会在 `.app` 根目录旁和打包机的构建目录里找资源包，签名发布包里两处都没有，菜单栏图标一加载就 `fatalError`。资源改为从 `Contents/Resources` 定位；打包脚本装完 bundle 后强制跑 `MindBus --check-resources` 自检，资源包不在 `.app` 内部就拒绝出包。0.1.0 崩在自动更新启动之前，老用户需手动重新下载 DMG。
+  The 0.1.0 DMG from Releases crashed on launch (#3): SwiftPM's `Bundle.module` only looks next to the `.app` root and in the build machine's build directory, neither of which exists in the signed bundle, so loading the menu bar icon hit a `fatalError`. Resources are now resolved from `Contents/Resources`, and the packaging scripts run `MindBus --check-resources` after assembling the bundle, refusing to ship unless the resource bundle resolves from inside the `.app`. 0.1.0 dies before the updater starts, so existing users must re-download the DMG.
+
 ## [0.1.0] - 2026-09-07
 
 首个公开版本：本地 AI 对话库（Claude Code / Claude 客户端 / ChatGPT 客户端三源采集）、全文搜索、归档副本、Minds 画像、五个只读 MCP 工具、DMG 安装。
@@ -32,5 +50,6 @@ First public release: a local library of your AI conversations (Claude Code, Cla
 - 设置页「登录项」开关（默认关）；接力按钮英文改为 "Copy Handoff"。
   Login-item switch in Settings (off by default); the relay button is now "Copy Handoff" in English.
 
-[Unreleased]: https://github.com/BaoWeiiii/mindbus/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/BaoWeiiii/mindbus/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/BaoWeiiii/mindbus/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/BaoWeiiii/mindbus/releases/tag/v0.1.0

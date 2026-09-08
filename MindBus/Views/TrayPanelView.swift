@@ -9,7 +9,7 @@ extension Notification.Name {
 /// 曾经 TrayPanel header / Onboarding 每次 render 都 NSImage(contentsOf:) 读盘。
 enum BrandLogoImage {
     static let logo: NSImage? = {
-        guard let url = Bundle.module.url(forResource: "logo", withExtension: "png"),
+        guard let url = AppResources.bundle.url(forResource: "logo", withExtension: "png"),
               let img = NSImage(contentsOf: url) else { return nil }
         return img
     }()

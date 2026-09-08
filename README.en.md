@@ -9,7 +9,7 @@
 The models are rented; the conversations are yours.
 
 [![License](https://img.shields.io/badge/license-MIT-1a1a1a?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/macOS-13.0+-1a1a1a?style=flat-square)](#install)
+[![Platform](https://img.shields.io/badge/macOS-14.0+-1a1a1a?style=flat-square)](#install)
 [![Swift](https://img.shields.io/badge/Swift-5.9-1a1a1a?style=flat-square)](Package.swift)
 [![Release](https://img.shields.io/github/v/release/BaoWeiiii/mindbus?style=flat-square&color=1a1a1a)](https://github.com/BaoWeiiii/mindbus/releases/latest)
 
@@ -89,7 +89,7 @@ The app reads exactly these three locations, read-only, and never modifies the o
 
 ### Install
 
-Download an installer from [Releases](https://github.com/BaoWeiiii/mindbus/releases/latest) (universal for Apple Silicon and Intel; requires macOS 13.0 or later):
+Download an installer from [Releases](https://github.com/BaoWeiiii/mindbus/releases/latest) (universal for Apple Silicon and Intel; requires macOS 14.0 or later):
 
 - `MindBus-x.y.z.dmg`: open it, drag MindBus into Applications, then launch it from there. Signed with an Apple Developer ID and notarized, so it opens with a double-click.
 

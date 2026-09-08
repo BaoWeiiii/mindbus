@@ -8,6 +8,16 @@ public final class SQLiteDB {
     /// sqlite3_bind_text 的 destructor：让 SQLite 复制字符串（避免悬垂指针）。
     public static let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
+    /// 索引 schema 需要的最低 SQLite 版本：FTS5 `contentless_delete`（3.43.0，2023-08-24）。
+    /// macOS 13 自带 3.39.5、Sonoma 14.7.4 实测 3.43.2、macOS 26 为 3.51——门槛落在 macOS 14。
+    /// 低于门槛时建表报 `unrecognized option`，调用方必须在开库前判、失败必须出声。
+    public static let requiredLibVersionNumber: Int32 = 3_043_000
+    public static var libVersion: String { String(cString: sqlite3_libversion()) }
+    public static var libVersionNumber: Int32 { sqlite3_libversion_number() }
+    public static func libVersionIsSupported(_ number: Int32 = libVersionNumber) -> Bool {
+        number >= requiredLibVersionNumber
+    }
+
     /// 绑定文本——**显式传 UTF-8 字节长度**而不是 -1：-1 让 SQLite 用 strlen 取长，
     /// 文本含 U+0000（二进制被 cat 进对话、或注入者刻意放置）时 NUL 之后的内容会被
     /// 静默截断，那一段对搜索「隐身」。全库文本绑定统一走这里。

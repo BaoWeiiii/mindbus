@@ -10,7 +10,7 @@
 
 ### 环境要求
 
-- macOS 13.0 或更高（运行 App）；开发机建议 macOS 14+。
+- macOS 14.0 或更高（运行 App）；开发机建议 macOS 15+。
 - Xcode 15+ / Swift 5.9+（`swift --version` 确认）。
 - 不需要 Xcode 工程文件：整个项目是一个 SwiftPM 包，`swift build` / `swift test` 就够了。
 - 可选：`brew install create-dmg`，只有打 DMG 时才用到。
@@ -34,6 +34,17 @@ swift test             # 900+ 个测试，全绿是合并的硬门槛
 ```
 
 测试进程强制使用临时索引与临时目录，不会碰你自己的 `~/.mindbus` 与真实索引。
+
+### 发版验收：验收的必须是 CI 出的那份产物
+
+issue #3 的教训：本机 `install.sh` 装的包能跑，不代表 Releases 里的 DMG 能跑（前者靠本机 `.build` 目录兜底）；签名、公证、`spctl` 全绿也不等于能打开。打完 tag、CI 跑完之后：
+
+- [ ] 从 Releases 下载 DMG，拖进 /Applications，从那里打开，看到主窗与菜单栏图标
+- [ ] `arch -x86_64 /Applications/MindBus.app/Contents/MacOS/MindBus` 也能起来（Intel 切片，借 Rosetta）
+- [ ] `MINDBUS_LEGACY_UI=1 /Applications/MindBus.app/Contents/MacOS/MindBus` 走一遍旧系统 UI 分支
+- [ ] 装着上一版的机器上，Sparkle 收到并完成了这次更新
+- [ ] 改了 UI 的版本：在 macOS 15 虚拟机（或真机）上开一次
+- [ ] 日常就用 Releases 版而不是本地构建，让下一次发版自然经过上面这些路径
 
 ### 新增对话来源
 
@@ -81,7 +92,7 @@ Thanks for taking the time. MindBus is a native Swift macOS app; the repo is sma
 
 ### Requirements
 
-- macOS 13.0 or later to run the app; macOS 14+ recommended for development.
+- macOS 14.0 or later to run the app; macOS 15+ recommended for development.
 - Xcode 15+ / Swift 5.9+ (check with `swift --version`).
 - No Xcode project needed: the whole thing is a SwiftPM package — `swift build` / `swift test` is all you need.
 - Optional: `brew install create-dmg`, only needed to build a DMG.
@@ -105,6 +116,17 @@ swift test             # 900+ tests — all green is the hard bar for merging
 ```
 
 The test process is forced onto a temporary index and temporary directories; it never touches your own `~/.mindbus` or real index.
+
+### Release acceptance: test the artifact CI built, not your local build
+
+Lesson from issue #3: a build installed by `install.sh` running fine says nothing about the DMG in Releases (the local build is rescued by your own `.build` directory); signing, notarization and `spctl` all passing does not mean the app opens. After tagging and CI finishing:
+
+- [ ] Download the DMG from Releases, drag it into /Applications, open it from there, see the main window and the menu bar icon
+- [ ] `arch -x86_64 /Applications/MindBus.app/Contents/MacOS/MindBus` starts too (the Intel slice, via Rosetta)
+- [ ] `MINDBUS_LEGACY_UI=1 /Applications/MindBus.app/Contents/MacOS/MindBus` exercises the older-macOS UI branches
+- [ ] A machine running the previous version receives and completes the Sparkle update
+- [ ] For releases that touch UI: open it once on a macOS 15 VM (or real machine)
+- [ ] Use the Releases build day to day instead of a local build, so the next release goes through all of the above naturally
 
 ### Adding a conversation source
 

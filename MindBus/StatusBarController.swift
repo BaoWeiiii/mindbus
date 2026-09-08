@@ -2,17 +2,13 @@ import Cocoa
 import SwiftUI
 import Carbon.HIToolbox
 
-/// accessory App 抢前台的唯一正确姿势。
-/// macOS 14+ 用 cooperative `activate()`——在「用户刚双击启动 / 点击菜单栏 / 按全局热键」
-/// 这些有用户意图授权的上下文里会真正激活；老式 `activate(ignoringOtherApps:)`
+/// 抢前台的唯一正确姿势：cooperative `activate()`——在「用户刚双击启动 / 点击菜单栏 /
+/// 按全局热键」这些有用户意图授权的上下文里会真正激活；老式 `activate(ignoringOtherApps:)`
 /// 在 14+ 被系统降权忽略，表现为「窗口浮着但不获焦、菜单栏还是别人的」。
+/// 最低系统已是 14，不再保留旧分支。
 @MainActor
 func activateApp() {
-    if #available(macOS 14.0, *) {
-        NSApp.activate()
-    } else {
-        NSApp.activate(ignoringOtherApps: true)
-    }
+    NSApp.activate()
 }
 
 /// 把窗口唤到当前 Space 并置前。
@@ -55,7 +51,7 @@ class StatusBarController {
         button.setAccessibilityLabel("MindBus")
 
         // 菜单栏专用单色伴生符号：紧裁切 + template tint，自动适配浅色、深色和彩色菜单栏。
-        if let url = Bundle.module.url(forResource: "menubar-logo", withExtension: "png"),
+        if let url = AppResources.bundle.url(forResource: "menubar-logo", withExtension: "png"),
            let image = NSImage(contentsOf: url) {
             image.size = NSSize(width: 20, height: 16)
             image.isTemplate = true

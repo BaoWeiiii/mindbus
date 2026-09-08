@@ -262,6 +262,10 @@ struct CopyPreferencesView: View {
                                 .font(.system(size: 12))
                                 .foregroundStyle(DSLight.t3)
                         }
+                    } else if connector.transientLocation {
+                        Text(l10n.s.moveToApplicationsFirst)
+                            .font(.system(size: 12))
+                            .foregroundStyle(DSLight.t3)
                     } else {
                         Button {
                             connector.connect(host)
@@ -308,13 +312,14 @@ struct CopyPreferencesView: View {
                 Text(l10n.s.launchAtLoginToggle)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(DSLight.t1)
-                Text(l10n.s.launchAtLoginHint)
+                Text(loginItem.transientLocation ? l10n.s.moveToApplicationsFirst : l10n.s.launchAtLoginHint)
                     .font(.system(size: 12))
                     .foregroundStyle(DSLight.t3)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 12)
             Toggle("", isOn: Binding(get: { loginItem.enabled }, set: { loginItem.setEnabled($0) }))
+                .disabled(loginItem.transientLocation)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)

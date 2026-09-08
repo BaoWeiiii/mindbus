@@ -1,5 +1,6 @@
 import Foundation
 import ServiceManagement
+import MindBusCore
 
 /// 登录项（开机自启）的唯一入口。
 ///
@@ -14,13 +15,22 @@ final class LoginItemManager: ObservableObject {
 
     @Published private(set) var enabled: Bool
 
+    /// 从安装镜像 / translocation 临时位置运行：注册进去的是一条会失效的路径，拒绝并在设置页提示。
+    let transientLocation: Bool
+
     private init() {
         available = Bundle.main.bundlePath.hasSuffix(".app")
+        transientLocation = InstallLocation.isTransient(bundlePath: Bundle.main.bundlePath)
         enabled = available && SMAppService.mainApp.status == .enabled
     }
 
     func setEnabled(_ on: Bool) {
         guard available else { return }
+        if on, transientLocation {
+            NSLog("[login-item] refused: running from a transient location %@", Bundle.main.bundlePath)
+            enabled = false
+            return
+        }
         do {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
         } catch {

@@ -95,16 +95,19 @@ cp "$UNIVERSAL_MCP" "$APP_BUNDLE/Contents/MacOS/mindbus-mcp"
 # Copy Info.plist
 cp "$PROJECT_DIR/Info.plist" "$APP_BUNDLE/Contents/"
 
-# Copy SPM resource bundle。Bundle.module 的查找候选含 Bundle.main.resourceURL
-# (Contents/Resources)——必须放这里而不是 .app 根:根目录多任何东西都会让
-# codesign 报 "unsealed contents present in the bundle root",公证过不去。
+# Copy SPM resource bundle 到 Contents/Resources（放 .app 根目录会让 codesign 报
+# "unsealed contents present in the bundle root"，公证过不去）。
+# 注意 SwiftPM 生成的 Bundle.module **不会**在这里找——它只认 .app 根目录旁与编译机的
+# 绝对构建路径；App 侧由 AppResources 按 Bundle.main.resourceURL 定位（issue #3）。
 # 两个架构内容一样，复制 arm64 的即可
 RESOURCE_BUNDLE="$PROJECT_DIR/.build/arm64-apple-macosx/release/MindBus_MindBus.bundle"
-if [ -d "$RESOURCE_BUNDLE" ]; then
-    mkdir -p "$APP_BUNDLE/Contents/Resources"
-    cp -R "$RESOURCE_BUNDLE" "$APP_BUNDLE/Contents/Resources/"
-    echo "✓ Resource bundle copied"
+if [ ! -d "$RESOURCE_BUNDLE" ]; then
+    echo "✗ Resource bundle not found: $RESOURCE_BUNDLE"
+    exit 1
 fi
+mkdir -p "$APP_BUNDLE/Contents/Resources"
+cp -R "$RESOURCE_BUNDLE" "$APP_BUNDLE/Contents/Resources/"
+echo "✓ Resource bundle copied"
 
 # Copy Sparkle.framework（SPM 拉的是 xcframework，已是 universal）——
 # 不拷进 bundle，dyld 找不到 @rpath/Sparkle 会直接闪退
@@ -118,6 +121,19 @@ else
     exit 1
 fi
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_BUNDLE/Contents/MacOS/$APP_NAME" 2>/dev/null || true
+
+# 资源自检（issue #3）：CI 产物里 Bundle.module 的兜底路径是 runner 的 .build，用户机器上
+# 打开即崩；而 CI 自己跑时那条路径恰好存在，测试全绿也发现不了。这里直接拉起装好的
+# 二进制，要求资源包必须从 .app 内部解析到、关键资源齐全，否则终止打包。
+echo "▸ Checking bundled resources..."
+"$APP_BUNDLE/Contents/MacOS/$APP_NAME" --check-resources
+# Intel 切片同样自检：Apple Silicon 上借 Rosetta 跑 x86_64 切片（没装 Rosetta 就跳过并提示）。
+# 开发机从没真正执行过 x86_64 代码，这是它唯一的例行验证点。
+if arch -x86_64 /usr/bin/true 2>/dev/null; then
+    arch -x86_64 "$APP_BUNDLE/Contents/MacOS/$APP_NAME" --check-resources
+else
+    echo "⚠ Rosetta unavailable — skipping x86_64 slice self-check"
+fi
 
 # Write PkgInfo
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"

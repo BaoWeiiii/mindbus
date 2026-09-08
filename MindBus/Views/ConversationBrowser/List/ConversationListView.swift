@@ -30,7 +30,7 @@ struct ConversationListView: View {
     @State private var sentinelSeen = false
 
     var body: some View {
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, *), !DesignCapabilities.forceLegacy {
             glassLensingLayout
         } else {
             plainLayout

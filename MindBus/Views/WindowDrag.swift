@@ -10,7 +10,7 @@ import AppKit
 /// 抓 header 或侧栏空白仍可自然拖窗。
 ///
 /// 实现：macOS 15+ 用官方 `WindowDragGesture`（参与 SwiftUI 命中测试，
-/// 不挡同区域按钮）；13/14 回退 `DragGesture` + `NSWindow.performDrag`
+/// 不挡同区域按钮）；14 回退 `DragGesture` + `NSWindow.performDrag`
 /// （首个 onChanged 把当前事件交给系统拖动循环，随后手势序列自然结束）。
 extension View {
     func windowDragArea() -> some View {
@@ -20,7 +20,7 @@ extension View {
 
 private struct WindowDragAreaModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(macOS 15.0, *) {
+        if #available(macOS 15.0, *), !DesignCapabilities.forceLegacy {
             content.gesture(WindowDragGesture())
         } else {
             content.gesture(

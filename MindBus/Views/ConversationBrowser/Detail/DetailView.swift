@@ -134,7 +134,7 @@ struct DetailView: View {
         let lite = store.filteredConversations.first { $0.id == store.selectedConversationId }
         let t = lite.map { titleText(title: $0.title, cwd: $0.cwd, id: $0.id) } ?? " "
         let m = lite.map { metaText(start: $0.startAt, count: $0.messageCount, duration: $0.endAt.timeIntervalSince($0.startAt)) } ?? " "
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, *), !DesignCapabilities.forceLegacy {
             terminalLoading(lite: lite)
                 .safeAreaInset(edge: .top, spacing: 0) { floatingHeader(title: t, meta: m, conv: nil) }
                 .ignoresSafeArea(.container, edges: .top)
@@ -259,7 +259,13 @@ struct DetailView: View {
             }
             .padding(.top, 6)
             .animation(.easeOut(duration: 0.3), value: showsScanProgress)
-            if let host = connector.suggestedHost {
+            if connector.transientLocation, connector.suggestedHost != nil {
+                // 临时位置（镜像 / translocation）写进宿主配置的路径会失效：换成提示，不给按钮
+                Text(l10n.s.moveToApplicationsFirst)
+                    .font(.system(size: 12))
+                    .foregroundStyle(DSLight.t3)
+                    .padding(.top, 4)
+            } else if let host = connector.suggestedHost {
                 Button {
                     connector.connect(host)
                 } label: {
@@ -315,7 +321,7 @@ struct DetailView: View {
 
     @ViewBuilder
     private func content(for conv: Conversation) -> some View {
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, *), !DesignCapabilities.forceLegacy {
             glassContent(for: conv)
         } else {
             plainContent(for: conv)

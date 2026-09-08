@@ -31,6 +31,10 @@ final class MCPConnector: ObservableObject {
     private var codexDir: URL { home.appendingPathComponent(".codex", isDirectory: true) }
     private var codexTOML: URL { codexDir.appendingPathComponent("config.toml") }
 
+    /// 从安装镜像 / translocation 临时位置运行：写进宿主配置的 mindbus-mcp 路径会随之失效，
+    /// 设置页与欢迎页据此把「接入」换成提示。
+    let transientLocation = InstallLocation.isTransient(bundlePath: Bundle.main.bundlePath)
+
     init() { refresh() }
 
     func state(_ host: Host) -> HostState { states[host] ?? HostState() }
@@ -57,6 +61,10 @@ final class MCPConnector: ObservableObject {
 
     private func apply(_ host: Host, add: Bool) {
         lastError = nil
+        if add, transientLocation {
+            lastError = L10n.shared.s.moveToApplicationsFirst
+            return
+        }
         do {
             switch host {
             case .claudeCode:

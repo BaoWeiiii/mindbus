@@ -77,13 +77,16 @@ echo -n "APPL????" > "$STAGE/Contents/PkgInfo"
 
 # SPM resource bundle（.build/release 是 SPM 指向原生架构目录的符号链接，
 # 硬编码 arm64-apple-macosx 会让 Intel 构建装出来缺资源）。
-# 放 Contents/Resources/ 而不是 .app 根，与 build-release.sh 一致：Bundle.module 的
-# 查找候选含 Bundle.main.resourceURL；根目录多任何东西都会让 codesign 报
-# "unsealed contents present in the bundle root"，公证过不去。
+# 放 Contents/Resources/ 而不是 .app 根，与 build-release.sh 一致：根目录多任何东西都会让
+# codesign 报 "unsealed contents present in the bundle root"，公证过不去。
+# 注意 SwiftPM 生成的 Bundle.module **不会**在这里找（只认 .app 根目录旁与编译机的绝对
+# 构建路径）——App 侧由 AppResources 按 Bundle.main.resourceURL 定位（issue #3）。
 RESOURCE_BUNDLE="$PROJECT_DIR/.build/release/MindBus_MindBus.bundle"
-if [ -d "$RESOURCE_BUNDLE" ]; then
-    cp -R "$RESOURCE_BUNDLE" "$STAGE/Contents/Resources/"
+if [ ! -d "$RESOURCE_BUNDLE" ]; then
+    echo "✗ 资源包不存在: $RESOURCE_BUNDLE"
+    exit 1
 fi
+cp -R "$RESOURCE_BUNDLE" "$STAGE/Contents/Resources/"
 
 # Copy Sparkle.framework（SPM 拉的是 xcframework，已是 universal）——
 # 不拷进 bundle，dyld 找不到 @rpath/Sparkle 会直接闪退
@@ -97,6 +100,11 @@ else
     exit 1
 fi
 install_name_tool -add_rpath "@executable_path/../Frameworks" "$STAGE/Contents/MacOS/$APP_NAME" 2>/dev/null || true
+
+# 资源自检（issue #3）：要求资源包从 .app 内部解析到、关键资源齐全，否则不装。
+# 本机 .build 存在时 Bundle.module 的兜底路径也能蒙混过关，自检不认兜底。
+echo "▸ 资源自检..."
+"$STAGE/Contents/MacOS/$APP_NAME" --check-resources
 
 # App icon
 ICONSET_DIR="$PROJECT_DIR/MindBus/Assets.xcassets/AppIcon.appiconset"

@@ -123,7 +123,7 @@ struct BrowserSidebarView: View {
     @ViewBuilder
     private var selectionPill: some View {
         let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, *), !DesignCapabilities.forceLegacy {
             Color.clear
                 .glassEffect(.regular, in: shape)
                 .overlay(shape.strokeBorder(Color.white.opacity(0.5), lineWidth: 0.5))

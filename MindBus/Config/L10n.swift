@@ -433,6 +433,13 @@ struct Strings {
     let mcpPrompt: (String) -> String      // 接入指令（参数：mindbus-mcp 路径）
     let mcpCopyPrompt: String
     let mcpPromptCopied: String
+    let sqliteTooOldTitle: String              // 系统 SQLite 低于索引门槛（macOS 14 以下）
+    let sqliteTooOldBody: (String) -> String   // 参数：本机 SQLite 版本
+    let transientLocationTitle: String         // 从安装镜像 / translocation 临时位置启动
+    let transientLocationBody: String
+    let transientLocationOpenApplications: String
+    let transientLocationContinue: String
+    let moveToApplicationsFirst: String        // 设置页 MCP 接入 / 自启在临时位置时的内联提示
     let sourcesCardTitle: String           // 设置页「对话来源」卡
     let sourcesCardBody: String
 
@@ -754,6 +761,13 @@ struct Strings {
         mcpPrompt: { "把 \($0) 注册成名为 mindbus 的 MCP server" },
         mcpCopyPrompt: "复制接入指令",
         mcpPromptCopied: "已复制",
+        sqliteTooOldTitle: "系统自带的 SQLite 版本过旧",
+        sqliteTooOldBody: { "MindBus 的全文索引需要 SQLite 3.43 或更高，当前系统提供的是 \($0)。请更新 macOS 后再打开 MindBus。" },
+        transientLocationTitle: "请先把 MindBus 移到「应用程序」文件夹",
+        transientLocationBody: "MindBus 正在从安装镜像或临时位置运行，这个位置会失效：开机自启、接入 Claude Code / Codex 写下的路径都会随之断掉，自动更新也无法安装。把 MindBus 拖到「应用程序」文件夹，再从那里打开。",
+        transientLocationOpenApplications: "打开「应用程序」文件夹",
+        transientLocationContinue: "仍然继续",
+        moveToApplicationsFirst: "先把 MindBus 移到「应用程序」文件夹，再开启",
         sourcesCardTitle: "对话来源",
         sourcesCardBody: "关掉的工具不再扫描，已收进库里的对话会从列表移除；本地归档副本保留。",
     )
@@ -1076,6 +1090,13 @@ struct Strings {
         mcpPrompt: { "Register \($0) as an MCP server named mindbus" },
         mcpCopyPrompt: "Copy setup prompt",
         mcpPromptCopied: "Copied",
+        sqliteTooOldTitle: "This system's SQLite is too old",
+        sqliteTooOldBody: { "MindBus's full-text index needs SQLite 3.43 or later; this system provides \($0). Update macOS, then open MindBus again." },
+        transientLocationTitle: "Move MindBus to the Applications folder first",
+        transientLocationBody: "MindBus is running from the disk image or a temporary location, and that path will stop working: launch at login, the Claude Code / Codex connection, and automatic updates all depend on it. Drag MindBus to the Applications folder and open it from there.",
+        transientLocationOpenApplications: "Open Applications Folder",
+        transientLocationContinue: "Continue Anyway",
+        moveToApplicationsFirst: "Move MindBus to the Applications folder first",
         sourcesCardTitle: "Sources",
         sourcesCardBody: "A tool you switch off is no longer scanned and its conversations leave the list; local archive copies are kept.",
     )

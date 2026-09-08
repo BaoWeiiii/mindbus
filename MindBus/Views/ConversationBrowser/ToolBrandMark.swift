@@ -32,7 +32,7 @@ enum ToolMarkImage {
     }
 
     private static func load(_ name: String) -> NSImage? {
-        guard let url = Bundle.module.url(forResource: name, withExtension: "png"),
+        guard let url = AppResources.bundle.url(forResource: name, withExtension: "png"),
               let img = NSImage(contentsOf: url) else { return nil }
         img.isTemplate = true
         return img

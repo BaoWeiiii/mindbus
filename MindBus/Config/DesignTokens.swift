@@ -248,7 +248,7 @@ struct RowHoverBackground: ViewModifier {
 
     @ViewBuilder private var hoverFill: some View {
         let shape = RoundedRectangle(cornerRadius: DSLight.radiusMd)
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, *), !DesignCapabilities.forceLegacy {
             Color.clear
                 .glassEffect(.regular, in: shape)
                 .opacity(hovering ? 1 : 0)
@@ -276,7 +276,7 @@ struct RowStateBackground: ViewModifier {
 
     @ViewBuilder private var fill: some View {
         let shape = RoundedRectangle(cornerRadius: DSLight.radiusMd)
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, *), !DesignCapabilities.forceLegacy {
             if selected {
                 Color.clear.glassEffect(.regular.tint(DSLight.gold.opacity(0.20)), in: shape)
             } else if hovering {

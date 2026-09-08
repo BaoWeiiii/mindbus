@@ -9,7 +9,7 @@
 模型是租的，对话是你的。
 
 [![License](https://img.shields.io/badge/license-MIT-1a1a1a?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/macOS-13.0+-1a1a1a?style=flat-square)](#安装)
+[![Platform](https://img.shields.io/badge/macOS-14.0+-1a1a1a?style=flat-square)](#安装)
 [![Swift](https://img.shields.io/badge/Swift-5.9-1a1a1a?style=flat-square)](Package.swift)
 [![Release](https://img.shields.io/github/v/release/BaoWeiiii/mindbus?style=flat-square&color=1a1a1a)](https://github.com/BaoWeiiii/mindbus/releases/latest)
 
@@ -82,7 +82,7 @@ Claude Code、Claude 桌面版、ChatGPT 客户端
 
 ### 安装
 
-从 [Releases](https://github.com/BaoWeiiii/mindbus/releases/latest) 下载安装包（Apple Silicon 与 Intel 通用，需要 macOS 13.0 或更高）：
+从 [Releases](https://github.com/BaoWeiiii/mindbus/releases/latest) 下载安装包（Apple Silicon 与 Intel 通用，需要 macOS 14.0 或更高）：
 
 ### 打开即用
 

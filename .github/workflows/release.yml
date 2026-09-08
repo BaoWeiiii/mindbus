@@ -66,11 +66,19 @@ jobs:
           spctl -a -t exec -vv dist/MindBus.app
           xcrun stapler validate dist/MindBus.app
 
-      - name: Verify no personal paths in binary
+      # 二进制里不该有任何构建机绝对路径——那都是「只在打包机上能跑」的隐患（issue #3 正是
+      # 靠旧白名单里的 /Users/runner/ 路径蒙混过关的）。唯一放行：SwiftPM 生成的 Bundle.module
+      # 兜底串，它已不参与解析（AppResources 只认 .app 内部，build-release.sh 的
+      # --check-resources 自检保证），留在二进制里是死字符串。/Users/dev/ 是样本数据的虚构前缀。
+      - name: Verify no build-machine paths in binaries
         run: |
-          if strings "dist/MindBus.app/Contents/MacOS/MindBus" | grep -E "^/Users/" | grep -v "^/Users/runner/" | grep -v "^/Users/dev/"; then
-            echo "::error::binary contains unexpected /Users/ paths"; exit 1
-          fi
+          for bin in dist/MindBus.app/Contents/MacOS/MindBus dist/MindBus.app/Contents/MacOS/mindbus-mcp; do
+            if strings "$bin" | grep -E "^/(Users|private|tmp|opt)/" \
+                | grep -vE "^/Users/runner/work/mindbus/mindbus/\.build/[^/]+/release/MindBus_MindBus\.bundle$" \
+                | grep -v "^/Users/dev/"; then
+              echo "::error::$bin contains build-machine paths"; exit 1
+            fi
+          done
           echo "binary path check passed"
 
       # Sparkle 更新包：zip + EdDSA 签名 + 单条目 appcast（永远只描述最新版）

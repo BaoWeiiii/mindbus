@@ -11,6 +11,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 初始化 menubar
         statusBar = StatusBarController()
 
+        // 两道启动前提检查（issue #3 复盘：失败必须出声，不能静默空库）。
+        // ① 系统 SQLite 低于索引门槛（macOS 14 以下）→ 索引根本建不起来；
+        // ② 从安装镜像 / translocation 临时位置启动 → 自启、MCP 接入、自动更新写下的路径都会失效。
+        warnIfSQLiteTooOld()
+        warnIfRunningFromTransientLocation()
+
         // 启动 Sparkle 计划检查。shared 是懒加载单例——不在这里 touch 的话，
         // 只有打开过设置窗口的用户才会启动 updater，后台更新检查等于不存在。
         _ = UpdaterManager.shared
@@ -38,6 +44,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if !UserDefaults.standard.bool(forKey: "onboardingCompleted") {
             UserDefaults.standard.set(true, forKey: "onboardingCompleted")
             Task { @MainActor in ConversationBrowserWindow.shared.show() }
+        }
+    }
+
+    @MainActor private func warnIfSQLiteTooOld() {
+        guard !SQLiteDB.libVersionIsSupported() else { return }
+        let s = L10n.shared.s
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = s.sqliteTooOldTitle
+        alert.informativeText = s.sqliteTooOldBody(SQLiteDB.libVersion)
+        alert.runModal()
+    }
+
+    @MainActor private func warnIfRunningFromTransientLocation() {
+        guard InstallLocation.isTransient(bundlePath: Bundle.main.bundlePath) else { return }
+        let s = L10n.shared.s
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = s.transientLocationTitle
+        alert.informativeText = s.transientLocationBody
+        alert.addButton(withTitle: s.transientLocationOpenApplications)
+        alert.addButton(withTitle: s.transientLocationContinue)
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications", isDirectory: true))
         }
     }
 

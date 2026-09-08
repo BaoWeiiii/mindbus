@@ -20,7 +20,7 @@ enum BrandFont {
         let names = ["DMMono-Regular", "DMMono-Medium"]
         var ok = false
         for name in names {
-            guard let url = Bundle.module.url(forResource: name, withExtension: "ttf") else { continue }
+            guard let url = AppResources.bundle.url(forResource: name, withExtension: "ttf") else { continue }
             var error: Unmanaged<CFError>?
             if CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error) {
                 ok = true

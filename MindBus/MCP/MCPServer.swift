@@ -30,7 +30,7 @@ public final class MCPServer {
 
     /// 与 App 同版本发布（同一个 bundle 里），但 CLI 读不到 Info.plist，故独立常量——
     /// 发版时与 Info.plist 的 CFBundleShortVersionString 一起改。
-    public static let serverVersion = "0.1.0"
+    public static let serverVersion = "0.1.1"
 
     /// 宿主在握手时拿到的唯一一段说明。检索循环写死在这里，也写死在每个工具的
     /// description 里——在 agentic 检索里说明书是检索系统的一部分。
