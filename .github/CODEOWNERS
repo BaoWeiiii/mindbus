@@ -1,0 +1,8 @@
+# 默认全仓由维护者审阅
+* @BaoWeiiii
+
+# 发布与更新链路单列：改动这些文件等于改动所有用户收到的更新
+/appcast.xml @BaoWeiiii
+/Info.plist @BaoWeiiii
+/.github/ @BaoWeiiii
+/scripts/build-release.sh @BaoWeiiii

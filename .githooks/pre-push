@@ -1,0 +1,29 @@
+#!/bin/sh
+# 第二道闸：推送前。
+#   扫描本次待推送的全部 commit——兜住在 hook 生效前已提交的内容。
+#   不限制推送目标：fork 贡献者推自己的仓库，同样只受内容防护约束。
+set -e
+HOOK_DIR=$(dirname "$0")
+
+GUARD_FLAG=$(mktemp -t mindbus_guard); export GUARD_FLAG
+. "$HOOK_DIR/_guard.sh"
+
+ZERO=$(git hash-object --stdin </dev/null | tr '0-9a-f' '0')
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "$ZERO" ] && continue          # 删分支，跳过
+  if [ "$remote_sha" = "$ZERO" ]; then
+    RANGE=$(git rev-list --max-count=200 "$local_sha" --not --remotes | tail -1)
+    [ -n "$RANGE" ] && RANGE="$RANGE^..$local_sha" || RANGE="$local_sha"
+  else
+    RANGE="$remote_sha..$local_sha"
+  fi
+  FILES=$(git diff --name-only --diff-filter=ACMR $RANGE 2>/dev/null || true)
+  [ -z "$FILES" ] && continue
+  echo "扫描待推送范围 ${RANGE}（$(printf '%s\n' "$FILES" | wc -l | tr -d ' ') 个文件）…"
+  # shellcheck disable=SC2086
+  guard_paths $FILES
+  # 内容扫描排除 .githooks/ 自身（规则定义文件必然包含这些模式）
+  git diff --diff-filter=ACMR $RANGE -- . ':(exclude).githooks/' 2>/dev/null | guard_content
+done
+
+guard_report

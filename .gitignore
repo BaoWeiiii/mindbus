@@ -1,0 +1,65 @@
+# Swift / SPM
+.build/
+.swiftpm/
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+*.xcuserstate
+
+# 构建产物
+dist/
+*.app
+*.dmg
+*.zip
+
+# macOS
+.DS_Store
+
+# 本地配置（不要提交任何含密钥的文件）
+.env
+.env.local
+*.local.plist
+
+# ── 私有内容防护（配合 .githooks/ 的确定性拦截，双保险）──
+# 环境与密钥
+.env*
+.envrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.mobileprovision
+
+# 用户数据：索引库与对话原始数据绝不入仓
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.jsonl
+corpus.json
+eval.json
+
+# 私有规格与内部文档（归 私有仓，开源仓不放）
+CLAUDE.md
+MEMORY.md
+docs/specs/
+*SPEC.md
+ROADMAP*.md
+DEVPLAN*.md
+AUDIT-*.md
+
+# 本地工作区与调研产物
+.claude/
+.worktrees/
+scratchpad/
+research/
+private/
+_local/
+
+# claude-mem 注入的会话上下文（会随使用累积私有信息）
+AGENTS.md
+.superpowers/
+
+# 本机私有拦截规则（作者身份词等，规则本身即敏感）
+.githooks/local-deny.txt
